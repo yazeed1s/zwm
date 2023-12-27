@@ -1,11 +1,13 @@
+#include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
 
-/* compile with -DDEBUGGING for debugging output */
 #ifdef DEBUGGING
 #define DEBUG(x)       fprintf(stderr, "%s\n", x);
 #define DEBUGP(x, ...) fprintf(stderr, x, ##__VA_ARGS__);
@@ -20,8 +22,13 @@
 #define XCB_RESIZE                   (XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT)
 #define XCB_SUBSTRUCTURE_REDIRECTION (XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT)
 
-#define W_GAP      10
-#define CLIENT_CAP 4
+#define W_GAP                        10
+#define CLIENT_CAP                   4
+#define MAX_N_DESKTOPS               5
+
+typedef enum { HORIZONTAL_TYPE, VERTICAL_TYPE } split_type_t;
+
+typedef enum { HORIZONTAL_FLIP, VERTICAL_FLIP } flip_t;
 
 typedef struct {
     uint32_t previous_x, previous_y;
@@ -33,19 +40,42 @@ typedef struct {
     xcb_atom_t   type;
     posxy_t      position_info;
     uint32_t     border_width;
-    bool         set_focus;
-} client;
+    bool         is_focused;
+    bool         is_fullscreen;
+    bool         is_horizontally_split; // not sure if this will be needed
+    bool         is_vertically_split;   // same here
+} client_t;
+
+typedef struct {
+    bool       is_focused;
+    bool       is_full; // number of clients per desktop will be limited to N;
+    client_t **clients;
+    int        clients_n;
+} desktop_t;
 
 typedef struct {
     xcb_connection_t *connection;
     xcb_screen_t     *screen;
     xcb_window_t      root_window;
-} wm;
+    split_type_t      split_type;
+    desktop_t       **desktops;
+    uint8_t           max_number_of_desktops;
+    uint8_t           number_of_desktops;
+} wm_t;
 
-client **clients;
-int      clients_n = 0;
+client_t                **clients; // for now this is global
+int                       clients_n = 0;
+xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c);
+client_t                 *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn);
+void                      init_clients();
+void                      add_client(client_t *new_client);
+void                      free_clients();
+wm_t                     *init_wm();
+int                       resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height);
+int                       move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y);
+int                       handle_map_request(xcb_window_t win, wm_t *wm);
 
-static inline xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c) {
+xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c) {
     xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(c, win);
     xcb_generic_error_t      *error;
     xcb_get_geometry_reply_t *gr = xcb_get_geometry_reply(c, gc, &error);
@@ -61,19 +91,19 @@ static inline xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conne
     return gr;
 }
 
-client *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn) {
+client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn) {
     if (clients_n == CLIENT_CAP) {
         fprintf(stderr, "Client capacity exceeded\n");
         exit(EXIT_FAILURE);
     }
-    client *c = calloc(1, sizeof(client));
+    client_t *c = calloc(1, sizeof(client_t));
     if (c == 0x00) {
         fprintf(stderr, "Failed to calloc for client\n");
         exit(EXIT_FAILURE);
     }
     c->window                   = win;
     c->type                     = wtype;
-    c->border_width             = -1; /* default: use global border width */
+    c->border_width             = -1;
     xcb_get_geometry_reply_t *g = get_geometry(c->window, cn);
     c->position_info.previous_x = c->position_info.current_x = g->x;
     c->position_info.previous_y = c->position_info.current_y = g->y;
@@ -82,14 +112,14 @@ client *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn) 
 }
 
 void init_clients() {
-    clients = malloc(CLIENT_CAP * sizeof(client *));
+    clients = malloc(CLIENT_CAP * sizeof(client_t *));
     if (clients == NULL) {
         fprintf(stderr, "Failed to malloc for clients\n");
         exit(EXIT_FAILURE);
     }
 }
 
-void add_client(client *new_client) {
+void add_client(client_t *new_client) {
     if (clients_n == CLIENT_CAP) {
         fprintf(stderr, "Client capacity exceeded\n");
         exit(EXIT_FAILURE);
@@ -100,13 +130,15 @@ void add_client(client *new_client) {
 void free_clients() {
     for (int i = 0; i < clients_n; ++i) {
         free(clients[i]);
+        clients[i] = NULL;
     }
     free(clients);
+    clients = NULL;
 }
 
-wm *init_wm() {
-    int i, default_screen;
-    wm *w = malloc(sizeof(wm));
+wm_t *init_wm() {
+    int   i, default_screen;
+    wm_t *w = malloc(sizeof(wm_t));
     if (w == 0x00) {
         fprintf(stderr, "Failed to malloc for window manager\n");
         exit(EXIT_FAILURE);
@@ -121,11 +153,13 @@ wm *init_wm() {
 
     const xcb_setup_t    *setup = xcb_get_setup(w->connection);
     xcb_screen_iterator_t iter  = xcb_setup_roots_iterator(setup);
-    for (i = 0; i < default_screen; ++i) {
-        xcb_screen_next(&iter);
-    }
+    for (i = 0; i < default_screen; ++i) { xcb_screen_next(&iter); }
     w->screen                  = iter.data;
     w->root_window             = w->screen->root;
+    w->desktops                = NULL;
+    w->max_number_of_desktops  = MAX_N_DESKTOPS;
+    w->number_of_desktops      = 0;
+    w->split_type              = VERTICAL_TYPE;
     uint32_t          mask     = XCB_CW_EVENT_MASK;
     uint32_t          values[] = {XCB_SUBSTRUCTURE_REDIRECTION};
     xcb_void_cookie_t cookie   = xcb_change_window_attributes_checked(w->connection, w->root_window, mask, values);
@@ -165,7 +199,7 @@ wm *init_wm() {
 //     xcb_flush(wm->connection);
 // }
 
-int resize_window(wm *wm, xcb_window_t window, uint16_t width, uint16_t height) {
+int resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
     const uint32_t       values[] = {width, height};
     xcb_void_cookie_t    cookie   = xcb_configure_window_checked(wm->connection, window, XCB_RESIZE, values);
     xcb_generic_error_t *error    = xcb_request_check(wm->connection, cookie);
@@ -177,7 +211,7 @@ int resize_window(wm *wm, xcb_window_t window, uint16_t width, uint16_t height) 
     return 0;
 }
 
-int move_window(wm *wm, xcb_window_t window, uint16_t x, uint16_t y) {
+int move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y) {
     const uint32_t       values[] = {x, y};
     xcb_void_cookie_t    cookie   = xcb_configure_window_checked(wm->connection, window, XCB_MOVE, values);
     xcb_generic_error_t *error    = xcb_request_check(wm->connection, cookie);
@@ -189,33 +223,76 @@ int move_window(wm *wm, xcb_window_t window, uint16_t x, uint16_t y) {
     return 0;
 }
 
-int handle_map_request(xcb_window_t win, wm *w) {
+int handle_map_request(xcb_window_t win, wm_t *wm) {
     printf("Received MapRequest event for window: %u\n", win);
-    client *new_client = create_client(win, XCB_ATOM_WINDOW, w->connection);
+    client_t *new_client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
     if (new_client == 0x00) {
         fprintf(stderr, "Failed to create client for window: %u\n", win);
         return -1;
     }
     add_client(new_client);
-    uint16_t total_width      = w->screen->width_in_pixels - W_GAP;
-    uint16_t width_per_client = total_width / clients_n;
-    for (int i = 0; i < clients_n; ++i) {
-        uint16_t x     = i * width_per_client + W_GAP / 2;
-        uint16_t width = width_per_client - W_GAP;
-        if (resize_window(w, clients[i]->window, width, w->screen->height_in_pixels - W_GAP) != 0 ||
-            move_window(w, clients[i]->window, x, W_GAP / 2) != 0) {
+
+    uint16_t width  = wm->screen->width_in_pixels - W_GAP;
+    uint16_t height = wm->screen->height_in_pixels - W_GAP;
+    // 1920x1200 --> x (horizontal) = 1920 pixels,  y (vertical) = 1200 pixels
+    // TODO: make the resizing/moving of newly created windows(clients) dynamic
+    // this is ugly
+    if (clients_n == 1) {
+        if (resize_window(wm, new_client->window, width, height) != 0 ||
+            move_window(wm, new_client->window, W_GAP / 2, W_GAP / 2) != 0) {
+            return -1;
+        }
+    } else if (clients_n == 2) {
+        if (resize_window(wm, clients[0]->window, width / 2 - W_GAP / 2, height) != 0 ||
+            move_window(wm, clients[0]->window, W_GAP / 2, W_GAP / 2) != 0) {
+            return -1;
+        }
+        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height) != 0 ||
+            move_window(wm, new_client->window, width / 2 + W_GAP / 2, W_GAP / 2) != 0) {
+            return -1;
+        }
+    } else if (clients_n == 3) {
+        if (resize_window(wm, clients[1]->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
+            move_window(wm, clients[1]->window, width / 2 + W_GAP / 2, W_GAP / 2) != 0) {
+            return -1;
+        }
+        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
+            move_window(wm, new_client->window, width / 2 + W_GAP / 2, height / 2 + W_GAP / 2) != 0) {
+            return -1;
+        }
+    } else if (clients_n == 4) {
+        if (resize_window(wm, clients[0]->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
+            move_window(wm, clients[0]->window, W_GAP / 2, W_GAP / 2) != 0) {
+            return -1;
+        }
+        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
+            move_window(wm, new_client->window, W_GAP / 2, height / 2 + W_GAP / 2) != 0) {
             return -1;
         }
     }
-    xcb_set_input_focus(w->connection, XCB_INPUT_FOCUS_POINTER_ROOT, new_client->window, XCB_CURRENT_TIME);
-    xcb_map_window(w->connection, new_client->window);
-    xcb_flush(w->connection);
+    //    for (int i = 0; i < clients_n; ++i) {
+    //        uint16_t x = i * width + W_GAP / 2;
+    //        uint16_t y = W_GAP / 2;
+    //        uint16_t w = width - W_GAP;
+    //        uint16_t h = height - W_GAP;
+    //        if (clients_n % 2 == 0) {
+    //            y = i % 2 == 0 ? W_GAP / 2 : height / 2 + W_GAP / 2;
+    //            h = height / 2 - W_GAP / 2;
+    //        }
+    //
+    //        if (resize_window(wm, clients[i]->window, w, h) != 0 || move_window(wm, clients[i]->window, x, y) != 0) {
+    //            return -1;
+    //        }
+    //    }
+    xcb_set_input_focus(wm->connection, XCB_INPUT_FOCUS_POINTER_ROOT, new_client->window, XCB_CURRENT_TIME);
+    xcb_map_window(wm->connection, new_client->window);
+    xcb_flush(wm->connection);
     return 0;
 }
 
 int main() {
     init_clients();
-    wm *zwm = init_wm();
+    wm_t *zwm = init_wm();
     if (zwm == 0x00) {
         fprintf(stderr, "Failed to initialize window manager\n");
         exit(EXIT_FAILURE);
@@ -232,16 +309,14 @@ int main() {
             }
             break;
         }
-        case XCB_DESTROY_NOTIFY:
-            printf("Window Destroyed!\n");
-            break;
-        default:
-            break;
+        case XCB_DESTROY_NOTIFY: printf("Window Destroyed!\n"); break;
+        default: break;
         }
         free(event);
     }
     xcb_disconnect(zwm->connection);
     free_clients();
     free(zwm);
+    zwm = NULL;
     return 0;
 }
