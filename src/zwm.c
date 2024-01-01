@@ -1,17 +1,12 @@
+#include "zwm.h"
 #include "logger.h"
 #include "tree.h"
 #include "type.h"
-#include "zwm.h"
-#include <math.h>
-#include <stdarg.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <xcb/xcb.h>
-#include <xcb/xcb_keysyms.h>
 #include <xcb/xproto.h>
 
 #ifdef DEBUGGING
@@ -360,7 +355,8 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
         node->rectangle       = node->parent->rectangle;
         log_message(DEBUG, "Set 1st child rectangle: X: %d, Y: %d, Width: %u, Height: %u", node->rectangle.x,
                     node->rectangle.y, node->rectangle.width, node->rectangle.height);
-        goto EXEC;
+        if (tile(wm, node) != 0) { return -1; }
+        return 0;
     }
     if (wm->root->second_child == NULL) { // set 2nd child
         wm->root->second_child = node;
@@ -379,15 +375,16 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
                     "Set 2nd child rectangles: 1st Child - X: %d, Y: %d, Width: %u, Height: %u | "
                     "2nd Child - X: %d, Y: %d, Width: %u, Height: %u",
                     r1.x, r1.y, r1.width, r1.height, r2.x, r2.y, r2.width, r2.height);
+        if (tile(wm, node) != 0 || tile(wm, node->parent->first_child)) { return -1; }
+        return 0;
     }
-EXEC:
-    if (tile(wm, node) != 0) { return -1; }
     return 0;
 }
 
-int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win) {
-    client_t *client = find_client_by_window(win);
-    if (change_border_attributes(conn, client, 0xFF0000, 3, true) != 0) { return -1; }
+int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
+    // client_t *client = find_client_by_window(win);
+    node_t *n = find_node_by_window_id(root, win);
+    if (change_border_attributes(conn, n->client, 0xFF0000, 3, true) != 0) { return -1; }
     return 0;
     // xcb_flush(conn);
 }
@@ -442,7 +439,7 @@ int main() {
         }
         case XCB_ENTER_NOTIFY: {
             xcb_enter_notify_event_t *enter_event = (xcb_enter_notify_event_t *)event;
-            if (handle_enter_notify(zwm->connection, enter_event->event) != 0) {
+            if (handle_enter_notify(zwm->connection, enter_event->event, zwm->root) != 0) {
                 fprintf(stderr, "Failed to handle XCB_ENTER_NOTIFY\n");
                 exit(EXIT_FAILURE);
             }
@@ -491,6 +488,7 @@ int main() {
     }
     xcb_disconnect(zwm->connection);
     // free_clients();
+    free_tree(zwm->root);
     free(zwm);
     zwm = NULL;
     return 0;
