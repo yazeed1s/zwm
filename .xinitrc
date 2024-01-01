@@ -39,4 +39,4 @@ nitrogen --restore &
 xsetroot -cursor_name left_ptr &
 picom -f &
 sxhkd &
-exec $HOME/_dev/c_dev/zwm/zwm
+exec $HOME/_dev/c_dev/zwm/zwm >> zwm.txt

@@ -1,3 +1,7 @@
+#include "logger.h"
+#include "tree.h"
+#include "type.h"
+#include "zwm.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -7,6 +11,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 #include <xcb/xproto.h>
 
 #ifdef DEBUGGING
@@ -36,50 +41,20 @@
 #define NUM_COLUMNS    2
 #define NUM_ROWS       2
 
-typedef enum { HORIZONTAL_TYPE, VERTICAL_TYPE } split_type_t;
-
-typedef enum { HORIZONTAL_FLIP, VERTICAL_FLIP } flip_t;
-
-typedef enum {
-    ERROR,
-    INFO,
-    DEBUG,
-} log_level_t;
-
-typedef struct {
-    // 2^16 = 65535
-    uint16_t previous_x, previous_y;
-    uint16_t current_x, current_y;
-} posxy_t;
-
-typedef struct {
-    xcb_window_t window;
-    xcb_atom_t   type;
-    posxy_t      position_info;
-    uint8_t      border_width;
-    bool         is_focused;
-    bool         is_fullscreen;
-    bool         is_horizontally_split; // not sure if this will be needed
-    bool         is_vertically_split;   // same here
-} client_t;
-
-typedef struct {
-    uint8_t    id;
-    bool       is_focused;
-    bool       is_full; // number of clients per desktop will be limited to N;
-    client_t **clients;
-    uint8_t    clients_n;
-} desktop_t;
-
-typedef struct {
-    xcb_connection_t *connection;
-    xcb_screen_t     *screen;
-    xcb_window_t      root_window;
-    split_type_t      split_type;
-    desktop_t       **desktops;
-    uint8_t           max_number_of_desktops;
-    uint8_t           number_of_desktops;
-} wm_t;
+// https://www.cl.cam.ac.uk/~mgk25/ucs/keysymdef.h
+const uint16_t keycodes[] = {
+    0x0077, // 'w'
+    0x006c, // 'l'
+    0x0068, // 'h'
+    0x0073, // 's'
+    0x0066, // 'f'
+    0x0053, // 'S'
+    0x004c, // 'L'
+    0x0048, // 'H'
+    0x0056, // 'V'
+    0xff0d, // return
+    0xffeb, // super
+};
 
 client_t                **clients; // for now this is global
 int                       clients_n = 0;
@@ -92,33 +67,6 @@ wm_t                     *init_wm();
 int8_t                    resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height);
 int8_t                    move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y);
 int8_t                    handle_map_request(xcb_window_t win, wm_t *wm);
-
-void log_message(log_level_t level, const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    FILE *log_file = fopen("zwm.log", "a");
-    if (log_file == NULL) {
-        fprintf(stderr, "Failed to open log file for writing\n");
-        va_end(args);
-        return;
-    }
-    fprintf(log_file, "[");
-    switch (level) {
-    case ERROR: fprintf(log_file, "ERROR"); break;
-    case INFO: fprintf(log_file, "INFO"); break;
-    case DEBUG: fprintf(log_file, "DEBUG"); break;
-    default: break;
-    }
-    fprintf(log_file, "] ");
-    vfprintf(log_file, format, args);
-    fprintf(log_file, "\n");
-    fclose(log_file);
-    va_end(args);
-}
-
-void log_window_id(xcb_window_t window, const char *message) {
-    log_message(DEBUG, "%s: Window ID: %u", message, window);
-}
 
 xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c) {
     xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(c, win);
@@ -141,7 +89,7 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn
         fprintf(stderr, "Client capacity exceeded\n");
         exit(EXIT_FAILURE);
     }
-    client_t *c = calloc(1, sizeof(client_t));
+    client_t *c = (client_t *)malloc(sizeof(client_t));
     if (c == 0x00) {
         fprintf(stderr, "Failed to calloc for client\n");
         exit(EXIT_FAILURE);
@@ -167,7 +115,7 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn
 }
 
 void init_clients() {
-    clients = malloc(CLIENT_CAP * sizeof(client_t *));
+    clients = (client_t **)malloc(CLIENT_CAP * sizeof(client_t *));
     if (clients == NULL) {
         fprintf(stderr, "Failed to malloc for clients\n");
         exit(EXIT_FAILURE);
@@ -194,7 +142,7 @@ void free_clients() {
 
 wm_t *init_wm() {
     int   i, default_screen;
-    wm_t *w = malloc(sizeof(wm_t));
+    wm_t *w = (wm_t *)malloc(sizeof(wm_t));
     if (w == 0x00) {
         fprintf(stderr, "Failed to malloc for window manager\n");
         exit(EXIT_FAILURE);
@@ -214,6 +162,7 @@ wm_t *init_wm() {
     w->screen                     = iter.data;
     w->root_window                = w->screen->root;
     w->desktops                   = NULL;
+    w->root                       = NULL;
     w->max_number_of_desktops     = MAX_N_DESKTOPS;
     w->number_of_desktops         = 0;
     w->split_type                 = VERTICAL_TYPE;
@@ -358,66 +307,27 @@ int8_t change_border_attributes(xcb_connection_t *conn, client_t *client, uint32
     return 0;
 }
 
-int8_t tile(wm_t *wm, client_t *new_client) {
-    uint16_t width  = wm->screen->width_in_pixels - W_GAP;
-    uint16_t height = wm->screen->height_in_pixels - W_GAP;
-    // 1920x1200 --> x (horizontal) = 1920 pixels,  y (vertical) = 1200 pixels
-    // TODO: make the resizing/moving of newly created windows(clients) dynamic
-    // this is ugly
-    if (clients_n == 1) {
-        if (resize_window(wm, new_client->window, width, height) != 0 ||
-            move_window(wm, new_client->window, W_GAP / 2, W_GAP / 2) != 0) {
-            return -1;
-        }
-    } else if (clients_n == 2) {
-        if (resize_window(wm, clients[0]->window, width / 2 - W_GAP / 2, height) != 0 ||
-            move_window(wm, clients[0]->window, W_GAP / 2, W_GAP / 2) != 0) {
-            return -1;
-        }
-        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height) != 0 ||
-            move_window(wm, new_client->window, width / 2 + W_GAP / 2, W_GAP / 2) != 0) {
-            return -1;
-        }
-    } else if (clients_n == 3) {
-        if (resize_window(wm, clients[1]->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
-            move_window(wm, clients[1]->window, width / 2 + W_GAP / 2, W_GAP / 2) != 0) {
-            return -1;
-        }
-        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
-            move_window(wm, new_client->window, width / 2 + W_GAP / 2, height / 2 + W_GAP / 2) != 0) {
-            return -1;
-        }
-    } else if (clients_n == 4) {
-        if (resize_window(wm, clients[0]->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
-            move_window(wm, clients[0]->window, W_GAP / 2, W_GAP / 2) != 0) {
-            return -1;
-        }
-        if (resize_window(wm, new_client->window, width / 2 - W_GAP / 2, height / 2 - W_GAP / 2) != 0 ||
-            move_window(wm, new_client->window, W_GAP / 2, height / 2 + W_GAP / 2) != 0) {
-            return -1;
-        }
+int8_t tile(wm_t *wm, node_t *node) {
+    uint16_t width  = node->rectangle.width;
+    uint16_t height = node->rectangle.height;
+    int16_t  x      = node->rectangle.x;
+    int16_t  y      = node->rectangle.y;
+    log_message(DEBUG, "Tile: Window ID %u, Width: %u, Height: %u, X: %d, Y: %d", node->client->window, width, height,
+                x, y);
+    if (resize_window(wm, node->client->window, width, height) != 0 ||
+        move_window(wm, node->client->window, x, y) != 0) {
+        return -1;
     }
-    //    xcb_get_geometry_reply_t *g = get_prev_client_geometry(clients_n, wm->connection);
-    //    write_client_info_to_file(g, clients_n, new_client->window);
-    //    for (int i = 0; i < clients_n; ++i) {
-    //        uint16_t x = i * width + W_GAP / 2;
-    //        uint16_t y = W_GAP / 2;
-    //        uint16_t w = width - W_GAP;
-    //        uint16_t h = height - W_GAP;
-    //        if (clients_n % 2 == 0) {
-    //            y = i % 2 == 0 ? W_GAP / 2 : height / 2 + W_GAP / 2;
-    //            h = height / 2 - W_GAP / 2;
-    //        }
-    //
-    //        if (resize_window(wm, clients[i]->window, w, h) != 0 || move_window(wm, clients[i]->window, x, y) != 0) {
-    //            return -1;
-    //        }
-    //    }
-    log_window_id(new_client->window, "MapRequest handled successfully");
-    xcb_map_window(wm->connection, new_client->window);
+    xcb_map_window(wm->connection, node->client->window);
     xcb_flush(wm->connection);
     return 0;
 }
+
+// rectangle_t *create_rectangle(){
+//     rectangle_t *r = (rectangle_t*)malloc(sizeof(rectangle_t));
+//     r->width = r->height = r->y = r->x = 0;
+//     return r;
+// }
 
 int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
     client_t *new_client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
@@ -425,8 +335,53 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
         fprintf(stderr, "Failed to create client for window: %u\n", win);
         return -1;
     }
-    add_client(new_client);
-    if (tile(wm, new_client) != 0) { return -1; }
+    node_t *node = create_node(new_client);
+    if (node == NULL) {
+        fprintf(stderr, "Failed to create node for window: %u\n", win);
+        free(new_client);
+        return -1;
+    }
+    // set root
+    if (wm->root == NULL) {
+        wm->root      = init_root();
+        rectangle_t r = {.x      = 5,
+                         .y      = 5,
+                         .width  = wm->screen->width_in_pixels - W_GAP,
+                         .height = wm->screen->height_in_pixels - W_GAP};
+        set_rectangle(wm->root, r);
+        log_message(DEBUG, "Initialized root rectangle: X: %d, Y: %d, Width: %u, Height: %u", wm->root->rectangle.x,
+                    wm->root->rectangle.y, wm->root->rectangle.width, wm->root->rectangle.height);
+        log_message(DEBUG, "Initialized root rectangle 2: X: %d, Y: %d, Width: %u, Height: %u", r.x, r.y, r.width,
+                    r.height);
+    }
+    if (wm->root->first_child == NULL && wm->root->second_child == NULL) { // set 1st child
+        wm->root->first_child = node;
+        node->parent          = wm->root;
+        node->rectangle       = node->parent->rectangle;
+        log_message(DEBUG, "Set 1st child rectangle: X: %d, Y: %d, Width: %u, Height: %u", node->rectangle.x,
+                    node->rectangle.y, node->rectangle.width, node->rectangle.height);
+        goto EXEC;
+    }
+    if (wm->root->second_child == NULL) { // set 2nd child
+        wm->root->second_child = node;
+        node->parent           = wm->root;
+        rectangle_t r1         = {.x      = 5,
+                                  .y      = 5,
+                                  .width  = node->parent->rectangle.width / 2 - -W_GAP / 2,
+                                  .height = node->parent->rectangle.height};
+        rectangle_t r2         = {.x      = node->parent->rectangle.width / 2 + W_GAP,
+                                  .y      = 5,
+                                  .width  = node->parent->rectangle.width / 2 - -W_GAP / 2,
+                                  .height = node->parent->rectangle.height};
+        set_rectangle(wm->root->first_child, r1);
+        node->rectangle = r2;
+        log_message(DEBUG,
+                    "Set 2nd child rectangles: 1st Child - X: %d, Y: %d, Width: %u, Height: %u | "
+                    "2nd Child - X: %d, Y: %d, Width: %u, Height: %u",
+                    r1.x, r1.y, r1.width, r1.height, r2.x, r2.y, r2.width, r2.height);
+    }
+EXEC:
+    if (tile(wm, node) != 0) { return -1; }
     return 0;
 }
 
@@ -437,14 +392,14 @@ int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win) {
     // xcb_flush(conn);
 }
 
-int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win) {
+__attribute__((unused)) int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win) {
     client_t *client = find_client_by_window(win);
     if (change_border_attributes(conn, client, 0x000000, 0, false) != 0) { return -1; }
     return 0;
 }
 
 int main() {
-    init_clients();
+    // init_clients();
     wm_t *zwm = init_wm();
     if (zwm == 0x00) {
         fprintf(stderr, "Failed to initialize window manager\n");
@@ -510,6 +465,14 @@ int main() {
             __attribute__((unused)) xcb_button_release_event_t *button_release = (xcb_button_release_event_t *)event;
             break;
         }
+        case XCB_KEY_PRESS: {
+            __attribute__((unused)) xcb_key_press_event_t *key_press = (xcb_key_press_event_t *)event;
+            break;
+        }
+        case XCB_KEY_RELEASE: {
+            __attribute__((unused)) xcb_key_release_event_t *key_release = (xcb_key_release_event_t *)event;
+            break;
+        }
         case XCB_FOCUS_IN: {
             __attribute__((unused)) xcb_focus_in_event_t *focus_in_event = (xcb_focus_in_event_t *)event;
             break;
@@ -527,7 +490,7 @@ int main() {
         free(event);
     }
     xcb_disconnect(zwm->connection);
-    free_clients();
+    // free_clients();
     free(zwm);
     zwm = NULL;
     return 0;
