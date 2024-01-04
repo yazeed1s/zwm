@@ -2,11 +2,11 @@
 // Created by yaz on 12/31/23.
 //
 
+#include "type.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <xcb/xcb.h>
-#include "type.h"
 
 void log_message(log_level_t level, const char *format, ...) {
     va_list args;

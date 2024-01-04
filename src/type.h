@@ -4,9 +4,13 @@
 #include <stdint.h>
 #include <xcb/xcb.h>
 
+#define W_GAP 10
+
 typedef enum { HORIZONTAL_TYPE __attribute__((unused)), VERTICAL_TYPE } split_type_t;
 
 typedef enum { HORIZONTAL_FLIP __attribute__((unused)), VERTICAL_FLIP __attribute__((unused)) } flip_t;
+
+typedef enum { LEFT, RIGHT, NONE } direction_t;
 
 typedef enum {
     ERROR,
@@ -61,6 +65,27 @@ typedef enum { ROOT_NODE, INTERNAL_NODE, EXTERNAL_NODE } node_type_t;
  [I] partitions/sections can be:
  1- container of other partitions
  2- contained by other partitions
+
+the behviour should be
+
+             1                          a                          a
+             ^                         / \                        / \
+                         --->         1   2         --->         1   b
+                                          ^                         / \
+                                                                   2   3
+                                                                       ^
+
+ +-----------------------+  +-----------------------+  +-----------------------+
+ |                       |  |           |           |  |           |           |
+ |                       |  |           |           |  |           |     2     |
+ |                       |  |           |           |  |           |           |
+ |           1           |  |     1     |     2     |  |     1     |-----------|
+ |           ^           |  |           |     ^     |  |           |           |
+ |                       |  |           |           |  |           |     3     |
+ |                       |  |           |           |  |           |     ^     |
+ +-----------------------+  +-----------------------+  +-----------------------+
+
+             X                          Y                          Z
 */
 
 typedef struct node_t node_t;

@@ -3,6 +3,7 @@
 #include "tree.h"
 #include "type.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,7 +154,9 @@ wm_t *init_wm() {
 
     const xcb_setup_t    *setup = xcb_get_setup(w->connection);
     xcb_screen_iterator_t iter  = xcb_setup_roots_iterator(setup);
-    for (i = 0; i < default_screen; ++i) { xcb_screen_next(&iter); }
+    for (i = 0; i < default_screen; ++i) {
+        xcb_screen_next(&iter);
+    }
     w->screen                     = iter.data;
     w->root_window                = w->screen->root;
     w->desktops                   = NULL;
@@ -175,31 +178,6 @@ wm_t *init_wm() {
     }
     return w;
 }
-
-// void create_frame(wm *wm, xcb_window_t window) {
-//     // xcb_get_geometry_reply_t *frame_geometry = get_geometry(wm->root_window, wm->connection);
-//     // xcb_window_t frame              = xcb_generate_id(wm->connection);
-//     //    uint32_t frame_value_list[] = {
-//     //        XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_RESIZE | XCB_MOVE,
-//     //    };
-//     // xcb_create_window(wm->connection, XCB_COPY_FROM_PARENT, frame, wm->root_window, 100, 100,
-//     frame_geometry->width -
-//     // 300,
-//     //                   frame_geometry->height - 300, 10, // border width
-//     //                   XCB_WINDOW_CLASS_INPUT_OUTPUT, wm->screen->root_visual, XCB_CW_EVENT_MASK,
-//     frame_value_list);
-//     // xcb_reparent_window(wm->connection, window, frame, 0, 0);
-//     xcb_configure_window(wm->connection, window, XCB_RESIZE,
-//                          (const uint32_t[]){wm->screen->width_in_pixels - W_GAP, wm->screen->height_in_pixels -
-//                          W_GAP});
-//     xcb_configure_window(wm->connection, window, XCB_MOVE, (const uint32_t[]){10, 20});
-//     // xcb_map_window(wm->connection, frame);
-//     xcb_map_window(wm->connection, window);
-//
-//     xcb_set_input_focus(wm->connection, XCB_INPUT_FOCUS_POINTER_ROOT, window, XCB_CURRENT_TIME);
-//     // free(frame_geometry);
-//     xcb_flush(wm->connection);
-// }
 
 int8_t resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
     const uint32_t       values[] = {width, height};
@@ -248,7 +226,9 @@ __attribute__((unused)) void write_client_info_to_file(xcb_get_geometry_reply_t 
 
 client_t *find_client_by_window(xcb_window_t win) {
     for (int i = 0; i < clients_n; i++) {
-        if (clients[i]->window == win) { return clients[i]; }
+        if (clients[i]->window == win) {
+            return clients[i];
+        }
     }
     return NULL;
 }
@@ -296,7 +276,9 @@ int8_t change_border_attributes(xcb_connection_t *conn, client_t *client, uint32
         return -1;
     }
     for (int j = 0; j < clients_n; j++) {
-        if (clients[j] != client) { clients[j]->is_focused = false; }
+        if (clients[j] != client) {
+            clients[j]->is_focused = false;
+        }
     }
     xcb_flush(conn);
     return 0;
@@ -307,8 +289,6 @@ int8_t tile(wm_t *wm, node_t *node) {
     uint16_t height = node->rectangle.height;
     int16_t  x      = node->rectangle.x;
     int16_t  y      = node->rectangle.y;
-    log_message(DEBUG, "Tile: Window ID %u, Width: %u, Height: %u, X: %d, Y: %d", node->client->window, width, height,
-                x, y);
     if (resize_window(wm, node->client->window, width, height) != 0 ||
         move_window(wm, node->client->window, x, y) != 0) {
         return -1;
@@ -316,6 +296,31 @@ int8_t tile(wm_t *wm, node_t *node) {
     xcb_map_window(wm->connection, node->client->window);
     xcb_flush(wm->connection);
     return 0;
+}
+
+int16_t get_cursor_axis(xcb_connection_t *conn, xcb_window_t window) {
+    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, window);
+    xcb_query_pointer_reply_t *p_reply  = xcb_query_pointer_reply(conn, p_cookie, NULL);
+    if (!p_reply) {
+        fprintf(stderr, "Failed to query pointer position\n");
+        return -1;
+    }
+    log_message(DEBUG, "cursor: X: %d, Y: %d", p_reply->root_x, p_reply->root_y);
+    int16_t x = p_reply->root_x;
+    free(p_reply);
+    return x;
+}
+
+xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t window) {
+    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, window);
+    xcb_query_pointer_reply_t *p_reply  = xcb_query_pointer_reply(conn, p_cookie, NULL);
+    if (!p_reply) {
+        fprintf(stderr, "Failed to query pointer position\n");
+        return -1;
+    }
+    xcb_window_t x = p_reply->child;
+    free(p_reply);
+    return x;
 }
 
 // rectangle_t *create_rectangle(){
@@ -330,15 +335,9 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
         fprintf(stderr, "Failed to create client for window: %u\n", win);
         return -1;
     }
-    node_t *node = create_node(new_client);
-    if (node == NULL) {
-        fprintf(stderr, "Failed to create node for window: %u\n", win);
-        free(new_client);
-        return -1;
-    }
-    // set root
-    if (wm->root == NULL) {
-        wm->root      = init_root();
+    if (is_tree_empty(wm->root)) {
+        // the very first window
+        wm->root      = create_node(new_client);
         rectangle_t r = {.x      = 5,
                          .y      = 5,
                          .width  = wm->screen->width_in_pixels - W_GAP,
@@ -346,52 +345,33 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
         set_rectangle(wm->root, r);
         log_message(DEBUG, "Initialized root rectangle: X: %d, Y: %d, Width: %u, Height: %u", wm->root->rectangle.x,
                     wm->root->rectangle.y, wm->root->rectangle.width, wm->root->rectangle.height);
-        log_message(DEBUG, "Initialized root rectangle 2: X: %d, Y: %d, Width: %u, Height: %u", r.x, r.y, r.width,
-                    r.height);
-    }
-    if (wm->root->first_child == NULL && wm->root->second_child == NULL) { // set 1st child
-        wm->root->first_child = node;
-        node->parent          = wm->root;
-        node->rectangle       = node->parent->rectangle;
-        log_message(DEBUG, "Set 1st child rectangle: X: %d, Y: %d, Width: %u, Height: %u", node->rectangle.x,
-                    node->rectangle.y, node->rectangle.width, node->rectangle.height);
-        if (tile(wm, node) != 0) { return -1; }
+        tile(wm, wm->root);
         return 0;
     }
-    if (wm->root->second_child == NULL) { // set 2nd child
-        wm->root->second_child = node;
-        node->parent           = wm->root;
-        rectangle_t r1         = {.x      = 5,
-                                  .y      = 5,
-                                  .width  = node->parent->rectangle.width / 2 - -W_GAP / 2,
-                                  .height = node->parent->rectangle.height};
-        rectangle_t r2         = {.x      = node->parent->rectangle.width / 2 + W_GAP,
-                                  .y      = 5,
-                                  .width  = node->parent->rectangle.width / 2 - -W_GAP / 2,
-                                  .height = node->parent->rectangle.height};
-        set_rectangle(wm->root->first_child, r1);
-        node->rectangle = r2;
-        log_message(DEBUG,
-                    "Set 2nd child rectangles: 1st Child - X: %d, Y: %d, Width: %u, Height: %u | "
-                    "2nd Child - X: %d, Y: %d, Width: %u, Height: %u",
-                    r1.x, r1.y, r1.width, r1.height, r2.x, r2.y, r2.width, r2.height);
-        if (tile(wm, node) != 0 || tile(wm, node->parent->first_child)) { return -1; }
-        return 0;
+    xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
+    node_t      *n  = find_node_by_window_id(wm->root, wi);
+    if (n == NULL) {
+        log_message(ERROR, "cannot find node with window id %d", wi);
     }
+    insert_under_cursor(n, new_client, wm, wi);
+    display_tree(wm->root, wm);
     return 0;
 }
 
 int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
     // client_t *client = find_client_by_window(win);
     node_t *n = find_node_by_window_id(root, win);
-    if (change_border_attributes(conn, n->client, 0xFF0000, 3, true) != 0) { return -1; }
+    if (change_border_attributes(conn, n->client, 0xFF0000, 3, true) != 0) {
+        return -1;
+    }
     return 0;
-    // xcb_flush(conn);
 }
 
 __attribute__((unused)) int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win) {
     client_t *client = find_client_by_window(win);
-    if (change_border_attributes(conn, client, 0x000000, 0, false) != 0) { return -1; }
+    if (change_border_attributes(conn, client, 0x000000, 0, false) != 0) {
+        return -1;
+    }
     return 0;
 }
 
@@ -489,6 +469,7 @@ int main() {
     xcb_disconnect(zwm->connection);
     // free_clients();
     free_tree(zwm->root);
+    zwm->root = NULL;
     free(zwm);
     zwm = NULL;
     return 0;
