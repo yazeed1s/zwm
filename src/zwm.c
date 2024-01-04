@@ -337,39 +337,44 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
     }
     if (is_tree_empty(wm->root)) {
         // the very first window
-        wm->root      = create_node(new_client);
-        rectangle_t r = {.x      = 5,
-                         .y      = 5,
-                         .width  = wm->screen->width_in_pixels - W_GAP,
-                         .height = wm->screen->height_in_pixels - W_GAP};
+        wm->root         = init_root();
+        wm->root->client = new_client;
+        rectangle_t r    = {.x      = 5,
+                            .y      = 5,
+                            .width  = wm->screen->width_in_pixels - W_GAP,
+                            .height = wm->screen->height_in_pixels - W_GAP};
         set_rectangle(wm->root, r);
         log_message(DEBUG, "Initialized root rectangle: X: %d, Y: %d, Width: %u, Height: %u", wm->root->rectangle.x,
                     wm->root->rectangle.y, wm->root->rectangle.width, wm->root->rectangle.height);
-        tile(wm, wm->root);
+        if (tile(wm, wm->root) != 0) {
+            log_message(ERROR, "cannot display root node with window id %d", wm->root->client->window);
+            return -1;
+        }
         return 0;
     }
     xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
-    node_t      *n  = find_node_by_window_id(wm->root, wi);
+    if (wi == wm->root_window || wi == 0) return 0; // dont attempt to split root_window
+    node_t *n = find_node_by_window_id(wm->root, wi);
     if (n == NULL) {
         log_message(ERROR, "cannot find node with window id %d", wi);
+        return -1;
     }
     insert_under_cursor(n, new_client, wm, wi);
-    display_tree(wm->root, wm);
+    if (display_tree(wm->root, wm) != 0) return -1;
     return 0;
 }
 
 int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
-    // client_t *client = find_client_by_window(win);
     node_t *n = find_node_by_window_id(root, win);
-    if (change_border_attributes(conn, n->client, 0xFF0000, 3, true) != 0) {
+    if (change_border_attributes(conn, n->client, 0x83a598, 1, true) != 0) {
         return -1;
     }
     return 0;
 }
 
-__attribute__((unused)) int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win) {
-    client_t *client = find_client_by_window(win);
-    if (change_border_attributes(conn, client, 0x000000, 0, false) != 0) {
+int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
+    node_t *n = find_node_by_window_id(root, win);
+    if (change_border_attributes(conn, n->client, 0x000000, 0, false) != 0) {
         return -1;
     }
     return 0;
@@ -426,8 +431,8 @@ int main() {
             break;
         }
         case XCB_LEAVE_NOTIFY: {
-            __attribute__((unused)) xcb_leave_notify_event_t *leave_event = (xcb_leave_notify_event_t *)event;
-            // handle_leave_notify(zwm->connection, leave_event->event);
+            xcb_leave_notify_event_t *leave_event = (xcb_leave_notify_event_t *)event;
+            handle_leave_notify(zwm->connection, leave_event->event, zwm->root);
             break;
         }
         case XCB_MOTION_NOTIFY: {
