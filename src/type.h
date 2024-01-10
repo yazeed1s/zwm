@@ -1,16 +1,26 @@
-#ifndef ZWM_TYPES_H
-#define ZWM_TYPES_H
+#ifndef ZWM_TYPE_H
+#define ZWM_TYPE_H
 #include <stdbool.h>
 #include <stdint.h>
 #include <xcb/xcb.h>
 
 #define W_GAP 10
 
-typedef enum { HORIZONTAL_TYPE __attribute__((unused)), VERTICAL_TYPE } split_type_t;
+typedef enum {
+    HORIZONTAL_TYPE __attribute__((unused)),
+    VERTICAL_TYPE
+} split_type_t;
 
-typedef enum { HORIZONTAL_FLIP __attribute__((unused)), VERTICAL_FLIP __attribute__((unused)) } flip_t;
+typedef enum {
+    HORIZONTAL_FLIP __attribute__((unused)),
+    VERTICAL_FLIP __attribute__((unused))
+} flip_t;
 
-typedef enum { LEFT, RIGHT, NONE } direction_t;
+typedef enum {
+    LEFT,
+    RIGHT,
+    NONE
+} direction_t;
 
 typedef enum {
     ERROR,
@@ -39,7 +49,11 @@ typedef struct {
     posxy_t      position_info;
 } client_t;
 
-typedef enum { ROOT_NODE, INTERNAL_NODE, EXTERNAL_NODE } node_type_t;
+typedef enum {
+    ROOT_NODE,
+    INTERNAL_NODE,
+    EXTERNAL_NODE
+} node_type_t;
 
 /*
         I         ROOT (root is also an INTERNAL NODE, unless it is leaf)
@@ -52,7 +66,7 @@ typedef enum { ROOT_NODE, INTERNAL_NODE, EXTERNAL_NODE } node_type_t;
  E = windows in every screen partition.
  windows are basically the leaves of a full binary tree.
  E nodes, on the screen, evenly share the width & height of their I parent,
- and the I's x & y as well.
+ and the  I's x & y as well.
 
         I
       /   \
@@ -103,11 +117,12 @@ struct node_t {
 };
 
 typedef struct {
-    uint8_t    id;
-    bool       is_focused;
-    bool       is_full;
-    client_t **clients;
-    uint8_t    clients_n;
+    uint8_t id;
+    bool    is_focused;
+    bool    is_full;
+    // client_t **clients;
+    node_t *tree;
+    uint8_t clients_n;
 } desktop_t;
 
 typedef struct {
@@ -121,4 +136,14 @@ typedef struct {
     uint8_t           number_of_desktops;
 } wm_t;
 
-#endif // ZWM_TYPES_H
+// typedef void (*function_ptr)(void *);
+// typedef int8_t (*function_ptr)(xcb_connection_t *, xcb_window_t, node_t *, wm_t *);
+typedef void *(*function_ptr)(void *, ...);
+typedef struct {
+    unsigned int mod;
+    xcb_keysym_t keysym;
+    function_ptr fptr;
+    // TODO: function pointer
+    // TODO: args
+} _key_t;
+#endif // ZWM_TYPE_H
