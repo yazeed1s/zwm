@@ -7,9 +7,9 @@
 node_t *create_node(client_t *c);
 node_t *init_root();
 node_t *find_node_by_window_id(node_t *root, xcb_window_t window_id);
-void    insert_under_cursor(node_t *current_node, client_t *new_client, wm_t *wm, xcb_window_t win);
+void    insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_t win);
 int     get_tree_level(node_t *current_node);
-int8_t  display_tree(node_t *current_node, wm_t *wm);
+int     display_tree(node_t *current_node, wm_t *wm);
 void    delete_node(node_t *node);
 void    free_tree(node_t *root);
 void    log_tree_nodes(node_t *node);

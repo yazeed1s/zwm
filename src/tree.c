@@ -39,7 +39,7 @@ node_t *init_root() {
     return node;
 }
 
-int8_t display_tree(node_t *current_node, wm_t *wm) {
+int display_tree(node_t *current_node, wm_t *wm) {
 
     if (current_node == NULL) {
         log_message(DEBUG, "early returns in display_tree()");
@@ -67,7 +67,7 @@ int get_tree_level(node_t *current_node) {
     return 1 + ((level_first_child > level_second_child) ? level_first_child : level_second_child);
 }
 
-void insert_under_cursor(node_t *current_node, client_t *new_client, wm_t *wm, xcb_window_t win) {
+void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_t win) {
     if (current_node == NULL) {
         log_message(ERROR, "current_node is null");
         return;
@@ -79,17 +79,17 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, wm_t *wm, x
     }
 
     current_node->node_type = INTERNAL_NODE;
-    
+
     if (current_node->client->window == win) {
-        if (!has_first_child(current_node)) { 
-            client_t *nc = create_client(current_node->client->window, XCB_ATOM_WINDOW, wm->connection);
-            if (nc == NULL) {
-                log_message(ERROR, "faild to allocate client for child");
-                return;
-            }
-            current_node->first_child = create_node(nc);
+        if (!has_first_child(current_node)) {
+            // client_t *nc = create_client(current_node->client->window, XCB_ATOM_WINDOW, wm->connection);
+            // if (nc == NULL) {
+            //     log_message(ERROR, "faild to allocate client for child");
+            //     return;
+            // }
+            current_node->first_child         = create_node(current_node->client);
             current_node->first_child->parent = current_node;
-            rectangle_t r = {0};
+            rectangle_t r                     = {0};
             if (current_node->rectangle.width >= current_node->rectangle.height) {
                 r.x      = current_node->rectangle.x;
                 r.y      = current_node->rectangle.y;
@@ -103,16 +103,16 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, wm_t *wm, x
             }
             current_node->first_child->rectangle = r;
             current_node->first_child->node_type = EXTERNAL_NODE;
-            free(current_node->client);
+            // free(current_node->client);
             current_node->client = NULL;
-            // return 0;
-        } else {
-            insert_under_cursor(current_node->first_child, new_client, wm, win);
         }
+        // else {
+        //     insert_under_cursor(current_node->first_child, new_client, win);
+        // }
         if (!has_second_child(current_node)) {
-            current_node->second_child = create_node(new_client);
+            current_node->second_child         = create_node(new_client);
             current_node->second_child->parent = current_node;
-            rectangle_t r = {0};
+            rectangle_t r                      = {0};
             if (current_node->rectangle.width >= current_node->rectangle.height) {
                 r.x      = current_node->rectangle.x + current_node->rectangle.width / 2 + W_GAP;
                 r.y      = current_node->rectangle.y;
@@ -126,10 +126,10 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, wm_t *wm, x
             }
             current_node->second_child->rectangle = r;
             current_node->second_child->node_type = EXTERNAL_NODE;
-           // return;
-        } else {
-            insert_under_cursor(current_node->second_child, new_client, wm, win);
         }
+        // else {
+        //     insert_under_cursor(current_node->second_child, new_client, win);
+        // }
     } else {
         log_message(DEBUG, "window id bring no match");
         return;

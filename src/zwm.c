@@ -153,7 +153,7 @@ wm_t *init_wm() {
     return w;
 }
 
-int8_t resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
+int resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
     if (window == 0 || window == XCB_NONE) return 0;
    
     const uint32_t       values[] = {width, height};
@@ -169,7 +169,7 @@ int8_t resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t hei
     return 0;
 }
 
-int8_t move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y) {
+int move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y) {
     if (window == 0 || window == XCB_NONE) return 0;
    
     const uint32_t       values[] = {x, y};
@@ -201,7 +201,7 @@ __attribute__((unused)) void write_client_info_to_file(xcb_get_geometry_reply_t 
     fclose(file);
 }
 
-int8_t change_border_attributes(
+int change_border_attributes(
     xcb_connection_t *conn, client_t *client, uint32_t b_color, uint32_t b_width, bool stack
 ) {
     if (client == NULL) {
@@ -234,24 +234,24 @@ int8_t change_border_attributes(
     return 0;
 }
 
-int8_t change_window_attributes(
+int change_window_attributes(
     xcb_connection_t *conn, xcb_window_t window, uint32_t attribute, const void *value
 ) {
     xcb_void_cookie_t attr_cookie = xcb_change_window_attributes_checked(conn, window, attribute, value);
     return handle_xcb_error(conn, attr_cookie, "Failed to change window attributes");
 }
 
-int8_t configure_window(xcb_connection_t *conn, xcb_window_t window, uint16_t attribute, const void *value) {
+int configure_window(xcb_connection_t *conn, xcb_window_t window, uint16_t attribute, const void *value) {
     xcb_void_cookie_t config_cookie = xcb_configure_window_checked(conn, window, attribute, value);
     return handle_xcb_error(conn, config_cookie, "Failed to configure window");
 }
 
-int8_t set_input_focus(xcb_connection_t *conn, uint8_t revert_to, xcb_window_t window, xcb_timestamp_t time) {
+int set_input_focus(xcb_connection_t *conn, uint8_t revert_to, xcb_window_t window, xcb_timestamp_t time) {
     xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(conn, revert_to, window, time);
     return handle_xcb_error(conn, focus_cookie, "Failed to set input focus");
 }
 
-int8_t handle_xcb_error(xcb_connection_t *conn, xcb_void_cookie_t cookie, const char *error_message) {
+int handle_xcb_error(xcb_connection_t *conn, xcb_void_cookie_t cookie, const char *error_message) {
     xcb_generic_error_t *error = xcb_request_check(conn, cookie);
     if (error != NULL) {
         log_message(ERROR, "%s: error code %d", error_message, error->error_code);
@@ -261,7 +261,7 @@ int8_t handle_xcb_error(xcb_connection_t *conn, xcb_void_cookie_t cookie, const 
     return 0;
 }
 
-int8_t tile(wm_t *wm, node_t *node) {
+int tile(wm_t *wm, node_t *node) {
     if (node == NULL) return 0;
 
     uint16_t width  = node->rectangle.width;
@@ -334,7 +334,7 @@ xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t window
     return x;
 }
 
-int8_t kill_window(xcb_connection_t *conn, xcb_window_t win, node_t *root, wm_t *wm) {
+int kill_window(xcb_connection_t *conn, xcb_window_t win, node_t *root, wm_t *wm) {
     if (win == 0) return 0;
     log_message(DEBUG, "before inner kill");
     node_t *n = find_node_by_window_id(root, win);
@@ -359,7 +359,7 @@ int8_t kill_window(xcb_connection_t *conn, xcb_window_t win, node_t *root, wm_t 
     return 0;
 }
 
-int8_t handle_first_window(client_t *new_client, wm_t *wm) {
+int handle_first_window(client_t *new_client, wm_t *wm) {
     wm->root         = init_root();
     wm->root->client = new_client;
 
@@ -380,7 +380,7 @@ int8_t handle_first_window(client_t *new_client, wm_t *wm) {
     return 0;
 }
 
-int8_t handle_subsequent_window(client_t *new_client, wm_t *wm) {
+int handle_subsequent_window(client_t *new_client, wm_t *wm) {
     xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
     if (wi == wm->root_window || wi == 0) return 0; // don't attempt to split root_window
 
@@ -389,13 +389,13 @@ int8_t handle_subsequent_window(client_t *new_client, wm_t *wm) {
         log_message(ERROR, "cannot find node with window id %d", wi);
         return -1;
     }
-    insert_under_cursor(n, new_client, wm, wi);
+    insert_under_cursor(n, new_client, wi);
     if (display_tree(wm->root, wm) != 0) return -1;
     log_tree_nodes(wm->root);
     return 0;
 }
 
-int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
+int handle_map_request(xcb_window_t win, wm_t *wm) {
     client_t *new_client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 
     if (new_client == NULL) {
@@ -410,7 +410,7 @@ int8_t handle_map_request(xcb_window_t win, wm_t *wm) {
     return handle_subsequent_window(new_client, wm);
 }
 
-int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
+int handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
     node_t *n = find_node_by_window_id(root, win);
 
     if (n == NULL) return -1;
@@ -421,7 +421,7 @@ int8_t handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *roo
     return 0;
 }
 
-int8_t handle_leave_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
+int handle_leave_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
     node_t *n = find_node_by_window_id(root, win);
 
     if (n == NULL) return 0;

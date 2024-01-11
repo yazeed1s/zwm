@@ -44,7 +44,7 @@ typedef struct {
 typedef struct {
     xcb_window_t window;
     xcb_atom_t   type;
-    uint8_t      border_width;
+    uint32_t     border_width;
     bool         is_focused;
     posxy_t      position_info;
 } client_t;
@@ -122,7 +122,7 @@ typedef struct {
     bool    is_full;
     // client_t **clients;
     node_t *tree;
-    uint8_t clients_n;
+    int clients_n;
 } desktop_t;
 
 typedef struct {
@@ -132,8 +132,8 @@ typedef struct {
     split_type_t      split_type;
     desktop_t       **desktops;
     node_t           *root;
-    uint8_t           max_number_of_desktops;
-    uint8_t           number_of_desktops;
+    int           max_number_of_desktops;
+    int           number_of_desktops;
 } wm_t;
 
 // typedef void (*function_ptr)(void *);
