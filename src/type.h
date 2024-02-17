@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <xcb/xcb.h>
 
-#define W_GAP 10
+#define W_GAP 5
 
 typedef enum {
     HORIZONTAL_TYPE __attribute__((unused)),
@@ -50,9 +50,9 @@ typedef struct {
 } client_t;
 
 typedef enum {
-    ROOT_NODE,
-    INTERNAL_NODE,
-    EXTERNAL_NODE
+    ROOT_NODE     = 1 << 1,
+    INTERNAL_NODE = 1 << 2,
+    EXTERNAL_NODE = 1 << 3
 } node_type_t;
 
 /*
@@ -122,7 +122,7 @@ typedef struct {
     bool    is_full;
     // client_t **clients;
     node_t *tree;
-    int clients_n;
+    int     clients_n;
 } desktop_t;
 
 typedef struct {
@@ -132,8 +132,8 @@ typedef struct {
     split_type_t      split_type;
     desktop_t       **desktops;
     node_t           *root;
-    int           max_number_of_desktops;
-    int           number_of_desktops;
+    int               max_number_of_desktops;
+    int               number_of_desktops;
 } wm_t;
 
 // typedef void (*function_ptr)(void *);

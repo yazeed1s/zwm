@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xproto.h>
@@ -19,6 +20,8 @@
 #define DEBUG(x)
 #define DEBUGP(x, ...)
 #endif
+
+#define CLEANMASK(mask) (mask & ~(0 | XCB_MOD_MASK_LOCK))
 
 // handy xcb masks for common operations
 #define XCB_MOVE_RESIZE \
@@ -100,6 +103,20 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn
     return c;
 }
 
+desktop_t *init_desktop() {
+    desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
+    if (d == 0x00) {
+        exit(EXIT_FAILURE);
+    }
+
+    d->id         = 0;
+    d->is_focused = false;
+    d->is_full    = false;
+    d->clients_n  = 0;
+    d->tree       = NULL;
+    return d;
+}
+
 wm_t *init_wm() {
     int   i, default_screen;
     wm_t *w = (wm_t *)malloc(sizeof(wm_t));
@@ -125,10 +142,10 @@ wm_t *init_wm() {
 
     w->screen                 = iter.data;
     w->root_window            = w->screen->root;
-    w->desktops               = NULL;
+    w->desktops               = (desktop_t **)malloc(sizeof(desktop_t *) * MAX_N_DESKTOPS);
     w->root                   = NULL;
     w->max_number_of_desktops = MAX_N_DESKTOPS;
-    w->number_of_desktops     = 0;
+    w->number_of_desktops     = 3;
     w->split_type             = VERTICAL_TYPE;
     uint32_t mask             = XCB_CW_EVENT_MASK;
     uint32_t values[]         = {ROOT_EVENT_MASK};
@@ -149,13 +166,19 @@ wm_t *init_wm() {
         free(error);
         exit(EXIT_FAILURE);
     }
+    if (w->desktops == 0x00) return NULL;
+    for (int j = 0; j < MAX_N_DESKTOPS; j++) {
+        desktop_t *d   = init_desktop();
+        d->id          = j;
+        w->desktops[j] = d;
+    }
 
     return w;
 }
 
 int resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
     if (window == 0 || window == XCB_NONE) return 0;
-   
+
     const uint32_t       values[] = {width, height};
     xcb_void_cookie_t    cookie   = xcb_configure_window_checked(wm->connection, window, XCB_RESIZE, values);
     xcb_generic_error_t *error    = xcb_request_check(wm->connection, cookie);
@@ -165,13 +188,15 @@ int resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height
         free(error);
         return -1;
     }
-    
+
     return 0;
 }
 
 int move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y) {
-    if (window == 0 || window == XCB_NONE) return 0;
-   
+    if (window == 0 || window == XCB_NONE) {
+        return 0;
+    }
+
     const uint32_t       values[] = {x, y};
     xcb_void_cookie_t    cookie   = xcb_configure_window_checked(wm->connection, window, XCB_MOVE, values);
     xcb_generic_error_t *error    = xcb_request_check(wm->connection, cookie);
@@ -237,21 +262,41 @@ int change_border_attributes(
 int change_window_attributes(
     xcb_connection_t *conn, xcb_window_t window, uint32_t attribute, const void *value
 ) {
-    xcb_void_cookie_t attr_cookie = xcb_change_window_attributes_checked(conn, window, attribute, value);
-    return handle_xcb_error(conn, attr_cookie, "Failed to change window attributes");
+    xcb_void_cookie_t    attr_cookie = xcb_change_window_attributes_checked(conn, window, attribute, value);
+    xcb_generic_error_t *error       = xcb_request_check(conn, attr_cookie);
+    if (error != NULL) {
+        log_message(ERROR, "Failed to change window attributes: error code %d", error->error_code);
+        free(error);
+        return -1;
+    }
+    return 0;
 }
 
 int configure_window(xcb_connection_t *conn, xcb_window_t window, uint16_t attribute, const void *value) {
-    xcb_void_cookie_t config_cookie = xcb_configure_window_checked(conn, window, attribute, value);
-    return handle_xcb_error(conn, config_cookie, "Failed to configure window");
+    xcb_void_cookie_t    config_cookie = xcb_configure_window_checked(conn, window, attribute, value);
+    xcb_generic_error_t *error         = xcb_request_check(conn, config_cookie);
+    if (error != NULL) {
+        log_message(ERROR, "Failed to configure window : error code %d", error->error_code);
+        free(error);
+        return -1;
+    }
+    return 0;
 }
 
 int set_input_focus(xcb_connection_t *conn, uint8_t revert_to, xcb_window_t window, xcb_timestamp_t time) {
-    xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(conn, revert_to, window, time);
-    return handle_xcb_error(conn, focus_cookie, "Failed to set input focus");
+    xcb_void_cookie_t    focus_cookie = xcb_set_input_focus_checked(conn, revert_to, window, time);
+    xcb_generic_error_t *error        = xcb_request_check(conn, focus_cookie);
+    if (error != NULL) {
+        log_message(ERROR, "Failed to set input focus : error code %d", error->error_code);
+        free(error);
+        return -1;
+    }
+    return 0;
 }
 
-int handle_xcb_error(xcb_connection_t *conn, xcb_void_cookie_t cookie, const char *error_message) {
+__attribute__((unused)) int handle_xcb_error(
+    xcb_connection_t *conn, xcb_void_cookie_t cookie, const char *error_message
+) {
     xcb_generic_error_t *error = xcb_request_check(conn, cookie);
     if (error != NULL) {
         log_message(ERROR, "%s: error code %d", error_message, error->error_code);
@@ -262,7 +307,9 @@ int handle_xcb_error(xcb_connection_t *conn, xcb_void_cookie_t cookie, const cha
 }
 
 int tile(wm_t *wm, node_t *node) {
-    if (node == NULL) return 0;
+    if (node == NULL) {
+        return 0;
+    }
 
     uint16_t width  = node->rectangle.width;
     uint16_t height = node->rectangle.height;
@@ -335,10 +382,14 @@ xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t window
 }
 
 int kill_window(xcb_connection_t *conn, xcb_window_t win, node_t *root, wm_t *wm) {
-    if (win == 0) return 0;
-    log_message(DEBUG, "before inner kill");
+    if (win == 0) {
+        return 0;
+    }
+
     node_t *n = find_node_by_window_id(root, win);
-    if (n == NULL) return 0;
+    if (n == NULL) {
+        return -1;
+    }
 
     xcb_void_cookie_t    cookie = xcb_unmap_window_checked(conn, n->client->window);
     xcb_generic_error_t *error  = xcb_request_check(wm->connection, cookie);
@@ -352,11 +403,22 @@ int kill_window(xcb_connection_t *conn, xcb_window_t win, node_t *root, wm_t *wm
         free(error);
         return -1;
     }
-    delete_node(n);
 
-    if (display_tree(root, wm) != 0) return -1;
-    log_message(DEBUG, "after inner kill");
-    return 0;
+    // if window is the very first one
+    /* if (n == wm->root) { */
+    /*     free(wm->root->client); */
+    /*     wm->root->client = NULL; */
+    /*     free(wm->root); */
+    /*     wm->root = NULL; */
+    /*     return 0; */
+    /* } */
+    log_message(DEBUG, "\n\n");
+    log_message(DEBUG, "beofre delete");
+    delete_node(n, wm);
+    log_message(DEBUG, "after delete");
+    log_tree_nodes(wm->root);
+
+    return display_tree(root, wm);
 }
 
 int handle_first_window(client_t *new_client, wm_t *wm) {
@@ -364,35 +426,41 @@ int handle_first_window(client_t *new_client, wm_t *wm) {
     wm->root->client = new_client;
 
     rectangle_t r = {
-        .x      = 5,
-        .y      = 5,
+        .x      = 0,
+        .y      = 0,
         .width  = wm->screen->width_in_pixels - W_GAP,
-        .height = wm->screen->height_in_pixels - W_GAP
-    };
+        .height = wm->screen->height_in_pixels - W_GAP};
 
-    set_rectangle(wm->root, r);
+    wm->root->rectangle = r;
 
-    if (tile(wm, wm->root) != 0) {
-        log_message(ERROR, "cannot display root node with window id %d", wm->root->client->window);
-        return -1;
-    }
+    // if (tile(wm, wm->root) != 0) {
+    //     log_message(ERROR, "cannot display root node with window id %d", wm->root->client->window);
+    //     return -1;
+    // }
 
-    return 0;
+    return tile(wm, wm->root);
 }
 
 int handle_subsequent_window(client_t *new_client, wm_t *wm) {
     xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
-    if (wi == wm->root_window || wi == 0) return 0; // don't attempt to split root_window
+
+    if (wi == wm->root_window || wi == 0) {
+        // don't attempt to split root_window
+        return 0;
+    }
 
     node_t *n = find_node_by_window_id(wm->root, wi);
+
     if (n == NULL || n->client == NULL) {
         log_message(ERROR, "cannot find node with window id %d", wi);
         return -1;
     }
+
     insert_under_cursor(n, new_client, wi);
-    if (display_tree(wm->root, wm) != 0) return -1;
+    log_message(DEBUG, "\n\n");
     log_tree_nodes(wm->root);
-    return 0;
+
+    return display_tree(wm->root, wm);
 }
 
 int handle_map_request(xcb_window_t win, wm_t *wm) {
@@ -413,18 +481,23 @@ int handle_map_request(xcb_window_t win, wm_t *wm) {
 int handle_enter_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
     node_t *n = find_node_by_window_id(root, win);
 
-    if (n == NULL) return -1;
+    if (n == NULL) {
+        return -1;
+    }
 
     if (change_border_attributes(conn, n->client, 0x83a598, 1, true) != 0) {
         return -1;
     }
+
     return 0;
 }
 
 int handle_leave_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) {
     node_t *n = find_node_by_window_id(root, win);
 
-    if (n == NULL) return 0;
+    if (n == NULL) {
+        return 0;
+    }
 
     if (change_border_attributes(conn, n->client, 0x000000, 0, false) != 0) {
         log_message(ERROR, "Failed to change border attr for window %d\n", n->client->window);
@@ -432,6 +505,44 @@ int handle_leave_notify(xcb_connection_t *conn, xcb_window_t win, node_t *root) 
     }
 
     return 0;
+}
+
+void exec_process(char *const process_name) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        char *const args[] = {process_name, NULL};
+        execvp(process_name, args);
+        perror("execvp failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void meta_actions(xcb_key_press_event_t *key_event, wm_t *wm) {
+    xcb_keysym_t k = get_keysym(key_event->detail, wm->connection);
+    switch (k) {
+    case XK_w:
+        log_message(DEBUG, "before kill %u", k);
+        kill_window(wm->connection, key_event->event, wm->root, wm);
+        log_message(DEBUG, "after kill %u", k);
+        break;
+    case XK_p:
+        log_message(DEBUG, "before alacrity %u", k);
+        exec_process("alacritty");
+        log_message(DEBUG, "after alacrity %u", k);
+        break;
+    case XK_l: exec_process("dmenu_run"); break;
+    default:
+        break;
+    }
+}
+
+void handle_key_press(xcb_key_press_event_t *key_press, wm_t *wm) {
+    if (CLEANMASK(key_press->state) == CLEANMASK(ALT_MASK)) {
+        meta_actions(key_press, wm);
+    }
 }
 
 int main() {
@@ -448,6 +559,7 @@ int main() {
         switch (event->response_type & ~0x80) {
         case XCB_MAP_REQUEST: {
             xcb_map_request_event_t *map_request = (xcb_map_request_event_t *)event;
+            log_message(DEBUG, "XCB_MAP_REQUEST");
             if (handle_map_request(map_request->window, zwm) != 0) {
                 log_message(ERROR, "Failed to handle MAP_REQUEST for window %d\n", map_request->window);
                 exit(EXIT_FAILURE);
@@ -462,6 +574,7 @@ int main() {
         case XCB_CLIENT_MESSAGE: {
             __attribute__((unused)) xcb_client_message_event_t *client_message =
                 (xcb_client_message_event_t *)event;
+            log_message(DEBUG, "XCB_CLIENT_MESSAGE");
             break;
         }
         case XCB_CONFIGURE_REQUEST: {
@@ -491,7 +604,7 @@ int main() {
             xcb_leave_notify_event_t *leave_event = (xcb_leave_notify_event_t *)event;
             if (handle_leave_notify(zwm->connection, leave_event->event, zwm->root) != 0) {
                 log_message(ERROR, "Failed to handle XCB_LEAVE_NOTIFY for window %d\n", leave_event->event);
-                exit(EXIT_FAILURE);
+                // exit(EXIT_FAILURE);
             };
             break;
         }
@@ -512,19 +625,8 @@ int main() {
         }
         case XCB_KEY_PRESS: {
             xcb_key_press_event_t *key_press = (xcb_key_press_event_t *)event;
-            xcb_keysym_t           k         = get_keysym(key_press->detail, zwm->connection);
-            // log_message(DEBUG, "Key pressed: %u", k);
-            if (k == XK_w) {
-                log_message(DEBUG, "before kill %u", k);
-                kill_window(zwm->connection, key_press->event, zwm->root, zwm);
-                log_message(DEBUG, "after kill %u", k);
-            }
-            // for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
-            //     if (keys[i].keysym == k) {
-            //         keys[i].fptr(zwm->connection, key_press->event, zwm->root, zwm);
-            //         break;
-            //     }
-            // }
+            log_message(DEBUG, "XCB_KEY_PRESS");
+            handle_key_press(key_press, zwm);
             break;
         }
         case XCB_KEY_RELEASE: {
@@ -542,9 +644,11 @@ int main() {
         case XCB_MAPPING_NOTIFY: {
             __attribute__((unused)) xcb_mapping_notify_event_t *mapping_notify =
                 (xcb_mapping_notify_event_t *)event;
+            log_message(DEBUG, "XCB_MAPPING_NOTIFY");
+
             break;
         }
-        default: break;
+        default: log_message(DEBUG, "event %d", event->response_type & ~0x80); break;
         }
         free(event);
     }
