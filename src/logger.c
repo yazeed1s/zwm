@@ -1,7 +1,3 @@
-//
-// Created by yaz on 12/31/23.
-//
-
 #include "type.h"
 #include <stdarg.h>
 #include <stdio.h>
@@ -15,7 +11,7 @@ void log_message(log_level_t level, const char *format, ...) {
     if (log_file == NULL) {
         fprintf(stderr, "Failed to open log file for writing\n");
         va_end(args);
-        return;
+        return;  
     }
     fprintf(log_file, "[");
     switch (level) {

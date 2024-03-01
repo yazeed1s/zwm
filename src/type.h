@@ -3,8 +3,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_ewmh.h>
 
-#define W_GAP 5
+#define W_GAP    3
+#define MAXLEN   (2 << 7)
+#define NULL_STR "N/A"
 
 typedef enum {
     HORIZONTAL_TYPE __attribute__((unused)),
@@ -42,10 +45,14 @@ typedef struct {
 } rectangle_t;
 
 typedef struct {
+    char         class_name[MAXLEN];
+    char         instance_name[MAXLEN];
+    char         name[MAXLEN];
     xcb_window_t window;
     xcb_atom_t   type;
     uint32_t     border_width;
     bool         is_focused;
+    bool         is_managed;
     posxy_t      position_info;
 } client_t;
 
@@ -120,30 +127,43 @@ typedef struct {
     uint8_t id;
     bool    is_focused;
     bool    is_full;
-    // client_t **clients;
     node_t *tree;
     int     clients_n;
 } desktop_t;
 
 typedef struct {
-    xcb_connection_t *connection;
-    xcb_screen_t     *screen;
-    xcb_window_t      root_window;
-    split_type_t      split_type;
-    desktop_t       **desktops;
-    node_t           *root;
-    int               max_number_of_desktops;
-    int               number_of_desktops;
+    xcb_connection_t      *connection;
+    xcb_ewmh_connection_t *ewmh;
+    xcb_screen_t          *screen;
+    xcb_window_t           root_window;
+    split_type_t           split_type;
+    desktop_t            **desktops;
+    int                    number_of_desktops;
+    int                    screen_nbr;
+    /* node_t           *root; */
 } wm_t;
 
-// typedef void (*function_ptr)(void *);
-// typedef int8_t (*function_ptr)(xcb_connection_t *, xcb_window_t, node_t *, wm_t *);
-typedef void *(*function_ptr)(void *, ...);
+typedef struct {
+    const char  *command;
+    wm_t        *wm;
+    xcb_window_t win;
+} arg_t;
+
+// typedef void *(*function_ptr)(void *, ...);
+typedef int (*function_ptr)(arg_t *);
 typedef struct {
     unsigned int mod;
     xcb_keysym_t keysym;
-    function_ptr fptr;
-    // TODO: function pointer
-    // TODO: args
-} _key_t;
+    // TODO: function ptr ??
+} _key__t;
+
+typedef struct {
+    xcb_window_t window;
+    /* xcb_screen_t   *screen; */
+    xcb_gcontext_t gc;
+    uint32_t       width;
+    uint32_t       height;
+    uint32_t       background_color;
+} bar_t;
+
 #endif // ZWM_TYPE_H

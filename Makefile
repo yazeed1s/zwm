@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra
-LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms
+LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm
 
 SRC_FILES = ./src/zwm.c ./src/logger.c ./src/tree.c
 HEADER_FILES = ./src/logger.h ./src/tree.h ./src/type.h ./src/zwm.h
