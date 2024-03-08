@@ -7,6 +7,7 @@
 
 #define W_GAP    3
 #define MAXLEN   (2 << 7)
+#define DLEN     (2 << 4)
 #define NULL_STR "N/A"
 
 typedef enum {
@@ -44,15 +45,20 @@ typedef struct {
     uint16_t height;
 } rectangle_t;
 
+typedef enum {
+    TILED,
+    FLOATING,
+    FULLSCREEN
+} state_t;
+
 typedef struct {
-    char         class_name[MAXLEN];
-    char         instance_name[MAXLEN];
-    char         name[MAXLEN];
+    uint32_t     id;
+    uint32_t     border_width;
     xcb_window_t window;
     xcb_atom_t   type;
-    uint32_t     border_width;
-    bool         is_focused;
+    char         name[MAXLEN];
     bool         is_managed;
+    state_t      state;
     posxy_t      position_info;
 } client_t;
 
@@ -115,29 +121,30 @@ struct node_t {
     node_t      *parent;
     node_t      *first_child;
     node_t      *second_child;
+    client_t    *client;
     node_type_t  node_type;
     split_type_t split_type;
     rectangle_t  rectangle;
-    client_t    *client;
     bool         is_focused;
     bool         is_fullscreen;
 };
 
 typedef struct {
+    char    name[DLEN];
     uint8_t id;
+    int     clients_n;
     bool    is_focused;
     bool    is_full;
     node_t *tree;
-    int     clients_n;
 } desktop_t;
 
 typedef struct {
     xcb_connection_t      *connection;
     xcb_ewmh_connection_t *ewmh;
     xcb_screen_t          *screen;
+    desktop_t            **desktops;
     xcb_window_t           root_window;
     split_type_t           split_type;
-    desktop_t            **desktops;
     int                    number_of_desktops;
     int                    screen_nbr;
     /* node_t           *root; */

@@ -5,10 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <xcb/xcb_atom.h>
-#include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
-#include <xcb/xproto.h>
 
 #define MAX(a, b)               \
     ({                          \
@@ -98,12 +95,15 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_
 
     if (current_node->client->window == win) {
         if (!has_first_child(current_node)) {
-            // client_t *nc = create_client(current_node->client->window, XCB_ATOM_WINDOW,
-            // wm->connection); if (nc == NULL) {
+            // client_t *nc = create_client(current_node->client->window,
+            // XCB_ATOM_WINDOW, wm->connection); if (nc == NULL) {
             //     log_message(ERROR, "faild to allocate client for child");
             //     return;
             // }
-            current_node->first_child         = create_node(current_node->client);
+            current_node->first_child = create_node(current_node->client);
+            if (current_node->first_child == NULL) {
+                return;
+            }
             current_node->first_child->parent = current_node;
             rectangle_t r                     = {0};
             if (current_node->rectangle.width >= current_node->rectangle.height) {
@@ -126,17 +126,22 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_
         //     insert_under_cursor(current_node->first_child, new_client, win);
         // }
         if (!has_second_child(current_node)) {
-            current_node->second_child         = create_node(new_client);
+            current_node->second_child = create_node(new_client);
+            if (current_node->second_child == NULL) {
+                return;
+            }
             current_node->second_child->parent = current_node;
             rectangle_t r                      = {0};
             if (current_node->rectangle.width >= current_node->rectangle.height) {
-                r.x      = current_node->rectangle.x + current_node->rectangle.width / 2 + W_GAP;
-                r.y      = current_node->rectangle.y;
+                r.x = (int16_t)(current_node->rectangle.x + current_node->rectangle.width / 2 +
+                                W_GAP);
+                r.y = current_node->rectangle.y;
                 r.width  = current_node->rectangle.width / 2 - W_GAP / 2 - W_GAP;
                 r.height = current_node->rectangle.height;
             } else {
                 r.x      = current_node->rectangle.x;
-                r.y      = current_node->rectangle.height / 2 + W_GAP + current_node->rectangle.y;
+                r.y      = (int16_t)(current_node->rectangle.height / 2 + W_GAP +
+                                current_node->rectangle.y);
                 r.width  = current_node->rectangle.width;
                 r.height = current_node->rectangle.height / 2 - W_GAP;
             }
@@ -149,7 +154,6 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_
         log_message(DEBUG, "window id bring no match");
         return;
     }
-    return;
 }
 
 node_t *find_node_by_window_id(node_t *root, xcb_window_t window_id) {
@@ -215,13 +219,13 @@ void resize_subtree(node_t *parent) {
     }
 
     if (parent->rectangle.width >= parent->rectangle.height) {
-        r2.x      = parent->rectangle.x + parent->rectangle.width / 2 + W_GAP;
+        r2.x      = (int16_t)(parent->rectangle.x + parent->rectangle.width / 2 + W_GAP);
         r2.y      = parent->rectangle.y;
         r2.width  = parent->rectangle.width / 2 - W_GAP / 2 - W_GAP;
         r2.height = parent->rectangle.height;
     } else {
         r2.x      = parent->rectangle.x;
-        r2.y      = parent->rectangle.height / 2 + W_GAP + parent->rectangle.y;
+        r2.y      = (int16_t)(parent->rectangle.height / 2 + W_GAP + parent->rectangle.y);
         r2.width  = parent->rectangle.width;
         r2.height = parent->rectangle.height / 2 - W_GAP;
     }
@@ -265,8 +269,9 @@ bool is_sibling_external(node_t *node) {
         return false;
     }
 
-    node_t *parent  = node->parent;
-    node_t *sibling = (parent->first_child == node) ? parent->second_child : parent->first_child;
+    node_t *parent = node->parent;
+    node_t *sibling =
+        (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == EXTERNAL_NODE);
 }
@@ -276,8 +281,9 @@ node_t *get_external_sibling(node_t *node) {
         return NULL;
     }
 
-    node_t *parent  = node->parent;
-    node_t *sibling = (parent->first_child == node) ? parent->second_child : parent->first_child;
+    node_t *parent = node->parent;
+    node_t *sibling =
+        (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == EXTERNAL_NODE) ? sibling : NULL;
 }
@@ -287,8 +293,9 @@ bool is_sibling_internal(node_t *node) {
         return false;
     }
 
-    node_t *parent  = node->parent;
-    node_t *sibling = (parent->first_child == node) ? parent->second_child : parent->first_child;
+    node_t *parent = node->parent;
+    node_t *sibling =
+        (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == INTERNAL_NODE);
 }
@@ -298,8 +305,9 @@ node_t *get_internal_sibling(node_t *node) {
         return NULL;
     }
 
-    node_t *parent  = node->parent;
-    node_t *sibling = (parent->first_child == node) ? parent->second_child : parent->first_child;
+    node_t *parent = node->parent;
+    node_t *sibling =
+        (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == INTERNAL_NODE) ? sibling : NULL;
 }
@@ -309,8 +317,9 @@ node_t *get_sibling(node_t *node, node_type_t type) {
         return NULL;
     }
 
-    node_t *parent  = node->parent;
-    node_t *sibling = (parent->first_child == node) ? parent->second_child : parent->first_child;
+    node_t *parent = node->parent;
+    node_t *sibling =
+        (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     switch (type) {
     case INTERNAL_NODE: {
@@ -357,11 +366,19 @@ client_t *find_client_by_window_id(node_t *root, xcb_window_t window_id) {
     }
 
     node_t *left_result = find_node_by_window_id(root->first_child, window_id);
+    if (left_result == NULL) {
+        return NULL;
+    }
+
     if (left_result->client != NULL) {
         return left_result->client;
     }
 
     node_t *right_result = find_node_by_window_id(root->second_child, window_id);
+    if (right_result == NULL) {
+        return NULL;
+    }
+
     if (right_result->client != NULL) {
         return right_result->client;
     }
@@ -382,7 +399,9 @@ int delete_node_with_external_sibling(node_t *node) {
     node_t *external_node = NULL;
     if (is_sibling_external(node)) {
         external_node = get_external_sibling(node);
-    } else {
+    }
+
+    if (external_node == NULL) {
         log_message(ERROR, "external node is null");
         return -1;
     }
@@ -435,9 +454,11 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
      *              E1   E2
      *
      * logic:
-     * if N in left subtree, delete it and replace its parent with the parent of N's parent right subtree
-     * if N in right subtree,delete it and replace its parent with the parent of N's parent left subtree
-     * basically IN and N are deleted, and IE takes IN's place and rectangle and IE's children are resized
+     * if N in left subtree, delete it and replace its parent with the parent of
+     * N's parent right subtree if N in right subtree,delete it and replace its
+     * parent with the parent of N's parent left subtree basically IN and N are
+     * deleted, and IE takes IN's place and rectangle and IE's children are
+     * resized
      */
     node_t *internal_sibling = NULL;
     // if IN has no parent
@@ -445,38 +466,45 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
         log_message(DEBUG, "node's parent's parent is null");
         if (is_sibling_internal(node)) {
             internal_sibling = get_internal_sibling(node);
-        } else {
+        }
+
+        if (internal_sibling == NULL) {
             log_message(ERROR, "intertal node is null");
             return -1;
         }
+
         internal_sibling->rectangle = node->parent->rectangle;
         internal_sibling->parent    = NULL;
         internal_sibling->node_type = ROOT_NODE;
         /* if (wm->root == node->parent) { */
         /*     node->parent = NULL; */
         /*     if (wm->root->first_child == node) { */
-        /*         wm->root->first_child                  = internal_sibling->first_child; */
+        /*         wm->root->first_child                  =
+         * internal_sibling->first_child; */
         /*         internal_sibling->first_child->parent  = wm->root; */
-        /*         wm->root->second_child                 = internal_sibling->second_child; */
+        /*         wm->root->second_child                 =
+         * internal_sibling->second_child; */
         /*         internal_sibling->second_child->parent = wm->root; */
         /*     } else { */
-        /*         wm->root->second_child                 = internal_sibling->first_child; */
+        /*         wm->root->second_child                 =
+         * internal_sibling->first_child; */
         /*         internal_sibling->first_child->parent  = wm->root; */
-        /*         wm->root->first_child                  = internal_sibling->second_child; */
+        /*         wm->root->first_child                  =
+         * internal_sibling->second_child; */
         /*         internal_sibling->second_child->parent = wm->root; */
         /*     } */
         /* } */
         if (d->tree == node->parent) {
             node->parent = NULL;
             if (d->tree->first_child == node) {
-                d->tree->first_child     = internal_sibling->first_child;
+                d->tree->first_child                   = internal_sibling->first_child;
                 internal_sibling->first_child->parent  = d->tree;
-                d->tree->second_child    = internal_sibling->second_child;
+                d->tree->second_child                  = internal_sibling->second_child;
                 internal_sibling->second_child->parent = d->tree;
             } else {
-                d->tree->second_child    = internal_sibling->first_child;
+                d->tree->second_child                  = internal_sibling->first_child;
                 internal_sibling->first_child->parent  = d->tree;
-                d->tree->first_child     = internal_sibling->second_child;
+                d->tree->first_child                   = internal_sibling->second_child;
                 internal_sibling->second_child->parent = d->tree;
             }
         }
@@ -527,7 +555,6 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
         node = NULL;
         return 0;
     }
-    return -1;
 }
 
 void delete_node(node_t *node, desktop_t *d) {
@@ -537,7 +564,11 @@ void delete_node(node_t *node, desktop_t *d) {
     }
 
     if (node->node_type == INTERNAL_NODE) {
-        log_message(DEBUG, "node to be deleted is not an external node type: %d", node->node_type);
+        log_message(
+            DEBUG,
+            "node to be deleted is not an external node type: %d",
+            node->node_type
+        );
         return;
     }
 
@@ -558,7 +589,7 @@ void delete_node(node_t *node, desktop_t *d) {
         free(node->client);
         node->client = NULL;
         free(node);
-        node                  = NULL;
+        node    = NULL;
         d->tree = NULL;
         return;
     }
@@ -571,8 +602,9 @@ void delete_node(node_t *node, desktop_t *d) {
      */
     // if (has_external_children(parent)) {
     if (is_sibling_external(node)) {
+        xcb_window_t w = node->client->window;
         if (delete_node_with_external_sibling(node) != 0) {
-            log_message(ERROR, "cannot delete node with id: %d", node->client->window);
+            log_message(ERROR, "cannot delete node with id: %d", w);
             return;
         }
         return;
@@ -588,8 +620,9 @@ void delete_node(node_t *node, desktop_t *d) {
      *            rest...
      */
     if (is_sibling_internal(node)) {
+        xcb_window_t w = node->client->window;
         if (delete_node_with_internal_sibling(node, d) != 0) {
-            log_message(ERROR, "cannot delete node with id: %d", node->client->window);
+            log_message(ERROR, "cannot delete node with id: %d", w);
             return;
         }
         return;
@@ -624,15 +657,30 @@ bool is_parent_internal(node_t *node) {
     return node->parent->node_type == INTERNAL_NODE;
 }
 
-void log_tree_nodes(node_t *node) {
+void log_tree_nodes(node_t *node, wm_t *w) {
     if (node != NULL) {
         if (node->client != NULL) {
-            log_message(DEBUG, "Node Type: %d, Client Window ID: %u", node->node_type, node->client->window);
+            xcb_icccm_get_text_property_reply_t t_reply;
+            xcb_get_property_cookie_t           cn =
+                xcb_icccm_get_wm_name(w->connection, node->client->window);
+            uint8_t wr = xcb_icccm_get_wm_name_reply(w->connection, cn, &t_reply, NULL);
+            char    name[256];
+            if (wr == 1) {
+                snprintf(name, sizeof(name), "%s", t_reply.name);
+                xcb_icccm_get_text_property_reply_wipe(&t_reply);
+            }
+            log_message(
+                DEBUG,
+                "Node Type: %d, Client Window ID: %u, name: %s",
+                node->node_type,
+                node->client->window,
+                name
+            );
         } else {
             log_message(DEBUG, "Node Type: %d", node->node_type);
         }
-        log_tree_nodes(node->first_child);
-        log_tree_nodes(node->second_child);
+        log_tree_nodes(node->first_child, w);
+        log_tree_nodes(node->second_child, w);
     }
 }
 
@@ -668,4 +716,24 @@ int show_windows(node_t *cn, wm_t *wm) {
     show_windows(cn->second_child, wm);
 
     return 0;
+}
+
+bool client_exist(node_t *cn, uint32_t id) {
+    if (cn == NULL) {
+        return false;
+    }
+
+    if (cn->id == id) {
+        return true;
+    }
+
+    if (client_exist(cn->first_child, id)) {
+        return true;
+    }
+
+    if (client_exist(cn->second_child, id)) {
+        return true;
+    }
+
+    return false;
 }
