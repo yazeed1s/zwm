@@ -60,28 +60,30 @@ static _key__t keys[] = {
     {SUPER_MASK, XK_4     },
     {SUPER_MASK, XK_5     },
     {SUPER_MASK, XK_p     },
+    {SUPER_MASK, XK_l     },
+    {SUPER_MASK, XK_h     },
 };
 
 xcb_window_t wbar = XCB_NONE;
 
-int raise_window(xcb_connection_t *con, xcb_window_t win) {
+int raise_window(xcb_connection_t *conn, xcb_window_t win) {
     const unsigned int arg[1] = {XCB_STACK_MODE_ABOVE};
 
     xcb_void_cookie_t c =
-        xcb_configure_window_checked(con, win, XCB_CONFIG_WINDOW_STACK_MODE, arg);
-    xcb_generic_error_t *error = xcb_request_check(con, c);
+        xcb_configure_window_checked(conn, win, XCB_CONFIG_WINDOW_STACK_MODE, arg);
+    xcb_generic_error_t *err = xcb_request_check(conn, c);
 
-    if (error != NULL) {
-        log_message(ERROR, "Error raising window %d error %d\n", win, error->error_code);
-        free(error);
+    if (err != NULL) {
+        log_message(ERROR, "Error raising window %d error %d\n", win, err->error_code);
+        free(err);
         return -1;
     }
 
     return 0;
 }
 
-xcb_ewmh_connection_t *ewmh_init(xcb_connection_t *con) {
-    if (con == 0x00) {
+xcb_ewmh_connection_t *ewmh_init(xcb_connection_t *conn) {
+    if (conn == 0x00) {
         log_message(ERROR, "Connection is NULL");
         return NULL;
     }
@@ -92,13 +94,13 @@ xcb_ewmh_connection_t *ewmh_init(xcb_connection_t *con) {
         return NULL;
     }
 
-    xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(con, ewmh);
+    xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(conn, ewmh);
     if (c == 0x00) {
         log_message(ERROR, "Cannot init intern atom");
         return NULL;
     }
 
-    uint8_t res = xcb_ewmh_init_atoms_replies(ewmh, c, NULL);
+    const uint8_t res = xcb_ewmh_init_atoms_replies(ewmh, c, NULL);
     if (res != 1) {
         log_message(ERROR, "Cannot init intern atom");
         return NULL;
@@ -114,63 +116,63 @@ int ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh) {
         xcb_ewmh_set_wm_name_checked(ewmh, win, strlen(WM_NAME), WM_NAME);
     xcb_void_cookie_t pid_cookie = xcb_ewmh_set_wm_pid_checked(ewmh, win, (uint32_t)wm_pid);
 
-    xcb_generic_error_t *error;
-    if ((error = xcb_request_check(ewmh->connection, supporting_cookie))) {
-        log_message(ERROR, "Error setting supporting window: %d\n", error->error_code);
-        free(error);
+    xcb_generic_error_t *err;
+    if ((err = xcb_request_check(ewmh->connection, supporting_cookie))) {
+        log_message(ERROR, "Error setting supporting window: %d\n", err->error_code);
+        free(err);
         return -1;
     }
-    if ((error = xcb_request_check(ewmh->connection, name_cookie))) {
-        fprintf(stderr, "Error setting WM name: %d\n", error->error_code);
-        free(error);
+    if ((err = xcb_request_check(ewmh->connection, name_cookie))) {
+        fprintf(stderr, "Error setting WM name: %d\n", err->error_code);
+        free(err);
         return -1;
     }
-    if ((error = xcb_request_check(ewmh->connection, pid_cookie))) {
-        fprintf(stderr, "Error setting WM PID: %d\n", error->error_code);
-        free(error);
+    if ((err = xcb_request_check(ewmh->connection, pid_cookie))) {
+        fprintf(stderr, "Error setting WM PID: %d\n", err->error_code);
+        free(err);
         return -1;
     }
 
     return 0;
 }
 
-int get_focused_desktop_idx(wm_t *w) {
-    for (int i = 0; i < w->number_of_desktops; ++i) {
-        if (w->desktops[i]->is_focused) {
-            return w->desktops[i]->id;
+int get_focused_desktop_idx(wm_t *wm) {
+    for (int i = 0; i < wm->number_of_desktops; ++i) {
+        if (wm->desktops[i]->is_focused) {
+            return wm->desktops[i]->id;
         }
     }
     return -1;
 }
 
-desktop_t *get_focused_desktop(wm_t *w) {
-    for (int i = 0; i < w->number_of_desktops; ++i) {
-        if (w->desktops[i]->is_focused) {
-            return w->desktops[i];
+desktop_t *get_focused_desktop(wm_t *wm) {
+    for (int i = 0; i < wm->number_of_desktops; ++i) {
+        if (wm->desktops[i]->is_focused) {
+            return wm->desktops[i];
         }
     }
     return NULL;
 }
 
 int ewmh_set_number_of_desktops(xcb_ewmh_connection_t *ewmh, int screen_nbr, uint32_t nd) {
-    xcb_void_cookie_t cookie   = xcb_ewmh_set_number_of_desktops_checked(ewmh, screen_nbr, nd);
-    xcb_generic_error_t *error = xcb_request_check(ewmh->connection, cookie);
-    if (error) {
-        log_message(ERROR, "Error setting number of desktops: %d\n", error->error_code);
-        free(error);
+    xcb_void_cookie_t cookie = xcb_ewmh_set_number_of_desktops_checked(ewmh, screen_nbr, nd);
+    xcb_generic_error_t *err = xcb_request_check(ewmh->connection, cookie);
+    if (err) {
+        log_message(ERROR, "Error setting number of desktops: %d\n", err->error_code);
+        free(err);
         return -1;
     }
 
     return 0;
 }
 
-int ewmh_update_desktop_names(wm_t *w) {
+int ewmh_update_desktop_names(wm_t *wm) {
     char         names[MAXLEN];
     uint32_t     names_len;
     unsigned int offset = 0;
 
-    for (int i = 0; i < w->number_of_desktops; i++) {
-        desktop_t *d = w->desktops[i];
+    for (int i = 0; i < wm->number_of_desktops; i++) {
+        desktop_t *d = wm->desktops[i];
         for (int j = 0; d->name[j] != '\0' && (offset + j) < sizeof(names); j++) {
             names[offset + j] = d->name[j];
         }
@@ -182,28 +184,28 @@ int ewmh_update_desktop_names(wm_t *w) {
 
     names_len = offset - 1;
     xcb_void_cookie_t c =
-        xcb_ewmh_set_desktop_names_checked(w->ewmh, w->screen_nbr, names_len, names);
-    xcb_generic_error_t *error = xcb_request_check(w->ewmh->connection, c);
-    if (error) {
-        log_message(ERROR, "Error setting names of desktops: %d\n", error->error_code);
-        free(error);
+        xcb_ewmh_set_desktop_names_checked(wm->ewmh, wm->screen_nbr, names_len, names);
+    xcb_generic_error_t *err = xcb_request_check(wm->ewmh->connection, c);
+    if (err) {
+        log_message(ERROR, "Error setting names of desktops: %d\n", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
 }
 
 int ewmh_set_active_win(xcb_ewmh_connection_t *ewmh, int screen_nbr, xcb_window_t win) {
-    xcb_void_cookie_t    c     = xcb_ewmh_set_active_window_checked(ewmh, screen_nbr, win);
-    xcb_generic_error_t *error = xcb_request_check(ewmh->connection, c);
-    if (error) {
-        fprintf(stderr, "Error setting number of desktops: %d\n", error->error_code);
-        free(error);
+    xcb_void_cookie_t    c   = xcb_ewmh_set_active_window_checked(ewmh, screen_nbr, win);
+    xcb_generic_error_t *err = xcb_request_check(ewmh->connection, c);
+    if (err) {
+        fprintf(stderr, "Error setting number of desktops: %d\n", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
 }
 
-int ewmh_update_client_list(wm_t *w) {
+int ewmh_update_client_list(wm_t *wm) {
 
     // TODO: traverse trees and add window ids
     //  to and array of type xcb_window_t
@@ -212,29 +214,29 @@ int ewmh_update_client_list(wm_t *w) {
 }
 
 int ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh, int screen_nbr, uint32_t i) {
-    xcb_void_cookie_t    c     = xcb_ewmh_set_current_desktop_checked(ewmh, screen_nbr, i);
-    xcb_generic_error_t *error = xcb_request_check(ewmh->connection, c);
-    if (error) {
-        log_message(ERROR, "Error setting number of desktops: %d\n", error->error_code);
-        free(error);
+    xcb_void_cookie_t    c   = xcb_ewmh_set_current_desktop_checked(ewmh, screen_nbr, i);
+    xcb_generic_error_t *err = xcb_request_check(ewmh->connection, c);
+    if (err) {
+        log_message(ERROR, "Error setting number of desktops: %d\n", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
 }
 
-xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c) {
-    xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(c, win);
-    xcb_generic_error_t      *error;
-    xcb_get_geometry_reply_t *gr = xcb_get_geometry_reply(c, gc, &error);
+xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *conn) {
+    xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(conn, win);
+    xcb_generic_error_t      *err;
+    xcb_get_geometry_reply_t *gr = xcb_get_geometry_reply(conn, gc, &err);
 
-    if (error) {
+    if (err) {
         log_message(
             ERROR,
             "Error getting geometry for window %u: %d\n",
             win,
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         return NULL;
     }
 
@@ -246,7 +248,7 @@ xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_connection_t *c) {
     return gr;
 }
 
-client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn) {
+client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *conn) {
     client_t *c = (client_t *)malloc(sizeof(client_t));
     if (c == 0x00) {
         return NULL;
@@ -257,20 +259,20 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_connection_t *cn
     c->window                  = win;
     c->type                    = wtype;
     c->border_width            = (uint32_t)-1;
-    uint32_t          mask     = XCB_CW_EVENT_MASK;
-    uint32_t          values[] = {CLIENT_EVENT_MASK};
+    const uint32_t    mask     = XCB_CW_EVENT_MASK;
+    const uint32_t    values[] = {CLIENT_EVENT_MASK};
     xcb_void_cookie_t cookie =
-        xcb_change_window_attributes_checked(cn, c->window, mask, values);
-    xcb_generic_error_t *error = xcb_request_check(cn, cookie);
+        xcb_change_window_attributes_checked(conn, c->window, mask, values);
+    xcb_generic_error_t *err = xcb_request_check(conn, cookie);
 
-    if (error) {
+    if (err) {
         log_message(
             ERROR,
             "Error setting window attributes for client %u: %d\n",
             c->window,
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         exit(EXIT_FAILURE);
     }
 
@@ -318,27 +320,28 @@ wm_t *initialize_wm() {
         return NULL;
     }
 
-    w->screen             = iter.data;
-    w->root_window        = iter.data->root;
-    w->screen_nbr         = default_screen;
-    w->desktops           = desktops;
-    w->number_of_desktops = NUMBER_OF_DESKTOPS;
-    w->split_type         = VERTICAL_TYPE;
-    uint32_t mask         = XCB_CW_EVENT_MASK;
-    uint32_t values[]     = {ROOT_EVENT_MASK};
+    w->screen               = iter.data;
+    w->root_window          = iter.data->root;
+    w->screen_nbr           = default_screen;
+    w->desktops             = desktops;
+    w->number_of_desktops   = NUMBER_OF_DESKTOPS;
+    w->split_type           = VERTICAL_TYPE;
+    const uint32_t mask     = XCB_CW_EVENT_MASK;
+    const uint32_t values[] = {ROOT_EVENT_MASK};
 
     xcb_void_cookie_t cookie =
         xcb_change_window_attributes_checked(w->connection, w->root_window, mask, values);
-    xcb_generic_error_t *error = xcb_request_check(w->connection, cookie);
-    if (error) {
+    xcb_generic_error_t *err = xcb_request_check(w->connection, cookie);
+    if (err) {
         log_message(
             ERROR,
-            "Error registering for substructure redirection events on window %u: %d\n",
+            "Error registering for substructure redirection events on window "
+            "%u: %d\n",
             w->root_window,
-            error->error_code
+            err->error_code
         );
         free(w);
-        free(error);
+        free(err);
         return NULL;
     }
 
@@ -354,57 +357,60 @@ wm_t *initialize_wm() {
     return w;
 }
 
-bool setup_ewmh(wm_t *w) {
-    w->ewmh = ewmh_init(w->connection);
-    if (w->ewmh == NULL) {
+bool setup_ewmh(wm_t *wm) {
+    wm->ewmh = ewmh_init(wm->connection);
+    if (wm->ewmh == NULL) {
         return false;
     }
 
     xcb_atom_t net_atoms[] = {
-        w->ewmh->_NET_SUPPORTED,
-        w->ewmh->_NET_SUPPORTING_WM_CHECK,
-        w->ewmh->_NET_DESKTOP_NAMES,
-        w->ewmh->_NET_DESKTOP_VIEWPORT,
-        w->ewmh->_NET_NUMBER_OF_DESKTOPS,
-        w->ewmh->_NET_CURRENT_DESKTOP,
-        w->ewmh->_NET_CLIENT_LIST,
-        w->ewmh->_NET_ACTIVE_WINDOW,
-        w->ewmh->_NET_WM_NAME,
-        w->ewmh->_NET_CLOSE_WINDOW,
-        w->ewmh->_NET_WM_STRUT_PARTIAL,
-        w->ewmh->_NET_WM_DESKTOP,
-        w->ewmh->_NET_WM_STATE,
-        w->ewmh->_NET_WM_STATE_HIDDEN,
-        w->ewmh->_NET_WM_STATE_FULLSCREEN,
-        w->ewmh->_NET_WM_STATE_BELOW,
-        w->ewmh->_NET_WM_STATE_ABOVE,
-        w->ewmh->_NET_WM_STATE_STICKY,
-        w->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION,
-        w->ewmh->_NET_WM_WINDOW_TYPE,
-        w->ewmh->_NET_WM_WINDOW_TYPE_DOCK,
-        w->ewmh->_NET_WM_WINDOW_TYPE_DESKTOP,
-        w->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION,
-        w->ewmh->_NET_WM_WINDOW_TYPE_DIALOG,
-        w->ewmh->_NET_WM_WINDOW_TYPE_SPLASH,
-        w->ewmh->_NET_WM_WINDOW_TYPE_UTILITY,
-        w->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR
-    };
+        wm->ewmh->_NET_SUPPORTED,
+        wm->ewmh->_NET_SUPPORTING_WM_CHECK,
+        wm->ewmh->_NET_DESKTOP_NAMES,
+        wm->ewmh->_NET_DESKTOP_VIEWPORT,
+        wm->ewmh->_NET_NUMBER_OF_DESKTOPS,
+        wm->ewmh->_NET_CURRENT_DESKTOP,
+        wm->ewmh->_NET_CLIENT_LIST,
+        wm->ewmh->_NET_ACTIVE_WINDOW,
+        wm->ewmh->_NET_WM_NAME,
+        wm->ewmh->_NET_CLOSE_WINDOW,
+        wm->ewmh->_NET_WM_STRUT_PARTIAL,
+        wm->ewmh->_NET_WM_DESKTOP,
+        wm->ewmh->_NET_WM_STATE,
+        wm->ewmh->_NET_WM_STATE_HIDDEN,
+        wm->ewmh->_NET_WM_STATE_FULLSCREEN,
+        wm->ewmh->_NET_WM_STATE_BELOW,
+        wm->ewmh->_NET_WM_STATE_ABOVE,
+        wm->ewmh->_NET_WM_STATE_STICKY,
+        wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION,
+        wm->ewmh->_NET_WM_WINDOW_TYPE,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_DOCK,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_DESKTOP,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_SPLASH,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_UTILITY,
+        wm->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR};
 
-    xcb_void_cookie_t c =
-        xcb_ewmh_set_supported_checked(w->ewmh, w->screen_nbr, LENGTH(net_atoms), net_atoms);
-    xcb_generic_error_t *err = xcb_request_check(w->ewmh->connection, c);
+    xcb_void_cookie_t c = xcb_ewmh_set_supported_checked(
+        wm->ewmh,
+        wm->screen_nbr,
+        LENGTH(net_atoms),
+        net_atoms
+    );
+    xcb_generic_error_t *err = xcb_request_check(wm->ewmh->connection, c);
     if (err) {
         log_message(ERROR, "Error setting number of desktops: %d\n", err->error_code);
         free(err);
         return false;
     }
 
-    uint32_t meta_window = xcb_generate_id(w->connection);
+    uint32_t meta_window = xcb_generate_id(wm->connection);
     xcb_create_window(
-        w->connection,
+        wm->connection,
         XCB_COPY_FROM_PARENT,
         meta_window,
-        w->root_window,
+        wm->root_window,
         -1,
         -1,
         1,
@@ -415,23 +421,28 @@ bool setup_ewmh(wm_t *w) {
         XCB_NONE,
         NULL
     );
-    if (ewmh_set_supporting(meta_window, w->ewmh) != 0) {
+    if (ewmh_set_supporting(meta_window, wm->ewmh) != 0) {
         return false;
     }
 
-    if (ewmh_set_number_of_desktops(w->ewmh, w->screen_nbr, (uint32_t)w->number_of_desktops) !=
-        0) {
+    if (ewmh_set_number_of_desktops(
+            wm->ewmh,
+            wm->screen_nbr,
+            (uint32_t)wm->number_of_desktops
+        ) != 0) {
         return false;
     }
 
-    int di = get_focused_desktop_idx(w);
-    if (di == -1) return false;
+    const int di = get_focused_desktop_idx(wm);
+    if (di == -1) {
+        false;
+    }
 
-    if (ewmh_update_current_desktop(w->ewmh, w->screen_nbr, (uint32_t)di) != 0) {
+    if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, (uint32_t)di) != 0) {
         return false;
     }
 
-    if (ewmh_update_desktop_names(w) != 0) {
+    if (ewmh_update_desktop_names(wm) != 0) {
         return false;
     }
 
@@ -439,79 +450,83 @@ bool setup_ewmh(wm_t *w) {
 }
 
 wm_t *init_wm() {
-    wm_t *w = initialize_wm();
-    if (w == NULL) {
+    wm_t *wm = initialize_wm();
+    if (wm == NULL) {
         exit(EXIT_FAILURE);
     }
 
-    if (!setup_ewmh(w)) {
+    if (!setup_ewmh(wm)) {
         exit(EXIT_FAILURE);
     }
 
-    return w;
+    return wm;
 }
 
-int resize_window(wm_t *wm, xcb_window_t window, uint16_t width, uint16_t height) {
-    if (window == 0 || window == XCB_NONE) return 0;
+int resize_window(wm_t *wm, xcb_window_t win, uint16_t width, uint16_t height) {
+    if (win == 0 || win == XCB_NONE) return 0;
 
     const uint32_t    values[] = {width, height};
     xcb_void_cookie_t cookie =
-        xcb_configure_window_checked(wm->connection, window, XCB_RESIZE, values);
-    xcb_generic_error_t *error = xcb_request_check(wm->connection, cookie);
+        xcb_configure_window_checked(wm->connection, win, XCB_RESIZE, values);
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 
-    if (error) {
-        log_message(ERROR, "Error resizing window (ID %u): %d", window, error->error_code);
-        free(error);
+    if (err) {
+        log_message(ERROR, "Error resizing window (ID %u): %d", win, err->error_code);
+        free(err);
         return -1;
     }
 
     return 0;
 }
 
-int move_window(wm_t *wm, xcb_window_t window, uint16_t x, uint16_t y) {
-    if (window == 0 || window == XCB_NONE) {
+int move_window(wm_t *wm, xcb_window_t win, int16_t x, int16_t y) {
+    if (win == 0 || win == XCB_NONE) {
         return 0;
     }
 
     const uint32_t    values[] = {x, y};
     xcb_void_cookie_t cookie =
-        xcb_configure_window_checked(wm->connection, window, XCB_MOVE, values);
-    xcb_generic_error_t *error = xcb_request_check(wm->connection, cookie);
+        xcb_configure_window_checked(wm->connection, win, XCB_MOVE, values);
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 
-    if (error) {
-        log_message(ERROR, "Error moving window (ID %u): %d", window, error->error_code);
-        free(error);
+    if (err) {
+        log_message(ERROR, "Error moving window (ID %u): %d", win, err->error_code);
+        free(err);
         return -1;
     }
 
     return 0;
 }
 
-int change_border_attributes(
-    xcb_connection_t *conn, client_t *client, uint32_t b_color, uint32_t b_width, bool stack
+int change_border_attr(
+    xcb_connection_t *conn, client_t *client, uint32_t bcolor, uint32_t bwidth, bool stack
 ) {
     if (client == NULL) {
         log_message(ERROR, "Invalid client provided");
         return -1;
     }
 
-    if (change_window_attributes(conn, client->window, XCB_CW_BORDER_PIXEL, &b_color) != 0) {
+    uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
+    uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
+    uint32_t stack_    = XCB_CONFIG_WINDOW_STACK_MODE;
+    uint32_t input     = XCB_INPUT_FOCUS_PARENT;
+
+    if (change_window_attr(conn, client->window, bpx_width, &bcolor) != 0) {
         return -1;
     }
 
-    if (configure_window(conn, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, &b_width) !=
-        0) {
+    if (configure_window(conn, client->window, b_width, &bwidth) != 0) {
         return -1;
     }
 
     if (stack) {
         uint16_t arg[1] = {XCB_STACK_MODE_ABOVE};
-        if (configure_window(conn, client->window, XCB_CONFIG_WINDOW_STACK_MODE, arg) != 0) {
+        if (configure_window(conn, client->window, stack_, arg) != 0) {
             return -1;
         }
     }
 
-    if (set_input_focus(conn, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME) != 0) {
+    if (set_input_focus(conn, input, client->window, XCB_CURRENT_TIME) != 0) {
         return -1;
     }
 
@@ -519,48 +534,46 @@ int change_border_attributes(
     return 0;
 }
 
-int change_window_attributes(
-    xcb_connection_t *conn, xcb_window_t window, uint32_t attribute, const void *value
+int change_window_attr(
+    xcb_connection_t *conn, xcb_window_t win, uint32_t attr, const void *val
 ) {
     xcb_void_cookie_t attr_cookie =
-        xcb_change_window_attributes_checked(conn, window, attribute, value);
-    xcb_generic_error_t *error = xcb_request_check(conn, attr_cookie);
-    if (error != NULL) {
+        xcb_change_window_attributes_checked(conn, win, attr, val);
+    xcb_generic_error_t *err = xcb_request_check(conn, attr_cookie);
+    if (err != NULL) {
         log_message(
             ERROR,
             "Failed to change window attributes: error code %d",
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         return -1;
     }
     return 0;
 }
 
 int configure_window(
-    xcb_connection_t *conn, xcb_window_t window, uint16_t attribute, const void *value
+    xcb_connection_t *conn, xcb_window_t win, uint16_t attr, const void *val
 ) {
-    xcb_void_cookie_t config_cookie =
-        xcb_configure_window_checked(conn, window, attribute, value);
-    xcb_generic_error_t *error = xcb_request_check(conn, config_cookie);
-    if (error != NULL) {
-        log_message(ERROR, "Failed to configure window : error code %d", error->error_code);
-        free(error);
+    xcb_void_cookie_t    config_cookie = xcb_configure_window_checked(conn, win, attr, val);
+    xcb_generic_error_t *err           = xcb_request_check(conn, config_cookie);
+    if (err != NULL) {
+        log_message(ERROR, "Failed to configure window : error code %d", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
 }
 
 int set_input_focus(
-    xcb_connection_t *conn, uint8_t revert_to, xcb_window_t window, xcb_timestamp_t time
+    xcb_connection_t *conn, uint8_t revert_to, xcb_window_t win, xcb_timestamp_t time
 ) {
-    xcb_void_cookie_t focus_cookie =
-        xcb_set_input_focus_checked(conn, revert_to, window, time);
-    xcb_generic_error_t *error = xcb_request_check(conn, focus_cookie);
+    xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(conn, revert_to, win, time);
+    xcb_generic_error_t *err       = xcb_request_check(conn, focus_cookie);
 
-    if (error != NULL) {
-        log_message(ERROR, "Failed to set input focus : error code %d", error->error_code);
-        free(error);
+    if (err != NULL) {
+        log_message(ERROR, "Failed to set input focus : error code %d", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
@@ -571,26 +584,26 @@ int tile(wm_t *wm, node_t *node) {
         return 0;
     }
 
-    uint16_t width  = node->rectangle.width;
-    uint16_t height = node->rectangle.height;
-    int16_t  x      = node->rectangle.x;
-    int16_t  y      = node->rectangle.y;
+    const uint16_t width  = node->rectangle.width;
+    const uint16_t height = node->rectangle.height;
+    const int16_t  x      = node->rectangle.x;
+    const int16_t  y      = node->rectangle.y;
 
     if (resize_window(wm, node->client->window, width, height) != 0 ||
-        move_window(wm, node->client->window, (uint16_t)x, (uint16_t)y) != 0) {
+        move_window(wm, node->client->window, x, y) != 0) {
         return -1;
     }
 
-    xcb_void_cookie_t    cookie = xcb_map_window_checked(wm->connection, node->client->window);
-    xcb_generic_error_t *error  = xcb_request_check(wm->connection, cookie);
-    if (error != NULL) {
+    xcb_void_cookie_t cookie = xcb_map_window_checked(wm->connection, node->client->window);
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+    if (err != NULL) {
         log_message(
             ERROR,
             "Errror in mapping window %d: error code %d",
             node->client->window,
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         return -1;
     }
 
@@ -598,28 +611,64 @@ int tile(wm_t *wm, node_t *node) {
     return 0;
 }
 
-int display_bar(wm_t *wm, rectangle_t r, xcb_window_t window) {
+void send_client_message(xcb_window_t win, xcb_atom_t val[], xcb_connection_t *conn) {
+    xcb_client_message_event_t *e = calloc(32, 1);
+
+    e->response_type  = XCB_CLIENT_MESSAGE;
+    e->window         = win;
+    e->type           = val[0];
+    e->format         = 32;
+    e->data.data32[0] = val[1];
+    e->data.data32[1] = XCB_CURRENT_TIME;
+
+    xcb_send_event(conn, false, win, XCB_EVENT_MASK_NO_EVENT, (char *)e);
+    xcb_flush(conn);
+    free(e);
+}
+
+bool supports_protocol(xcb_window_t win, xcb_atom_t atom, xcb_connection_t *conn) {
+    xcb_get_property_cookie_t          cookie;
+    xcb_icccm_get_wm_protocols_reply_t protocols;
+    bool                               result       = false;
+    xcb_atom_t                         WM_PROTOCOLS = get_atom("WM_PROTOCOLS", conn);
+
+    cookie = xcb_icccm_get_wm_protocols(conn, win, WM_PROTOCOLS);
+    if (xcb_icccm_get_wm_protocols_reply(conn, cookie, &protocols, NULL) != 1) {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < protocols.atoms_len; i++) {
+        if (protocols.atoms[i] == atom) {
+            result = true;
+        }
+    }
+
+    xcb_icccm_get_wm_protocols_reply_wipe(&protocols);
+
+    return result;
+}
+
+int display_bar(wm_t *wm, rectangle_t r, xcb_window_t win) {
 
     uint16_t width  = r.width;
     uint16_t height = r.height;
     int16_t  x      = r.x;
     int16_t  y      = r.y;
 
-    if (resize_window(wm, window, width, height) != 0 ||
-        move_window(wm, window, (uint16_t)x, (uint16_t)y) != 0) {
+    if (resize_window(wm, win, width, height) != 0 || move_window(wm, win, x, y) != 0) {
         return -1;
     }
 
-    xcb_void_cookie_t    cookie = xcb_map_window_checked(wm->connection, window);
-    xcb_generic_error_t *error  = xcb_request_check(wm->connection, cookie);
-    if (error != NULL) {
+    xcb_void_cookie_t    cookie = xcb_map_window_checked(wm->connection, win);
+    xcb_generic_error_t *err    = xcb_request_check(wm->connection, cookie);
+    if (err != NULL) {
         log_message(
             ERROR,
             "Errror in mapping window %d: error code %d",
-            window,
-            error->error_code
+            win,
+            err->error_code
         );
-        free(error);
+        free(err);
         return -1;
     }
 
@@ -627,8 +676,8 @@ int display_bar(wm_t *wm, rectangle_t r, xcb_window_t window) {
     return 0;
 }
 
-int16_t get_cursor_axis(xcb_connection_t *conn, xcb_window_t window) {
-    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, window);
+int16_t get_cursor_axis(xcb_connection_t *conn, xcb_window_t win) {
+    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, win);
     xcb_query_pointer_reply_t *p_reply  = xcb_query_pointer_reply(conn, p_cookie, NULL);
 
     if (!p_reply) {
@@ -642,8 +691,8 @@ int16_t get_cursor_axis(xcb_connection_t *conn, xcb_window_t window) {
     return x;
 }
 
-xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t window) {
-    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, window);
+xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t win) {
+    xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, win);
     xcb_query_pointer_reply_t *p_reply  = xcb_query_pointer_reply(conn, p_cookie, NULL);
 
     if (!p_reply) {
@@ -657,11 +706,11 @@ xcb_window_t get_window_under_cursor(xcb_connection_t *conn, xcb_window_t window
     return x;
 }
 
-xcb_keycode_t *get_keycode(xcb_keysym_t keysym, xcb_connection_t *con) {
+xcb_keycode_t *get_keycode(xcb_keysym_t keysym, xcb_connection_t *conn) {
     xcb_key_symbols_t *keysyms = NULL;
     xcb_keycode_t     *keycode = NULL;
 
-    if (!(keysyms = xcb_key_symbols_alloc(con))) {
+    if (!(keysyms = xcb_key_symbols_alloc(conn))) {
         return NULL;
     }
 
@@ -671,11 +720,11 @@ xcb_keycode_t *get_keycode(xcb_keysym_t keysym, xcb_connection_t *con) {
     return keycode;
 }
 
-xcb_keysym_t get_keysym(xcb_keycode_t keycode, xcb_connection_t *con) {
+xcb_keysym_t get_keysym(xcb_keycode_t keycode, xcb_connection_t *conn) {
     xcb_key_symbols_t *keysyms = NULL;
     xcb_keysym_t       keysym;
 
-    if (!(keysyms = xcb_key_symbols_alloc(con))) {
+    if (!(keysyms = xcb_key_symbols_alloc(conn))) {
         keysym = 0;
     }
 
@@ -690,7 +739,7 @@ int grab_keys(xcb_connection_t *conn, xcb_window_t win) {
         return -1;
     }
 
-    size_t n = sizeof(keys) / sizeof(keys[0]);
+    const size_t n = sizeof(keys) / sizeof(keys[0]);
 
     for (size_t i = 0; i < n; ++i) {
         xcb_keycode_t *key = get_keycode(keys[i].keysym, conn);
@@ -705,10 +754,10 @@ int grab_keys(xcb_connection_t *conn, xcb_window_t win) {
             XCB_GRAB_MODE_ASYNC
         );
         free(key);
-        xcb_generic_error_t *error = xcb_request_check(conn, cookie);
-        if (error != NULL) {
-            log_message(ERROR, "error grabbing key %d\n", error->error_code);
-            free(error);
+        xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+        if (err != NULL) {
+            log_message(ERROR, "error grabbing key %d\n", err->error_code);
+            free(err);
             return -1;
         }
     }
@@ -716,13 +765,13 @@ int grab_keys(xcb_connection_t *conn, xcb_window_t win) {
     return 0;
 }
 
-xcb_atom_t get_atom(char *atom_name, wm_t *w) {
+xcb_atom_t get_atom(char *atom_name, xcb_connection_t *conn) {
     xcb_intern_atom_cookie_t atom_cookie;
     xcb_atom_t               atom;
     xcb_intern_atom_reply_t *rep;
 
-    atom_cookie = xcb_intern_atom(w->connection, 0, (uint16_t)strlen(atom_name), atom_name);
-    rep         = xcb_intern_atom_reply(w->connection, atom_cookie, NULL);
+    atom_cookie = xcb_intern_atom(conn, 0, (uint16_t)strlen(atom_name), atom_name);
+    rep         = xcb_intern_atom_reply(conn, atom_cookie, NULL);
     if (NULL != rep) {
         atom = rep->atom;
         free(rep);
@@ -740,16 +789,16 @@ void ungrab_keys(xcb_connection_t *conn, xcb_window_t win) {
 
     xcb_void_cookie_t cookie = xcb_ungrab_key_checked(conn, XCB_GRAB_ANY, win, modifier);
 
-    xcb_generic_error_t *error = xcb_request_check(conn, cookie);
-    if (error != NULL) {
-        log_message(ERROR, "error ungrabbing keys: %d\n", error->error_code);
-        free(error);
+    xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+    if (err != NULL) {
+        log_message(ERROR, "error ungrabbing keys: %d\n", err->error_code);
+        free(err);
     }
 }
 
-void map_floating(xcb_window_t x, wm_t *w) {
+void map_floating(xcb_window_t x, wm_t *wm) {
     rectangle_t               rc = {0};
-    xcb_get_geometry_reply_t *g  = get_geometry(x, w->connection);
+    xcb_get_geometry_reply_t *g  = get_geometry(x, wm->connection);
     if (g == NULL) {
         return;
     }
@@ -758,44 +807,56 @@ void map_floating(xcb_window_t x, wm_t *w) {
     rc.x      = g->x;
     rc.y      = g->y;
     free(g);
-    resize_window(w, x, rc.width, rc.height);
-    move_window(w, x, (uint16_t)rc.x, (uint16_t)rc.y);
-    xcb_map_window(w->connection, x);
+    resize_window(wm, x, rc.width, rc.height);
+    move_window(wm, x, rc.x, rc.y);
+    xcb_map_window(wm->connection, x);
 }
 
 int kill_window(xcb_window_t win, wm_t *wm) {
-    if (win == XCB_NONE) return -1;
+    if (win == XCB_NONE) {
+        return -1;
+    }
+
     xcb_icccm_get_text_property_reply_t t_reply;
     xcb_get_property_cookie_t           cn = xcb_icccm_get_wm_name(wm->connection, win);
-    uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+    const uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+
     if (wr == 1) {
-        log_message(DEBUG, "deleted window id = %d, reply name = %s: %u\n", win, t_reply.name);
+        log_message(
+            DEBUG,
+            "deleted window id = %d, reply name = %s: %u\n",
+            win,
+            t_reply.name
+        );
         xcb_icccm_get_text_property_reply_wipe(&t_reply);
     } else {
         return -1;
     }
+
     if (win == 0) {
         return 0;
     }
 
     int curi = get_focused_desktop_idx(wm);
-    if (curi == -1) return -1;
+    if (curi == -1) {
+        return curi;
+    }
 
     node_t *n = find_node_by_window_id(wm->desktops[curi]->tree, win);
     if (n == NULL) {
         return -1;
     }
 
-    xcb_void_cookie_t    cookie = xcb_unmap_window_checked(wm->connection, n->client->window);
-    xcb_generic_error_t *error  = xcb_request_check(wm->connection, cookie);
-    if (error != NULL) {
+    xcb_void_cookie_t cookie = xcb_unmap_window_checked(wm->connection, n->client->window);
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+    if (err != NULL) {
         log_message(
             ERROR,
             "Errror in unmapping window %d: error code %d",
             n->client->window,
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         return -1;
     }
 
@@ -816,9 +877,9 @@ int show_window(wm_t *wm, xcb_window_t win) {
     const uint32_t       _on[]  = {ROOT_EVENT_MASK};
     xcb_generic_error_t *err;
     xcb_void_cookie_t    c;
-    //    c   = xcb_change_window_attributes_checked(wm->connection, wm->root_window,
-    //    XCB_CW_EVENT_MASK, _off); err = xcb_request_check(wm->connection, c); if (err !=
-    //    NULL) {
+    //    c   = xcb_change_window_attributes_checked(wm->connection,
+    //    wm->root_window, XCB_CW_EVENT_MASK, _off); err =
+    //    xcb_request_check(wm->connection, c); if (err != NULL) {
     //        log_message(
     //            ERROR,
     //            "Cannot change root window %d attrs: error code %d",
@@ -843,7 +904,7 @@ int show_window(wm_t *wm, xcb_window_t win) {
     // set window property to NormalState
     // XCB_ICCCM_WM_STATE_NORMAL
     const long       data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
-    const xcb_atom_t wm_s   = get_atom("WM_STATE", wm);
+    const xcb_atom_t wm_s   = get_atom("WM_STATE", wm->connection);
     c                       = xcb_change_property_checked(
         wm->connection,
         XCB_PROP_MODE_REPLACE,
@@ -865,8 +926,9 @@ int show_window(wm_t *wm, xcb_window_t win) {
         free(err);
         return -1;
     }
-    //    c   = xcb_change_window_attributes_checked(wm->connection, wm->root_window,
-    //    XCB_CW_EVENT_MASK, _on); err = xcb_request_check(wm->connection, c); if (err != NULL)
+    //    c   = xcb_change_window_attributes_checked(wm->connection,
+    //    wm->root_window, XCB_CW_EVENT_MASK, _on); err =
+    //    xcb_request_check(wm->connection, c); if (err != NULL)
     //    {
     //        log_message(
     //            ERROR,
@@ -885,9 +947,9 @@ int hide_window(wm_t *wm, xcb_window_t win) {
     const uint32_t       _on[]  = {ROOT_EVENT_MASK};
     xcb_generic_error_t *err;
     xcb_void_cookie_t    c;
-    //    c   = xcb_change_window_attributes_checked(wm->connection, wm->root_window,
-    //    XCB_CW_EVENT_MASK, _off); err = xcb_request_check(wm->connection, c); if (err !=
-    //    NULL) {
+    //    c   = xcb_change_window_attributes_checked(wm->connection,
+    //    wm->root_window, XCB_CW_EVENT_MASK, _off); err =
+    //    xcb_request_check(wm->connection, c); if (err != NULL) {
     //        log_message(
     //            ERROR,
     //            "Cannot change root window %d attrs: error code %d",
@@ -915,7 +977,7 @@ int hide_window(wm_t *wm, xcb_window_t win) {
     // set window property to IconicState
     // XCB_ICCCM_WM_STATE_ICONIC
     const long       data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
-    const xcb_atom_t wm_s   = get_atom("WM_STATE", wm);
+    const xcb_atom_t wm_s   = get_atom("WM_STATE", wm->connection);
     c                       = xcb_change_property_checked(
         wm->connection,
         XCB_PROP_MODE_REPLACE,
@@ -937,8 +999,9 @@ int hide_window(wm_t *wm, xcb_window_t win) {
         free(err);
         return -1;
     }
-    //    c   = xcb_change_window_attributes_checked(wm->connection, wm->root_window,
-    //    XCB_CW_EVENT_MASK, _on); err = xcb_request_check(wm->connection, c); if (err != NULL)
+    //    c   = xcb_change_window_attributes_checked(wm->connection,
+    //    wm->root_window, XCB_CW_EVENT_MASK, _on); err =
+    //    xcb_request_check(wm->connection, c); if (err != NULL)
     //    {
     //        log_message(
     //            ERROR,
@@ -967,7 +1030,6 @@ void exec_process(const char *command) {
 
 void rofi_exec(char *dir) {
     pid_t pid = fork();
-
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
@@ -1021,6 +1083,43 @@ void super_cmd(xcb_key_press_event_t *key_event, wm_t *wm) {
         switch_desktop(wm, 4);
         break;
     }
+    case XK_l: {
+        const int i = get_focused_desktop_idx(wm);
+        if (i == -1) {
+            return;
+        }
+        node_t *root = wm->desktops[i]->tree;
+        if (!root) {
+            return;
+        }
+        xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+        node_t      *n = find_node_by_window_id(root, w);
+        if (!n) {
+            return;
+        }
+
+        horizontal_resize(n, GROW);
+        display_tree(root, wm);
+        break;
+    }
+    case XK_h: {
+        const int i = get_focused_desktop_idx(wm);
+        if (i == -1) {
+            return;
+        }
+        node_t *root = wm->desktops[i]->tree;
+        if (!root) {
+            return;
+        }
+        xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+        node_t      *n = find_node_by_window_id(root, w);
+        if (!n) {
+            return;
+        }
+        horizontal_resize(n, SHRINK);
+        display_tree(root, wm);
+        break;
+    }
 
     default: break;
     }
@@ -1042,57 +1141,60 @@ void polybar_exec(char *dir) {
     }
 }
 
-void update_focused_desktop(wm_t *w, int id) {
-    for (int i = 0; i < w->number_of_desktops; ++i) {
-        if (w->desktops[i]->id != id) {
-            w->desktops[i]->is_focused = false;
+void update_focused_desktop(wm_t *wm, int id) {
+    for (int i = 0; i < wm->number_of_desktops; ++i) {
+        if (wm->desktops[i]->id != id) {
+            wm->desktops[i]->is_focused = false;
         } else {
-            w->desktops[i]->is_focused = true;
+            wm->desktops[i]->is_focused = true;
         }
     }
 }
 
-int switch_desktop(wm_t *w, uint32_t nd) {
-    int current = get_focused_desktop_idx(w);
-    if (current == -1) return -1;
+int switch_desktop(wm_t *wm, uint32_t nd) {
+    int current = get_focused_desktop_idx(wm);
+    if (current == -1) {
+        return current;
+    }
+
     log_message(DEBUG, "current desktop %d", current);
 
-    if (ewmh_update_current_desktop(w->ewmh, w->screen_nbr, nd) != 0) {
+    if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, nd) != 0) {
         return -1;
     }
 
-    update_focused_desktop(w, (int)nd);
+    update_focused_desktop(wm, (int)nd);
 
-    if (hide_windows(w->desktops[current]->tree, w) != 0) {
+    if (hide_windows(wm->desktops[current]->tree, wm) != 0) {
         // TODO: handle error
         return -1;
     }
-    if (show_windows(w->desktops[nd]->tree, w) != 0) {
+    if (show_windows(wm->desktops[nd]->tree, wm) != 0) {
         // TODO: handle error
         return -1;
     }
 
-    xcb_flush(w->connection);
+    xcb_flush(wm->connection);
     return 0;
 }
 
-int set_active_window_name(wm_t *w, xcb_window_t win) {
+int set_active_window_name(wm_t *wm, xcb_window_t win) {
     xcb_void_cookie_t aw_cookie =
-        xcb_ewmh_set_active_window_checked(w->ewmh, w->screen_nbr, win);
-    xcb_generic_error_t *error = xcb_request_check(w->connection, aw_cookie);
-    if (error) {
-        log_message(ERROR, "Error setting active window: %d\n", error->error_code);
-        free(error);
+        xcb_ewmh_set_active_window_checked(wm->ewmh, wm->screen_nbr, win);
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, aw_cookie);
+    if (err) {
+        log_message(ERROR, "Error setting active window: %d\n", err->error_code);
+        free(err);
         return -1;
     }
     return 0;
 }
 
-int set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state, wm_t *w) {
-    long              data[] = {state, XCB_NONE};
-    xcb_atom_t        t      = get_atom("WM_STATE", w);
+int set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state, wm_t *wm) {
+    const long        data[] = {state, XCB_NONE};
+    xcb_atom_t        t      = get_atom("WM_STATE", wm->connection);
     xcb_void_cookie_t c      = xcb_change_property_checked(
-        w->connection,
+        wm->connection,
         XCB_PROP_MODE_REPLACE,
         win,
         t,
@@ -1101,26 +1203,26 @@ int set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state, wm_t *w) {
         2,
         data
     );
-    xcb_generic_error_t *error = xcb_request_check(w->connection, c);
-    if (error != NULL) {
+    xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+    if (err != NULL) {
         log_message(
             ERROR,
             "Errror in changing property window %d: error code %d",
             win,
-            error->error_code
+            err->error_code
         );
-        free(error);
+        free(err);
         return -1;
     }
     return 0;
 }
 
-bool should_manage(xcb_window_t window, xcb_connection_t *connection) {
+bool should_manage(xcb_window_t win, xcb_connection_t *conn) {
     xcb_get_window_attributes_cookie_t attr_cookie;
     xcb_get_window_attributes_reply_t *attr_reply;
 
-    attr_cookie = xcb_get_window_attributes(connection, window);
-    attr_reply  = xcb_get_window_attributes_reply(connection, attr_cookie, NULL);
+    attr_cookie = xcb_get_window_attributes(conn, win);
+    attr_reply  = xcb_get_window_attributes_reply(conn, attr_cookie, NULL);
 
     if (attr_reply == NULL) {
         return true;
@@ -1131,21 +1233,21 @@ bool should_manage(xcb_window_t window, xcb_connection_t *connection) {
     return manage;
 }
 
-int window_type(xcb_window_t win, wm_t *w) {
+int window_type(xcb_window_t win, wm_t *wm) {
     xcb_ewmh_get_atoms_reply_t w_type;
-    xcb_get_property_cookie_t  c = xcb_ewmh_get_wm_window_type(w->ewmh, win);
-    uint8_t r = xcb_ewmh_get_wm_window_type_reply(w->ewmh, c, &w_type, NULL);
+    xcb_get_property_cookie_t  c = xcb_ewmh_get_wm_window_type(wm->ewmh, win);
+    const uint8_t r = xcb_ewmh_get_wm_window_type_reply(wm->ewmh, c, &w_type, NULL);
     if (r == 1) {
         for (unsigned int i = 0; i < w_type.atoms_len; i++) {
             xcb_atom_t a = w_type.atoms[i];
-            if (a == w->ewmh->_NET_WM_WINDOW_TYPE_NORMAL) {
+            if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_NORMAL) {
                 /*
                  * _NET_WM_WINDOW_TYPE_NORMAL
                  * indicates that this is a normal, top-level window.
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 1;
-            } else if (a == w->ewmh->_NET_WM_WINDOW_TYPE_DOCK) {
+            } else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_DOCK) {
                 /*
                  * _NET_WM_WINDOW_TYPE_DOCK
                  * indicates a dock or panel feature.
@@ -1154,29 +1256,30 @@ int window_type(xcb_window_t win, wm_t *w) {
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 2;
-            } else if (a == w->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR || a == w->ewmh->_NET_WM_WINDOW_TYPE_MENU) {
+            } else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR || a == wm->ewmh->_NET_WM_WINDOW_TYPE_MENU) {
                 /*
                  * _NET_WM_WINDOW_TYPE_TOOLBAR and _NET_WM_WINDOW_TYPE_MENU
                  * indicate toolbar and pinnable menu windows,
-                 * respectively (i.e. toolbars and menus "torn off" from the main application).
-                 * Windows of this type may set the WM_TRANSIENT_FOR hint indicating the main
-                 * application window.
+                 * respectively (i.e. toolbars and menus "torn off" from the
+                 * main application). Windows of this type may set the
+                 * WM_TRANSIENT_FOR hint indicating the main application window.
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 3;
-            } else if (a == w->ewmh->_NET_WM_WINDOW_TYPE_UTILITY) {
+            } else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_UTILITY) {
                 /*
                  * _NET_WM_WINDOW_TYPE_UTILITY
-                 * indicates a small persistent utility window, such as a palette or toolbox.
-                 * It is distinct from type TOOLBAR because it does not correspond to a toolbar
-                 * torn off from the main application. It's distinct from type DIALOG because
-                 * it isn't a transient dialog, the user will probably keep it open while
-                 * they're working. Windows of this type may set the WM_TRANSIENT_FOR hint
-                 * indicating the main application window.
+                 * indicates a small persistent utility window, such as a
+                 * palette or toolbox. It is distinct from type TOOLBAR because
+                 * it does not correspond to a toolbar torn off from the main
+                 * application. It's distinct from type DIALOG because it isn't
+                 * a transient dialog, the user will probably keep it open while
+                 * they're working. Windows of this type may set the
+                 * WM_TRANSIENT_FOR hint indicating the main application window.
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 4;
-            } else if (a == w->ewmh->_NET_WM_WINDOW_TYPE_SPLASH) {
+            } else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_SPLASH) {
                 /*
                  * _NET_WM_WINDOW_TYPE_SPLASH
                  * indicates that the window is a splash screen
@@ -1184,12 +1287,13 @@ int window_type(xcb_window_t win, wm_t *w) {
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 5;
-            } else if (a == w->ewmh->_NET_WM_WINDOW_TYPE_DIALOG || a != w->ewmh->_NET_WM_WINDOW_TYPE) {
+            } else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG || a != wm->ewmh->_NET_WM_WINDOW_TYPE) {
                 /*
                  * _NET_WM_WINDOW_TYPE_DIALOG
                  * indicates that this is a dialog window.
                  * If _NET_WM_WINDOW_TYPE is not set,
-                 * then windows with WM_TRANSIENT_FOR set MUST be taken as this type.
+                 * then windows with WM_TRANSIENT_FOR set MUST be taken as this
+                 * type.
                  * */
                 xcb_ewmh_get_atoms_reply_wipe(&w_type);
                 return 6;
@@ -1205,7 +1309,7 @@ int window_type(xcb_window_t win, wm_t *w) {
 bool is_splash(xcb_window_t win, wm_t *wm) {
     xcb_icccm_get_text_property_reply_t t_reply;
     xcb_get_property_cookie_t           cn = xcb_icccm_get_wm_name(wm->connection, win);
-    uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+    const uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
     if (wr == 1) {
         if (strcmp(t_reply.name, "splash") == 0) {
             xcb_icccm_get_text_property_reply_wipe(&t_reply);
@@ -1215,10 +1319,11 @@ bool is_splash(xcb_window_t win, wm_t *wm) {
     return false;
 }
 
-bool is_transient(xcb_window_t win, wm_t *w) {
+bool is_transient(xcb_window_t win, wm_t *wm) {
     xcb_window_t              transient = XCB_NONE;
-    xcb_get_property_cookie_t c         = xcb_icccm_get_wm_transient_for(w->connection, win);
-    uint8_t r = xcb_icccm_get_wm_transient_for_reply(w->connection, c, &transient, NULL);
+    xcb_get_property_cookie_t c = xcb_icccm_get_wm_transient_for(wm->connection, win);
+    const uint8_t             r =
+        xcb_icccm_get_wm_transient_for_reply(wm->connection, c, &transient, NULL);
 
     if (r != 1) {
         return false;
@@ -1296,10 +1401,18 @@ int handle_map_request(xcb_window_t win, wm_t *wm) {
      * _NET_WM_WINDOW_TYPE_SPLASH.
      * ==> splash windows are tiled instead of being floated.
      *
-     * check if win name == "splash" then float it regardless of _NET_WM_WINDOW_TYPE(ATOM)
-     * type. this is a hacky solution till jetbrains' devs fix the splash window type
+     * check if win name == "splash" then float it regardless of
+     * _NET_WM_WINDOW_TYPE(ATOM) type. this is a hacky solution till jetbrains'
+     * devs fix the splash window type
      * */
     if (is_splash(win, wm)) {
+        map_floating(win, wm);
+        raise_window(wm->connection, win);
+        xcb_flush(wm->connection);
+        return 0;
+    }
+
+    if (is_transient(win, wm)) {
         map_floating(win, wm);
         raise_window(wm->connection, win);
         xcb_flush(wm->connection);
@@ -1312,14 +1425,13 @@ int handle_map_request(xcb_window_t win, wm_t *wm) {
         return 0;
     }
 
-    int win_t = window_type(win, wm);
+    const int win_t = window_type(win, wm);
     if (win_t == -1) {
         log_message(DEBUG, "window_type");
-
         return win_t;
     }
 
-    int idx = get_focused_desktop_idx(wm);
+    const int idx = get_focused_desktop_idx(wm);
     if (idx == -1) {
         return idx;
     }
@@ -1386,46 +1498,46 @@ int handle_map_request(xcb_window_t win, wm_t *wm) {
     return 0;
 }
 
-int handle_enter_notify(wm_t *w, xcb_window_t win) {
+int handle_enter_notify(wm_t *wm, xcb_window_t win) {
     if (win == wbar) {
         return 0;
     }
 
-    int curd = get_focused_desktop_idx(w);
+    const int curd = get_focused_desktop_idx(wm);
     if (curd == -1) {
         return -1;
     }
 
-    node_t *root = w->desktops[curd]->tree;
+    node_t *root = wm->desktops[curd]->tree;
 
     node_t *n = find_node_by_window_id(root, win);
     if (n == NULL) {
         return -1;
     }
 
-    int r = set_active_window_name(w, win);
+    const int r = set_active_window_name(wm, win);
     if (r != 0) {
         return -1;
     }
 
-    if (change_border_attributes(w->connection, n->client, 0x83a598, 1, true) != 0) {
+    if (change_border_attr(wm->connection, n->client, 0x83a598, 1, true) != 0) {
         return -1;
     }
 
     return 0;
 }
 
-int handle_leave_notify(wm_t *w, xcb_window_t win) {
+int handle_leave_notify(wm_t *wm, xcb_window_t win) {
     if (win == wbar) {
         return 0;
     }
 
-    int curd = get_focused_desktop_idx(w);
+    const int curd = get_focused_desktop_idx(wm);
     if (curd == -1) {
         return -1;
     }
 
-    node_t *root = w->desktops[curd]->tree;
+    node_t *root = wm->desktops[curd]->tree;
 
     node_t *n = find_node_by_window_id(root, win);
 
@@ -1433,8 +1545,12 @@ int handle_leave_notify(wm_t *w, xcb_window_t win) {
         return 0;
     }
 
-    if (change_border_attributes(w->connection, n->client, 0x000000, 0, false) != 0) {
-        log_message(ERROR, "Failed to change border attr for window %d\n", n->client->window);
+    if (change_border_attr(wm->connection, n->client, 0x000000, 0, false) != 0) {
+        log_message(
+            ERROR,
+            "Failed to change border attr for window %d\n",
+            n->client->window
+        );
         return -1;
     }
 
@@ -1447,13 +1563,13 @@ void handle_key_press(xcb_key_press_event_t *key_press, wm_t *wm) {
     }
 }
 
-int handle_client_message(xcb_client_message_event_t *client_message, wm_t *w) {
-    if (client_message->type == w->ewmh->_NET_CURRENT_DESKTOP) {
+int handle_client_message(xcb_client_message_event_t *client_message, wm_t *wm) {
+    if (client_message->type == wm->ewmh->_NET_CURRENT_DESKTOP) {
         uint32_t nd = client_message->data.data32[0];
-        if (nd > w->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
+        if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
             return -1;
         }
-        if (switch_desktop(w, nd) != 0) {
+        if (switch_desktop(wm, nd) != 0) {
             return -1;
         }
         /* log_message(DEBUG, "received data32:\n"); */
@@ -1474,17 +1590,17 @@ int handle_client_message(xcb_client_message_event_t *client_message, wm_t *w) {
     return 0;
 }
 
-int handle_unmap_notify(xcb_window_t win, wm_t *w) {
+int handle_unmap_notify(xcb_window_t win, wm_t *wm) {
 
-    int current = get_focused_desktop_idx(w);
+    const int current = get_focused_desktop_idx(wm);
     if (current == -1) {
         return current;
     }
-    node_t *tree = w->desktops[current]->tree;
+    node_t *tree = wm->desktops[current]->tree;
 
     if (client_exist(tree, win)) {
-        if ((set_window_state(win, XCB_ICCCM_WM_STATE_WITHDRAWN, w) != 0) ||
-            (kill_window(win, w)) != 0) {
+        if ((set_window_state(win, XCB_ICCCM_WM_STATE_WITHDRAWN, wm) != 0) ||
+            (kill_window(win, wm)) != 0) {
             return -1;
         }
     }
@@ -1492,10 +1608,10 @@ int handle_unmap_notify(xcb_window_t win, wm_t *w) {
     return 0;
 }
 
-void handle_configure_request(wm_t *w, xcb_configure_request_event_t *e) {
+void handle_configure_request(wm_t *wm, xcb_configure_request_event_t *e) {
     xcb_icccm_get_text_property_reply_t t_reply;
-    xcb_get_property_cookie_t           cn = xcb_icccm_get_wm_name(w->connection, e->window);
-    const uint8_t wr = xcb_icccm_get_wm_name_reply(w->connection, cn, &t_reply, NULL);
+    xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(wm->connection, e->window);
+    const uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
     char          name[256];
     if (wr == 1) {
         snprintf(name, sizeof(name), "%s", t_reply.name);
@@ -1514,12 +1630,12 @@ void handle_configure_request(wm_t *w, xcb_configure_request_event_t *e) {
         e->width,
         e->height
     );
-    int d = get_focused_desktop_idx(w);
+    const int d = get_focused_desktop_idx(wm);
     if (d == -1) {
         return;
     }
 
-    node_t *n          = w->desktops[d]->tree;
+    node_t *n          = wm->desktops[d]->tree;
     bool    is_managed = client_exist(n, e->window);
     if (!is_managed) {
         uint16_t mask = 0;
@@ -1560,40 +1676,40 @@ void handle_configure_request(wm_t *w, xcb_configure_request_event_t *e) {
             values[i++] = e->stack_mode;
         }
 
-        xcb_configure_window(w->connection, e->window, mask, values);
-        xcb_flush(w->connection);
+        xcb_configure_window(wm->connection, e->window, mask, values);
+        xcb_flush(wm->connection);
     }
 }
 
-int handle_destroy_notify(xcb_window_t win, wm_t *w) {
+int handle_destroy_notify(xcb_window_t win, wm_t *wm) {
 
-    int current = get_focused_desktop_idx(w);
+    const int current = get_focused_desktop_idx(wm);
     if (current == -1) {
         return current;
     }
-    node_t *tree = w->desktops[current]->tree;
+    node_t *tree = wm->desktops[current]->tree;
 
     if (client_exist(tree, win)) {
-        return kill_window(win, w);
+        return kill_window(win, wm);
     }
 
     return 0;
 }
 
-void log_active_desktop(wm_t *w) {
-    for (int i = 0; i < w->number_of_desktops; i++) {
+void log_active_desktop(wm_t *wm) {
+    for (int i = 0; i < wm->number_of_desktops; i++) {
         log_message(
             DEBUG,
             "desktop %d, active %s",
-            w->desktops[i]->id,
-            w->desktops[i]->is_focused ? "true" : "false"
+            wm->desktops[i]->id,
+            wm->desktops[i]->is_focused ? "true" : "false"
         );
     }
 }
 
 void log_children(xcb_connection_t *connection, xcb_window_t root_window) {
     xcb_query_tree_cookie_t tree_cookie = xcb_query_tree(connection, root_window);
-    xcb_query_tree_reply_t *tree_reply  = xcb_query_tree_reply(connection, tree_cookie, NULL);
+    xcb_query_tree_reply_t *tree_reply = xcb_query_tree_reply(connection, tree_cookie, NULL);
     if (!tree_reply) {
         log_message(DEBUG, "Failed to query tree reply\n");
         return;
@@ -1601,7 +1717,7 @@ void log_children(xcb_connection_t *connection, xcb_window_t root_window) {
 
     log_message(DEBUG, "Children of root window:\n");
     xcb_window_t *children     = xcb_query_tree_children(tree_reply);
-    int           num_children = xcb_query_tree_children_length(tree_reply);
+    const int     num_children = xcb_query_tree_children_length(tree_reply);
     for (int i = 0; i < num_children; ++i) {
         xcb_icccm_get_text_property_reply_t t_reply;
         xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(connection, children[i]);
@@ -1697,13 +1813,15 @@ int main() {
         case XCB_CONFIGURE_NOTIFY: {
             __attribute__((unused)) xcb_configure_notify_event_t *config_notify =
                 (xcb_configure_notify_event_t *)event;
-            /* log_message(DEBUG, "XCB_CONFIGURE_NOTIFY %d\n", config_notify->window); */
+            /* log_message(DEBUG, "XCB_CONFIGURE_NOTIFY %d\n",
+             * config_notify->window); */
             break;
         }
         case XCB_PROPERTY_NOTIFY: {
             __attribute__((unused)) xcb_property_notify_event_t *property_notify =
                 (xcb_property_notify_event_t *)event;
-            /* log_message(DEBUG, "XCB_PROPERTY_NOTIFY %d\n", property_notify->window); */
+            /* log_message(DEBUG, "XCB_PROPERTY_NOTIFY %d\n",
+             * property_notify->window); */
             break;
         }
         case XCB_ENTER_NOTIFY: {

@@ -21,8 +21,15 @@ typedef enum {
 } flip_t;
 
 typedef enum {
+	GROW,
+	SHRINK
+} resize_t;
+
+typedef enum {
     LEFT,
     RIGHT,
+    UP,
+    DOWN,
     NONE
 } direction_t;
 

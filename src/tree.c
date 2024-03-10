@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "type.h"
 #include "zwm.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -133,15 +134,15 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_
             current_node->second_child->parent = current_node;
             rectangle_t r                      = {0};
             if (current_node->rectangle.width >= current_node->rectangle.height) {
-                r.x = (int16_t)(current_node->rectangle.x + current_node->rectangle.width / 2 +
-                                W_GAP);
-                r.y = current_node->rectangle.y;
+                r.x      = (int16_t
+                )(current_node->rectangle.x + current_node->rectangle.width / 2 + W_GAP);
+                r.y      = current_node->rectangle.y;
                 r.width  = current_node->rectangle.width / 2 - W_GAP / 2 - W_GAP;
                 r.height = current_node->rectangle.height;
             } else {
                 r.x      = current_node->rectangle.x;
-                r.y      = (int16_t)(current_node->rectangle.height / 2 + W_GAP +
-                                current_node->rectangle.y);
+                r.y      = (int16_t
+                )(current_node->rectangle.height / 2 + W_GAP + current_node->rectangle.y);
                 r.width  = current_node->rectangle.width;
                 r.height = current_node->rectangle.height / 2 - W_GAP;
             }
@@ -156,21 +157,21 @@ void insert_under_cursor(node_t *current_node, client_t *new_client, xcb_window_
     }
 }
 
-node_t *find_node_by_window_id(node_t *root, xcb_window_t window_id) {
+node_t *find_node_by_window_id(node_t *root, xcb_window_t win) {
     if (root == NULL) {
         return NULL;
     }
 
-    if (root->client != NULL && root->client->window == window_id) {
+    if (root->client != NULL && root->client->window == win) {
         return root;
     }
 
-    node_t *left_result = find_node_by_window_id(root->first_child, window_id);
+    node_t *left_result = find_node_by_window_id(root->first_child, win);
     if (left_result != NULL) {
         return left_result;
     }
 
-    node_t *right_result = find_node_by_window_id(root->second_child, window_id);
+    node_t *right_result = find_node_by_window_id(root->second_child, win);
     if (right_result != NULL) {
         return right_result;
     }
@@ -334,8 +335,10 @@ node_t *get_sibling(node_t *node, node_type_t type) {
 }
 
 bool has_external_children(node_t *parent) {
-    return (parent->first_child != NULL && parent->first_child->node_type == EXTERNAL_NODE) &&
-           (parent->second_child != NULL && parent->second_child->node_type == EXTERNAL_NODE);
+    return (parent->first_child != NULL && parent->first_child->node_type == EXTERNAL_NODE
+           ) &&
+           (parent->second_child != NULL && parent->second_child->node_type == EXTERNAL_NODE
+           );
 }
 
 node_t *find_tree_root(node_t *node) {
@@ -356,16 +359,16 @@ bool has_single_external_child(node_t *parent) {
              parent->first_child->node_type != EXTERNAL_NODE));
 }
 
-client_t *find_client_by_window_id(node_t *root, xcb_window_t window_id) {
+client_t *find_client_by_window_id(node_t *root, xcb_window_t win) {
     if (root == NULL) {
         return NULL;
     }
 
-    if (root->client != NULL && root->client->window == window_id) {
+    if (root->client != NULL && root->client->window == win) {
         return root->client;
     }
 
-    node_t *left_result = find_node_by_window_id(root->first_child, window_id);
+    node_t *left_result = find_node_by_window_id(root->first_child, win);
     if (left_result == NULL) {
         return NULL;
     }
@@ -374,7 +377,7 @@ client_t *find_client_by_window_id(node_t *root, xcb_window_t window_id) {
         return left_result->client;
     }
 
-    node_t *right_result = find_node_by_window_id(root->second_child, window_id);
+    node_t *right_result = find_node_by_window_id(root->second_child, win);
     if (right_result == NULL) {
         return NULL;
     }
@@ -657,13 +660,13 @@ bool is_parent_internal(node_t *node) {
     return node->parent->node_type == INTERNAL_NODE;
 }
 
-void log_tree_nodes(node_t *node, wm_t *w) {
+void log_tree_nodes(node_t *node, wm_t *wm) {
     if (node != NULL) {
         if (node->client != NULL) {
             xcb_icccm_get_text_property_reply_t t_reply;
             xcb_get_property_cookie_t           cn =
-                xcb_icccm_get_wm_name(w->connection, node->client->window);
-            uint8_t wr = xcb_icccm_get_wm_name_reply(w->connection, cn, &t_reply, NULL);
+                xcb_icccm_get_wm_name(wm->connection, node->client->window);
+            uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
             char    name[256];
             if (wr == 1) {
                 snprintf(name, sizeof(name), "%s", t_reply.name);
@@ -679,8 +682,8 @@ void log_tree_nodes(node_t *node, wm_t *w) {
         } else {
             log_message(DEBUG, "Node Type: %d", node->node_type);
         }
-        log_tree_nodes(node->first_child, w);
-        log_tree_nodes(node->second_child, w);
+        log_tree_nodes(node->first_child, wm);
+        log_tree_nodes(node->second_child, wm);
     }
 }
 
@@ -736,4 +739,186 @@ bool client_exist(node_t *cn, uint32_t id) {
     }
 
     return false;
+}
+
+bool in_left_subtree(node_t *first_left_child, node_t *n) {
+    if (first_left_child == NULL) {
+        return false;
+    }
+
+    if (first_left_child == n || first_left_child->first_child == n ||
+        first_left_child->second_child == n) {
+        return true;
+    }
+
+    if (in_left_subtree(first_left_child->first_child, n)) {
+        return true;
+    }
+
+    if (in_left_subtree(first_left_child->second_child, n)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool in_right_subtree(node_t *first_right_child, node_t *n) {
+    if (first_right_child == NULL) {
+        return false;
+    }
+
+    if (first_right_child == n || first_right_child->first_child == n ||
+        first_right_child->second_child == n) {
+        return true;
+    }
+
+    if (in_right_subtree(first_right_child->first_child, n)) {
+        return true;
+    }
+
+    if (in_right_subtree(first_right_child->second_child, n)) {
+        return true;
+    }
+
+    return false;
+}
+
+void horizontal_resize(node_t *n, resize_t t) {
+    const int16_t px               = 5;
+    direction_t   grow_direction   = NONE;
+    direction_t   shrink_direction = NONE;
+
+    node_t *root = find_tree_root(n);
+    assert(root->node_type == ROOT_NODE);
+
+    if (in_left_subtree(root->first_child, n)) {
+        grow_direction   = RIGHT;
+        shrink_direction = LEFT;
+    } else if (in_right_subtree(root->second_child, n)) {
+        grow_direction   = LEFT;
+        shrink_direction = RIGHT;
+    }
+    log_message(INFO, "dir == %d", grow_direction);
+
+    if (n->parent == NULL || n->node_type == ROOT_NODE) {
+        return;
+    }
+
+    /*
+     * case 1: node's parent is the root.
+     * I = Internal node
+     * E = external node
+     *
+     * I's type is ROOT_NODE
+     * Node to delete is E.
+     * logic: grow E's width by 5 pixels
+     * then move E's sibling x by 5 pixles and shrink its width by 5 pixels
+     * E's sibling can be External or Internal -> if internal, resize its children
+     *         I
+     *    	 /   \
+     *   	E     E/I
+     *             \
+     *            rest...
+     */
+    if (n->parent->node_type == ROOT_NODE) {
+        node_t *s = NULL;
+        if (is_sibling_external(n)) {
+            s = get_external_sibling(n);
+            if (!s) {
+                return;
+            }
+            if (t == GROW) {
+                n->rectangle.width += px;
+                s->rectangle.width -= px;
+                grow_direction == RIGHT ? (s->rectangle.x += px) : (n->rectangle.x -= px);
+                return;
+            } else {
+                // shrink
+                n->rectangle.width -= px;
+                s->rectangle.width += px;
+                (shrink_direction == LEFT) ? (s->rectangle.x -= px) : (n->rectangle.x += px);
+                return;
+            }
+        } else {
+            // sibling is internal
+            s = get_internal_sibling(n);
+            if (!s) {
+                return;
+            }
+            if (t == GROW) {
+                n->rectangle.width += px;
+                s->rectangle.width -= px;
+                grow_direction == RIGHT ? (s->rectangle.x += px) : (n->rectangle.x -= px);
+                resize_subtree(s);
+                return;
+            } else {
+                n->rectangle.width -= px;
+                s->rectangle.width += px;
+                (shrink_direction == LEFT) ? (s->rectangle.x -= px) : (n->rectangle.x += px);
+                resize_subtree(s);
+                return;
+            }
+        }
+    }
+    /*
+     * case 2: node's parent is not the root (it is INTERNAL_NODE).
+     * I = Internal node
+     * E = external node
+     *
+     * I's type is INTERNAL_NODE
+     * Node to expand is E.
+     * logic: grow the whole subtree(rectangle)'s width in E's side by 5 pixels
+     * then move the opposite subtree(rectangle)'s x by 5 pixles and shrink its width
+     * by 5 pixels
+     *         I
+     *    	 /   \
+     *   	I     E/I
+     *    /   \     \
+     *   E    E/I   rest...
+     */
+    if (n->parent->node_type == INTERNAL_NODE) {
+        if (in_left_subtree(root->first_child, n)) {
+            log_message(INFO, "node is in left subtree");
+            if (root->first_child == NULL || root->first_child->node_type != INTERNAL_NODE) {
+                return;
+            }
+            (t == GROW) ? (root->first_child->rectangle.width += px)
+                        : (root->first_child->rectangle.width -= px);
+            (t == GROW) ? (root->second_child->rectangle.width -= px)
+                        : (root->second_child->rectangle.width += px);
+            (t == GROW) ? (root->second_child->rectangle.x += px)
+                        : (root->second_child->rectangle.x -= px);
+
+            if (root->second_child != NULL &&
+                root->second_child->node_type == EXTERNAL_NODE) {
+                resize_subtree(root->first_child);
+                return;
+            } else {
+                resize_subtree(root->first_child);
+                resize_subtree(root->second_child);
+                return;
+            }
+        } else {
+            log_message(INFO, "node is in right subtree");
+            if (root->second_child == NULL ||
+                root->second_child->node_type != INTERNAL_NODE) {
+                return;
+            }
+            (t == GROW) ? (root->second_child->rectangle.width += px)
+                        : (root->second_child->rectangle.width -= px);
+            (t == GROW) ? (root->second_child->rectangle.x -= px)
+                        : (root->second_child->rectangle.x += px);
+            (t == GROW) ? (root->first_child->rectangle.width -= px)
+                        : (root->first_child->rectangle.width += px);
+
+            if (root->first_child != NULL && root->first_child->node_type == EXTERNAL_NODE) {
+                resize_subtree(root->second_child);
+                return;
+            } else {
+                resize_subtree(root->first_child);
+                resize_subtree(root->second_child);
+                return;
+            }
+        }
+    }
 }
