@@ -243,59 +243,59 @@ void resize_subtree(node_t *parent) {
     }
 }
 
-bool has_sibling(node_t *node) {
+bool has_sibling(const node_t *node) {
     if (node == NULL || node->parent == NULL) {
         return false;
     }
 
-    node_t *parent = node->parent;
+    const node_t *parent = node->parent;
 
     return (parent->first_child != NULL && parent->second_child != NULL);
 }
 
-bool has_internal_sibling(node_t *node) {
+bool has_internal_sibling(const node_t *node) {
     if (node == NULL || node->parent == NULL) {
         return false;
     }
 
-    node_t *parent = node->parent;
+    const node_t *parent = node->parent;
 
     return (parent->first_child != NULL && parent->second_child != NULL) &&
            ((parent->first_child->node_type == INTERNAL_NODE) ||
             (parent->second_child->node_type == INTERNAL_NODE));
 }
 
-bool is_sibling_external(node_t *node) {
+bool is_sibling_external(const node_t *node) {
     if (node == NULL || node->parent == NULL) {
         return false;
     }
 
     node_t *parent = node->parent;
-    node_t *sibling =
+    const node_t *sibling =
         (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == EXTERNAL_NODE);
 }
 
-node_t *get_external_sibling(node_t *node) {
+node_t *get_external_sibling(const node_t *node) {
     if (node == NULL || node->parent == NULL) {
         return NULL;
     }
 
-    node_t *parent = node->parent;
+    const node_t *parent = node->parent;
     node_t *sibling =
         (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == EXTERNAL_NODE) ? sibling : NULL;
 }
 
-bool is_sibling_internal(node_t *node) {
+bool is_sibling_internal(const node_t *node) {
     if (node == NULL || node->parent == NULL) {
         return false;
     }
 
     node_t *parent = node->parent;
-    node_t *sibling =
+    const node_t *sibling =
         (parent->first_child == node) ? parent->second_child : parent->first_child;
 
     return (sibling != NULL && sibling->node_type == INTERNAL_NODE);
@@ -334,7 +334,7 @@ node_t *get_sibling(node_t *node, node_type_t type) {
     return NULL;
 }
 
-bool has_external_children(node_t *parent) {
+bool has_external_children(const node_t *parent) {
     return (parent->first_child != NULL && parent->first_child->node_type == EXTERNAL_NODE
            ) &&
            (parent->second_child != NULL && parent->second_child->node_type == EXTERNAL_NODE
@@ -348,7 +348,7 @@ node_t *find_tree_root(node_t *node) {
     return find_tree_root(node->parent);
 }
 
-bool has_single_external_child(node_t *parent) {
+bool has_single_external_child(const node_t *parent) {
     if (parent == NULL) return false;
 
     return ((parent->first_child != NULL && parent->second_child != NULL) &&
@@ -632,31 +632,31 @@ void delete_node(node_t *node, desktop_t *d) {
     }
 }
 
-bool has_first_child(node_t *parent) {
+bool has_first_child(const node_t *parent) {
     return parent->first_child != NULL;
 }
 
-bool has_second_child(node_t *parent) {
+bool has_second_child(const node_t *parent) {
     return parent->second_child != NULL;
 }
 
-bool is_internal(node_t *node) {
+bool is_internal(const node_t *node) {
     return node->node_type == INTERNAL_NODE;
 }
 
-bool is_external(node_t *node) {
+bool is_external(const node_t *node) {
     return node->node_type == EXTERNAL_NODE;
 }
 
-bool is_tree_empty(node_t *root) {
+bool is_tree_empty(const node_t *root) {
     return root == NULL;
 }
 
-bool is_parent_null(node_t *node) {
+bool is_parent_null(const node_t *node) {
     return node->parent == NULL;
 }
 
-bool is_parent_internal(node_t *node) {
+bool is_parent_internal(const node_t *node) {
     return node->parent->node_type == INTERNAL_NODE;
 }
 
@@ -721,20 +721,23 @@ int show_windows(node_t *cn, wm_t *wm) {
     return 0;
 }
 
-bool client_exist(node_t *cn, uint32_t id) {
+bool client_exist(node_t *cn, xcb_window_t win) {
     if (cn == NULL) {
         return false;
     }
 
-    if (cn->id == id) {
+    if (cn->client != NULL) {
+        log_message(DEBUG, "Checking node with win ID: %d", cn->client->window);
+        if (cn->client->window == win) {
+            return true;
+        }
+    }
+
+    if (client_exist(cn->first_child, win)) {
         return true;
     }
 
-    if (client_exist(cn->first_child, id)) {
-        return true;
-    }
-
-    if (client_exist(cn->second_child, id)) {
+    if (client_exist(cn->second_child, win)) {
         return true;
     }
 
