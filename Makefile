@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized
+CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized -g -ggdb
 LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm
 
 SRC_FILES = ./src/zwm.c ./src/logger.c ./src/tree.c
