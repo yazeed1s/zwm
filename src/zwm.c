@@ -35,18 +35,21 @@
 	(XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |            \
 	 XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |               \
 	 XCB_KEY_PRESS | XCB_KEY_RELEASE)
-#define ROOT_EVENT_MASK	   (SUBSTRUCTURE_REDIRECTION)
+#define ROOT_EVENT_MASK		(SUBSTRUCTURE_REDIRECTION)
 
-#define LENGTH(x)		   (sizeof(x) / sizeof(*x))
-#define CLEANMASK(mask)	   (mask & ~(0 | XCB_MOD_MASK_LOCK))
-#define NUMBER_OF_DESKTOPS 5
-#define WM_NAME			   "zwm"
-#define WM_CLASS_NAME	   "null"
-#define WM_INSTANCE_NAME   "null"
-#define ALT_MASK		   XCB_MOD_MASK_1
-#define SUPER_MASK		   XCB_MOD_MASK_4
-#define SHIFT_MASK		   XCB_MOD_MASK_SHIFT
-#define CTRL_MASK		   XCB_MOD_MASK_CONTROL
+#define LENGTH(x)			(sizeof(x) / sizeof(*x))
+#define CLEANMASK(mask)		(mask & ~(0 | XCB_MOD_MASK_LOCK))
+#define NUMBER_OF_DESKTOPS	5
+#define WM_NAME				"zwm"
+#define WM_CLASS_NAME		"null"
+#define WM_INSTANCE_NAME	"null"
+#define ALT_MASK			XCB_MOD_MASK_1
+#define SUPER_MASK			XCB_MOD_MASK_4
+#define SHIFT_MASK			XCB_MOD_MASK_SHIFT
+#define CTRL_MASK			XCB_MOD_MASK_CONTROL
+#define NORMAL_BORDER_COLOR 0x30302f
+#define ACTIVE_BORDER_COLOR 0x83a598
+#define BORDER_WIDTH		2
 
 wm_t		*wm	  = NULL;
 xcb_window_t wbar = XCB_NONE;
@@ -54,23 +57,23 @@ config_t	 conf = {0};
 
 // clang-format off
 static _key__t keys_[] = {
-	{SUPER_MASK,              XK_w,      close_or_kill,             &((arg_t){0})                 },
-	{SUPER_MASK,              XK_Return, exec_process,              &((arg_t){.cmd = "alacritty"})},
-	{SUPER_MASK,              XK_space,  exec_process,              &((arg_t){.cmd = "dmenu_run"})},
-	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})          },
-	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})          },
-	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})          },
-	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})          },
-	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})          },
-	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})         },
-	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})       },
-	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    &((arg_t){0})                 },
-	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})          },
-	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})          },
-	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})          },
-	{SUPER_MASK | SHIFT_MASK, XK_4,      transfer_node_wrapper,     &((arg_t){.idx = 3})          },
-	{SUPER_MASK | SHIFT_MASK, XK_5,      transfer_node_wrapper,     &((arg_t){.idx = 4})          },
-	{SUPER_MASK, XK_p},
+	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL},
+	{SUPER_MASK,              XK_Return, exec_process,              &((arg_t){.argc = 1, .cmd = (const char *[]){("alacritty")}})          },
+	{SUPER_MASK,              XK_space,  exec_process,              &((arg_t){.argc = 1, .cmd = (const char *[]){("dmenu_run")}})          },
+	{SUPER_MASK,              XK_p,      exec_process,              &((arg_t){.argc = 3, .cmd = (const char *[]){"rofi", "-show", "drun"}})},
+	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})                                                   },
+	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})                                                   },
+	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})                                                   },
+	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})                                                   },
+	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})                                                   },
+	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})                                                  },
+	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})                                                },
+	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                                                                   },
+	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})                                                   },
+	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})                                                   },
+	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})                                                   },
+	{SUPER_MASK | SHIFT_MASK, XK_4,      transfer_node_wrapper,     &((arg_t){.idx = 3})                                                   },
+	{SUPER_MASK | SHIFT_MASK, XK_5,      transfer_node_wrapper,     &((arg_t){.idx = 4})                                                   },
 };
 
 int	len_of_digits(long n) {
@@ -151,7 +154,7 @@ int ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh) {
 }
 
 int get_focused_desktop_idx() {
-	for (int i = 0; i < wm->n_of_desktops; ++i) {
+	for (int i = wm->n_of_desktops; i--;) {
 		if (wm->desktops[i]->is_focused) {
 			return wm->desktops[i]->id;
 		}
@@ -300,7 +303,7 @@ void raise_window(xcb_connection_t *conn, xcb_window_t win) {
 		// return;
 	}
 }
-int set_fullscreen_wrapper(arg_t *arg) {
+int set_fullscreen_wrapper() {
 	const int i = get_focused_desktop_idx();
 	if (i == -1) {
 		return -1;
@@ -331,8 +334,11 @@ int set_fullscreen(node_t *n, bool flag) {
 		r.width			 = wm->screen->width_in_pixels;
 		r.height		 = wm->screen->height_in_pixels;
 		n->client->state = FULLSCREEN;
-		if (change_border_attr(
-				wm->connection, n->client->window, 0x000000, 0, false) != 0) {
+		if (change_border_attr(wm->connection,
+							   n->client->window,
+							   NORMAL_BORDER_COLOR,
+							   0,
+							   false) != 0) {
 			return -1;
 		}
 		if (resize_window(n->client->window, r.width, r.height) != 0 ||
@@ -471,7 +477,6 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn) {
 	if (c == 0x00) {
 		return NULL;
 	}
-	snprintf(c->name, sizeof(c->name), "%s", NULL_STR);
 	c->id					   = win;
 	c->is_managed			   = false;
 	c->window				   = win;
@@ -490,6 +495,13 @@ client_t *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn) {
 					err->error_code);
 		free(err);
 		exit(EXIT_FAILURE);
+	}
+
+	if (change_border_attr(
+			wm->connection, win, NORMAL_BORDER_COLOR, BORDER_WIDTH, false) !=
+		0) {
+		log_message(ERROR, "Failed to change border attr for window %d\n", win);
+		return NULL;
 	}
 
 	return c;
@@ -937,7 +949,7 @@ int grab_keys(xcb_conn_t *conn, xcb_window_t win) {
 
 	const size_t n = sizeof(keys_) / sizeof(keys_[0]);
 
-	for (size_t i = 0; i < n; ++i) {
+	for (size_t i = n; i--;) {
 		xcb_keycode_t *key = get_keycode(keys_[i].keysym, conn);
 		if (key == NULL) return -1;
 		xcb_void_cookie_t cookie = xcb_grab_key_checked(conn,
@@ -998,10 +1010,13 @@ int send_client_message(xcb_window_t win, xcb_atom_t property, xcb_atom_t value,
 	return 0;
 }
 
-int close_or_kill(arg_t *arg) {
+int close_or_kill_wrapper() {
 	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
 	if (!window_exists(wm->connection, win)) return 0;
+	return close_or_kill(win);
+}
 
+int close_or_kill(xcb_window_t win) {
 	xcb_atom_t wm_delete = get_atom("WM_DELETE_WINDOW", wm->connection);
 	xcb_icccm_get_text_property_reply_t t_reply;
 	xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(wm->connection, win);
@@ -1204,13 +1219,12 @@ int hide_window(xcb_window_t win) {
 		free(err);
 		return -1;
 	}
-	if (change_border_attr(wm->connection, win, 0x000000, 0, false) != 0) {
+	if (change_border_attr(
+			wm->connection, win, NORMAL_BORDER_COLOR, BORDER_WIDTH, false) !=
+		0) {
 		log_message(ERROR, "Failed to change border attr for window %d\n", win);
 		return -1;
 	}
-
-	// lower_window(wm->connection, win);
-
 	return 0;
 }
 
@@ -1220,30 +1234,27 @@ int exec_process(arg_t *arg) {
 		perror("Fork failed");
 		exit(EXIT_FAILURE);
 	} else if (pid == 0) {
-		const char *args[] = {arg->cmd, NULL};
-		execvp(arg->cmd, (char *const *)args);
-		perror("execvp failed");
-		exit(EXIT_FAILURE);
+		if (arg->argc == 1) {
+			char *p		 = (char *)arg->cmd[0];
+			char *args[] = {p, NULL};
+			execvp(p, args);
+			perror("execvp failed");
+			exit(EXIT_FAILURE);
+		} else {
+			const char *args[arg->argc + 1];
+			for (int i = 0; i < arg->argc; i++) {
+				args[i] = arg->cmd[i];
+			}
+			args[arg->argc] = NULL;
+			execvp(args[0], (char *const *)args);
+			perror("execvp failed");
+			exit(EXIT_FAILURE);
+		}
 	}
 	return 0;
 }
 
-void rofi_exec(char *dir) {
-	pid_t pid = fork();
-	if (pid == -1) {
-		perror("fork");
-		exit(EXIT_FAILURE);
-	} else if (pid == 0) {
-		char *args[] = {(char *const)"rofi", "-show", (char *)dir, NULL};
-		execvp("rofi", args);
-		perror("execvp");
-		exit(EXIT_FAILURE);
-	} else {
-		wait(NULL);
-	}
-}
-
-void shift_cmd(xcb_key_press_event_t *key_event, wm_t *wm) {
+void shift_cmd(xcb_key_press_event_t *key_event) {
 	xcb_keysym_t k = get_keysym(key_event->detail, wm->connection);
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
@@ -1313,6 +1324,10 @@ int switch_desktop(const int nd) {
 	int current = get_focused_desktop_idx();
 	if (current == -1) {
 		return current;
+	}
+
+	if (nd == current) {
+		return 0;
 	}
 
 	if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, nd) != 0) {
@@ -1692,8 +1707,7 @@ int handle_map_request(xcb_window_t win) {
 }
 
 int handle_enter_notify(xcb_enter_notify_event_t *ev) {
-	xcb_window_t win		   = ev->event;
-	xcb_window_t active_window = XCB_NONE;
+	xcb_window_t win = ev->event;
 
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
 		ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) {
@@ -1726,27 +1740,14 @@ int handle_enter_notify(xcb_enter_notify_event_t *ev) {
 		log_message(DEBUG, "pointer on root");
 	}
 
-	xcb_get_property_cookie_t c =
-		xcb_ewmh_get_active_window(wm->ewmh, wm->screen_nbr);
-	// uint8_t w =
-	xcb_ewmh_get_active_window_reply(wm->ewmh, c, &active_window, NULL);
-	// what was I thinking here
-	if (active_window != n->client->window && n->client->state != FULLSCREEN) {
-		const int r = set_active_window_name(win);
-		if (r != 0 ||
-			change_border_attr(
-				wm->connection, n->client->window, 0x83a598, 2, true) != 0) {
-			return -1;
-		}
-		// if (r != 0 ||
-		// 	change_border_attr(
-		// 		wm->connection, n->client->window, 0x000000, 0, true) != 0) {
-		// 	return -1;
-		// }
+	const int r = set_active_window_name(win);
+	if (r != 0 || change_border_attr(wm->connection,
+									 n->client->window,
+									 ACTIVE_BORDER_COLOR,
+									 BORDER_WIDTH,
+									 true) != 0) {
+		return -1;
 	}
-
-	// n->is_focused = true;
-	// raise_window(wm->connection, n->client->window);
 
 	return 0;
 }
@@ -1788,8 +1789,11 @@ int handle_leave_notify(xcb_leave_notify_event_t *ev) {
 		return 0;
 	}
 
-	if (change_border_attr(
-			wm->connection, n->client->window, 0x000000, 0, false) != 0) {
+	if (change_border_attr(wm->connection,
+						   n->client->window,
+						   NORMAL_BORDER_COLOR,
+						   BORDER_WIDTH,
+						   false) != 0) {
 		log_message(ERROR,
 					"Failed to change border attr for window %d\n",
 					n->client->window);
@@ -1797,7 +1801,7 @@ int handle_leave_notify(xcb_leave_notify_event_t *ev) {
 	}
 
 	lower_window(wm->connection, n->client->window);
-	// n->is_focused = false;
+
 	return 0;
 }
 
@@ -1805,7 +1809,7 @@ void handle_key_press(xcb_key_press_event_t *key_press) {
 	uint16_t	 cleaned_state = (key_press->state & ~(0 | XCB_MOD_MASK_LOCK));
 	xcb_keysym_t k			   = get_keysym(key_press->detail, wm->connection);
 	size_t		 n			   = sizeof(keys_) / sizeof(keys_[0]);
-	for (size_t i = 0; i < n; ++i) {
+	for (size_t i = n; i--;) {
 		if (cleaned_state == (keys_[i].mod & ~(0 | XCB_MOD_MASK_LOCK))) {
 			if (keys_[i].keysym == k) {
 				arg_t *a   = keys_[i].arg;
@@ -2156,6 +2160,7 @@ int main() {
 		case XCB_ENTER_NOTIFY: {
 			xcb_enter_notify_event_t *enter_event =
 				(xcb_enter_notify_event_t *)event;
+			log_message(DEBUG, "XCB_ENTER_NOTIFY win %d\n", enter_event->event);
 			if (handle_enter_notify(enter_event) != 0) {
 				log_message(ERROR,
 							"Failed to handle XCB_ENTER_NOTIFY for window %d\n",
@@ -2167,6 +2172,7 @@ int main() {
 		case XCB_LEAVE_NOTIFY: {
 			xcb_leave_notify_event_t *leave_event =
 				(xcb_leave_notify_event_t *)event;
+			log_message(DEBUG, "XCB_LEAVE_NOTIFY win %d\n", leave_event->event);
 			if (handle_leave_notify(leave_event) != 0) {
 				log_message(ERROR,
 							"Failed to handle XCB_LEAVE_NOTIFY for window %d\n",

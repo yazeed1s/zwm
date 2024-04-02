@@ -3,6 +3,7 @@
 
 #include "type.h"
 #include <xcb/xcb_icccm.h>
+#include <xcb/xproto.h>
 
 // clang-format off
 extern xcb_window_t       wbar;
@@ -23,7 +24,7 @@ void 		              lower_window(xcb_connection_t *conn, xcb_window_t win);
 int16_t                   get_cursor_axis(xcb_conn_t *conn, xcb_window_t window);
 int                       exec_process(arg_t *arg);
 int  					  set_fullscreen(node_t *n, bool flag);
-int  					  set_fullscreen_wrapper(arg_t *arg);
+int  					  set_fullscreen_wrapper();
 int                       handle_first_window(client_t *client, desktop_t *d);
 int                       handle_subsequent_window(client_t *client, desktop_t *d);
 int                       set_active_window_name(xcb_window_t win);
@@ -34,7 +35,8 @@ int                       set_window_state(xcb_window_t win, xcb_icccm_wm_state_
 int                       show_window(xcb_window_t win);
 int 				      switch_desktop_wrapper(arg_t *arg);
 int 				      switch_desktop(const int nd);
-int 					  close_or_kill(arg_t *arg);
+int 					  close_or_kill_wrapper();
+int 					  close_or_kill(xcb_window_t win);
 int 					  horizontal_resize_wrapper(arg_t *arg);
 int                       resize_window(xcb_window_t win, uint16_t width, uint16_t height);
 int                       move_window(xcb_window_t win, int16_t x, int16_t y);

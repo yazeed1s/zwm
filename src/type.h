@@ -80,7 +80,6 @@ typedef struct {
 	uint32_t	 border_width;
 	xcb_window_t window;
 	xcb_atom_t	 type;
-	char		 name[MAXLEN];
 	bool		 is_managed;
 	state_t		 state;
 	posxy_t		 position_info;
@@ -140,10 +139,10 @@ the behviour should be
 
 typedef struct node_t node_t;
 struct node_t {
-	uint32_t	 id;
 	node_t		*parent;
 	node_t		*first_child;
 	node_t		*second_child;
+	uint32_t	 id;
 	client_t	*client;
 	node_type_t	 node_type;
 	split_type_t split_type;
@@ -152,19 +151,19 @@ struct node_t {
 };
 
 typedef struct {
+	node_t	*tree;
 	char	 name[DLEN];
 	uint8_t	 id;
 	int		 n_of_clients;
-	bool	 is_focused;
-	node_t	*tree;
 	layout_t layout;
+	bool	 is_focused;
 } desktop_t;
 
 typedef struct {
+	desktop_t			 **desktops;
 	xcb_connection_t	  *connection;
 	xcb_ewmh_connection_t *ewmh;
 	xcb_screen_t		  *screen;
-	desktop_t			 **desktops;
 	xcb_window_t		   root_window;
 	split_type_t		   split_type;
 	int					   n_of_desktops;
@@ -174,12 +173,12 @@ typedef struct {
 
 // arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
-	const char *cmd;
-	const int	idx;
-	resize_t	r;
+	const char **cmd;
+	const int	 argc;
+	const int	 idx;
+	resize_t	 r;
 } arg_t;
 
-// typedef void *(*function_ptr)(void *, ...);
 typedef struct {
 	unsigned int mod;
 	xcb_keysym_t keysym;
