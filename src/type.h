@@ -6,7 +6,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
-#define W_GAP	 3
+#define W_GAP	 15
 #define MAXLEN	 (2 << 7)
 #define DLEN	 (2 << 4)
 #define NULL_STR "N/A"
@@ -61,6 +61,19 @@ typedef enum {
 	FLOATING,
 	FULLSCREEN
 } state_t;
+
+typedef enum {
+	DEFAULT,
+	MASTER,
+	STACK,
+	GRID,
+} layout_t;
+
+typedef struct {
+	int			 border_width;
+	unsigned int border_color;
+	int			 window_gap;
+} config_t;
 
 typedef struct {
 	uint32_t	 id;
@@ -136,15 +149,15 @@ struct node_t {
 	split_type_t split_type;
 	rectangle_t	 rectangle;
 	bool		 is_focused;
-	bool		 is_fullscreen;
 };
 
 typedef struct {
-	char	name[DLEN];
-	uint8_t id;
-	int		n_of_clients;
-	bool	is_focused;
-	node_t *tree;
+	char	 name[DLEN];
+	uint8_t	 id;
+	int		 n_of_clients;
+	bool	 is_focused;
+	node_t	*tree;
+	layout_t layout;
 } desktop_t;
 
 typedef struct {
@@ -159,18 +172,19 @@ typedef struct {
 	/* node_t           *root; */
 } wm_t;
 
+// arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
-	const char	*command;
-	wm_t		*wm;
-	xcb_window_t win;
+	const char *cmd;
+	const int	idx;
+	resize_t	r;
 } arg_t;
 
 // typedef void *(*function_ptr)(void *, ...);
-typedef int (*function_ptr)(arg_t *);
 typedef struct {
 	unsigned int mod;
 	xcb_keysym_t keysym;
-	// TODO: function ptr ??
+	int			 (*function_ptr)(arg_t *);
+	arg_t		*arg;
 } _key__t;
 
 #endif // ZWM_TYPE_H
