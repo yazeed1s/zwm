@@ -6,7 +6,6 @@
 #include <xcb/xproto.h>
 
 // clang-format off
-extern xcb_window_t       wbar;
 extern config_t 		  conf;
 extern wm_t 			  *wm;
 xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *c);
@@ -23,6 +22,7 @@ void 					  raise_window(xcb_connection_t *conn, xcb_window_t win);
 void 		              lower_window(xcb_connection_t *conn, xcb_window_t win);
 int16_t                   get_cursor_axis(xcb_conn_t *conn, xcb_window_t window);
 int                       exec_process(arg_t *arg);
+int 					  layout_handler(arg_t *arg);
 int  					  set_fullscreen(node_t *n, bool flag);
 int  					  set_fullscreen_wrapper();
 int                       handle_first_window(client_t *client, desktop_t *d);
@@ -40,10 +40,10 @@ int 					  close_or_kill(xcb_window_t win);
 int 					  horizontal_resize_wrapper(arg_t *arg);
 int                       resize_window(xcb_window_t win, uint16_t width, uint16_t height);
 int                       move_window(xcb_window_t win, int16_t x, int16_t y);
-int                       handle_map_request(xcb_window_t win);
-int                       handle_enter_notify(xcb_enter_notify_event_t *ev);
+int                       handle_map_request(xcb_map_request_event_t *ev);
+int                       handle_enter_notify(const xcb_enter_notify_event_t *ev);
 int                       tile(node_t *node);
-int                       handle_leave_notify(xcb_leave_notify_event_t *ev);
+int                       handle_leave_notify(const xcb_leave_notify_event_t *ev);
 int                       change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
 int                       change_window_attr(xcb_conn_t *, xcb_window_t, uint32_t, const void *);
 int                       configure_window(xcb_conn_t *, xcb_window_t, uint16_t, const void *);

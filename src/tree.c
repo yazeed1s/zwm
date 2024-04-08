@@ -4,8 +4,10 @@
 #include "zwm.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
 #define MAX(a, b)                                                              \
@@ -15,25 +17,25 @@
 		_a > _b ? _a : _b;                                                     \
 	})
 
-client_t *stack = NULL;
+node_t *create_node(client_t *c) {
+	if (c == 0x00) {
+		return NULL;
+	}
 
-node_t	 *create_node(client_t *c) {
-	  if (c == 0x00) {
-		  return NULL;
-	  }
+	node_t *node = (node_t *)malloc(sizeof(node_t));
+	if (node == 0x00) {
+		return NULL;
+	}
 
-	  node_t *node = (node_t *)malloc(sizeof(node_t));
-	  if (node == 0x00) {
-		  return NULL;
-	  }
+	node->client	   = c;
+	node->id		   = 1;
+	node->parent	   = NULL;
+	node->first_child  = NULL;
+	node->second_child = NULL;
+	node->is_master	   = false;
+	node->is_focused   = false;
 
-	  node->client		 = c;
-	  node->id			 = 1;
-	  node->parent		 = NULL;
-	  node->first_child	 = NULL;
-	  node->second_child = NULL;
-
-	  return node;
+	return node;
 }
 
 node_t *init_root() {
@@ -48,6 +50,8 @@ node_t *init_root() {
 	node->first_child  = NULL;
 	node->second_child = NULL;
 	node->node_type	   = ROOT_NODE;
+	node->is_master	   = false;
+	node->is_focused   = false;
 
 	return node;
 }
@@ -58,7 +62,8 @@ int render_tree(node_t *node) {
 	}
 
 	if (node->node_type != INTERNAL_NODE && node->client != NULL) {
-		if (node->client->state == FULLSCREEN) {
+		if (node->client->state == FULLSCREEN ||
+			node->client->state == FLOATING) {
 			raise_window(wm->connection, node->client->window);
 			goto skip_;
 		}
@@ -87,6 +92,22 @@ int get_tree_level(node_t *node) {
 	int level_second_child = get_tree_level(node->second_child);
 
 	return 1 + MAX(level_first_child, level_second_child);
+}
+
+void insert_floating_node(node_t *node, desktop_t *d) {
+
+	assert(node->client->state == FLOATING);
+	node_t *n = find_left_leaf(d->tree);
+	if (n == NULL) {
+		return;
+	}
+
+	if (n->first_child == NULL) {
+		n->first_child = node;
+	} else {
+		n->second_child = node;
+	}
+	node->node_type = EXTERNAL_NODE;
 }
 
 void insert_node(node_t *node, node_t *new_node) {
@@ -153,6 +174,7 @@ void insert_node(node_t *node, node_t *new_node) {
 		node->second_child->node_type = EXTERNAL_NODE;
 	}
 }
+
 node_t *find_node_by_window_id(node_t *root, xcb_window_t win) {
 	if (root == NULL) {
 		return NULL;
@@ -233,6 +255,28 @@ void resize_subtree(node_t *parent) {
 	if (parent->second_child->node_type == INTERNAL_NODE) {
 		resize_subtree(parent->second_child);
 	}
+}
+
+node_t *find_master_node(node_t *root) {
+	if (root == NULL) {
+		return NULL;
+	}
+
+	if (root->is_master) {
+		return root;
+	}
+
+	node_t *left_result = find_master_node(root->first_child);
+	if (left_result != NULL) {
+		return left_result;
+	}
+
+	node_t *right_result = find_master_node(root->second_child);
+	if (right_result != NULL) {
+		return right_result;
+	}
+
+	return NULL;
 }
 
 bool has_sibling(const node_t *node) {
@@ -387,6 +431,196 @@ client_t *find_client_by_window_id(node_t *root, xcb_window_t win) {
 	return NULL;
 }
 
+void apply_default_layout(node_t *root) {
+	if (root == NULL) {
+		return;
+	}
+
+	rectangle_t r, r2 = {0};
+
+	if (root->rectangle.width >= root->rectangle.height) {
+		r.x		  = root->rectangle.x;
+		r.y		  = root->rectangle.y;
+		r.width	  = (root->rectangle.width - W_GAP) / 2;
+		r.height  = root->rectangle.height;
+
+		r2.x	  = (int16_t)(root->rectangle.x + r.width + W_GAP);
+		r2.y	  = root->rectangle.y;
+		r2.width  = root->rectangle.width - r.width - W_GAP;
+		r2.height = root->rectangle.height;
+	} else {
+		r.x		  = root->rectangle.x;
+		r.y		  = root->rectangle.y;
+		r.width	  = root->rectangle.width;
+		r.height  = (root->rectangle.height - W_GAP) / 2;
+
+		r2.x	  = root->rectangle.x;
+		r2.y	  = (int16_t)(root->rectangle.y + r.height + W_GAP);
+		r2.width  = root->rectangle.width;
+		r2.height = root->rectangle.height - r.height - W_GAP;
+	}
+
+	root->first_child->rectangle  = r;
+	root->second_child->rectangle = r2;
+
+	if (root->first_child->node_type == INTERNAL_NODE) {
+		apply_default_layout(root->first_child);
+	}
+
+	if (root->second_child->node_type == INTERNAL_NODE) {
+		apply_default_layout(root->second_child);
+	}
+}
+
+void default_layout(node_t *root) {
+	rectangle_t	   r = {0};
+	const uint16_t w = wm->screen->width_in_pixels;
+	const uint16_t h = wm->screen->height_in_pixels;
+
+	if (wm->bar != NULL) {
+		xcb_get_geometry_reply_t *g =
+			get_geometry(wm->bar->window, wm->connection);
+		r.x		 = W_GAP - BORDER_WIDTH * 1.5;
+		r.y		 = (int16_t)(g->height + W_GAP);
+		r.width	 = (uint16_t)(w - 2 * W_GAP);
+		r.height = (uint16_t)(h - 2 * W_GAP - g->height);
+		free(g);
+		g = NULL;
+	} else {
+		r.x		 = W_GAP;
+		r.y		 = W_GAP;
+		r.width	 = w - W_GAP;
+		r.height = h - W_GAP;
+	}
+	root->rectangle = r;
+	log_message(DEBUG, " HHHHHHHHHHHHconst char *format, ..");
+	apply_default_layout(root);
+}
+
+void apply_master_layout(node_t *parent) {
+	if (parent == NULL) {
+		return;
+	}
+
+	if (parent->first_child->is_master) {
+		parent->second_child->rectangle = parent->rectangle;
+	} else if (parent->second_child->is_master) {
+		parent->first_child->rectangle = parent->rectangle;
+	} else {
+		rectangle_t r, r2 = {0};
+		r.x		  = parent->rectangle.x;
+		r.y		  = parent->rectangle.y;
+		r.width	  = parent->rectangle.width;
+		r.height  = (parent->rectangle.height - W_GAP) / 2;
+		// r.height  = h;
+		r2.x	  = parent->rectangle.x;
+		r2.y	  = (int16_t)(parent->rectangle.y + r.height + W_GAP);
+		r2.width  = parent->rectangle.width;
+		r2.height = parent->rectangle.height - r.height - W_GAP;
+		// r2.height = h;
+
+		parent->first_child->rectangle	= r;
+		parent->second_child->rectangle = r2;
+	}
+
+	if (parent->first_child->node_type == INTERNAL_NODE) {
+		apply_master_layout(parent->first_child);
+	}
+
+	if (parent->second_child->node_type == INTERNAL_NODE) {
+		apply_master_layout(parent->second_child);
+	}
+}
+
+void master_layout(node_t *root) {
+	const double ratio		  = 0.70;
+	uint64_t	 w			  = wm->screen->width_in_pixels;
+	uint64_t	 h			  = wm->screen->height_in_pixels;
+	uint16_t	 master_width = w * ratio;
+	uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
+	// uint16_t	 r_height	  = (uint16_t)(h - 2 * W_GAP - 27) / (nc - 1);
+
+	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
+	if (win == XCB_NONE || win == wm->root_window) {
+		return;
+	}
+	node_t *n = find_node_by_window_id(root, win);
+	if (n == NULL) {
+		return;
+	}
+	n->is_master   = true;
+	// uint16_t r_height = (uint16_t)(h - (2 * W_GAP - 27)) / (nc - 1) - 2 *
+	// W_GAP;
+	// uint16_t height = (r2.height / (nc - 1)) - (W_GAP / 2) - 2;
+
+	rectangle_t r1 = {
+		.x		= W_GAP,
+		.y		= (int16_t)(27 + W_GAP),
+		.width	= (uint16_t)(master_width - 2 * W_GAP),
+		.height = (uint16_t)(h - 2 * W_GAP - 27),
+	};
+	rectangle_t r2 = {
+		.x		= (master_width),
+		.y		= (int16_t)(27 + W_GAP),
+		.width	= (uint16_t)(r_width - (1 * W_GAP)),
+		.height = (uint16_t)(h - 2 * W_GAP - 27),
+		// .height = r_height,
+	};
+	n->rectangle	= r1;
+	root->rectangle = r2;
+	apply_master_layout(root);
+	n->is_master = false;
+}
+void apply_stack_layout(node_t *root) {
+}
+
+void stack_layout(node_t *root) {
+	rectangle_t	   r = {0};
+	const uint16_t w = wm->screen->width_in_pixels;
+	const uint16_t h = wm->screen->height_in_pixels;
+	if (wm->bar != NULL) {
+		xcb_get_geometry_reply_t *g =
+			get_geometry(wm->bar->window, wm->connection);
+		r.x		 = W_GAP - BORDER_WIDTH * 1.5;
+		r.y		 = (int16_t)(g->height + W_GAP);
+		r.width	 = (uint16_t)(w - 2 * W_GAP);
+		r.height = (uint16_t)(h - 2 * W_GAP - g->height);
+		free(g);
+		g = NULL;
+	} else {
+		r.x		 = W_GAP;
+		r.y		 = W_GAP;
+		r.width	 = w - W_GAP;
+		r.height = h - W_GAP;
+	}
+	root->rectangle = r;
+}
+
+void grid_layout(node_t *root) {
+}
+void apply_layout(desktop_t *d, layout_t t) {
+	d->layout	 = t;
+	node_t *root = d->tree;
+	switch (t) {
+	case DEFAULT: {
+		default_layout(root);
+		log_message(DEBUG, " IIIIIIIIIIIIIIIIIIIIII char *format, ..");
+		break;
+	}
+	case MASTER: {
+		master_layout(root);
+		break;
+	}
+	case STACK: {
+		stack_layout(root);
+		break;
+	}
+	case GRID: {
+		break;
+	}
+	}
+}
+
 int delete_node_with_external_sibling(node_t *node) {
 	/* node to delete = N, internal node = I, external node = E
 	 *         I
@@ -467,7 +701,7 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
 		}
 
 		if (internal_sibling == NULL) {
-			log_message(ERROR, "intertal node is null");
+			log_message(ERROR, "internal node is null");
 			return -1;
 		}
 
@@ -503,7 +737,11 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
 		if (is_sibling_internal(node)) {
 			internal_sibling = get_internal_sibling(node);
 		} else {
-			log_message(ERROR, "intertal node is null");
+			log_message(ERROR, "internal node is null");
+			return -1;
+		}
+		if (internal_sibling == NULL) {
+			log_message(ERROR, "internal node is null");
 			return -1;
 		}
 		internal_sibling->parent = NULL;
@@ -530,6 +768,32 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
 	return 0;
 }
 
+void delete_floating_node(node_t *node, desktop_t *d) {
+	if (node == NULL || node->client == NULL || d == NULL) {
+		log_message(ERROR, "node to be deleted is null");
+		return;
+	}
+
+	assert(node->client->state == FLOATING);
+
+	log_message(DEBUG, "DELETE floating window %d", node->client->window);
+	node_t *p = node->parent;
+	if (p->first_child == node) {
+		p->first_child = NULL;
+	} else {
+		p->second_child = NULL;
+	}
+	node->parent = NULL;
+	free(node->client);
+	node->client = NULL;
+	free(node);
+	node = NULL;
+	assert(p->first_child == NULL);
+	assert(p->second_child == NULL);
+	log_message(DEBUG, "DELETE floating window sucess");
+	d->n_count -= 1;
+}
+
 void delete_node(node_t *node, desktop_t *d) {
 	if (node == NULL || node->client == NULL || d->tree == NULL) {
 		log_message(ERROR, "node to be deleted is null");
@@ -548,11 +812,6 @@ void delete_node(node_t *node, desktop_t *d) {
 		return;
 	}
 
-	/* if (is_parent_null(node) && node != wm->root) { */
-	/*     log_message(DEBUG, "parent of node is null"); */
-	/*     return; */
-	/* } */
-
 	// node_t *parent = node->parent;
 
 	// early check if only single node/client is mapped to the screen
@@ -562,7 +821,7 @@ void delete_node(node_t *node, desktop_t *d) {
 		free(node);
 		node	= NULL;
 		d->tree = NULL;
-		d->n_of_clients -= 1;
+		d->n_count -= 1;
 		return;
 	}
 
@@ -579,7 +838,7 @@ void delete_node(node_t *node, desktop_t *d) {
 			log_message(ERROR, "cannot delete node with id: %d", w);
 			return;
 		}
-		d->n_of_clients -= 1;
+		d->n_count -= 1;
 		return;
 	}
 
@@ -598,7 +857,7 @@ void delete_node(node_t *node, desktop_t *d) {
 			log_message(ERROR, "cannot delete node with id: %d", w);
 			return;
 		}
-		d->n_of_clients -= 1;
+		d->n_count -= 1;
 	}
 }
 
@@ -803,7 +1062,7 @@ void horizontal_resize(node_t *n, resize_t t) {
 	 * I's type is ROOT_NODE
 	 * Node to delete is E.
 	 * logic: grow E's width by 5 pixels
-	 * then move E's sibling x by 5 pixles and shrink its width by 5 pixels
+	 * then move E's sibling x by 5 pixels and shrink its width by 5 pixels
 	 * E's sibling can be External or Internal -> if internal, resize its
 	 * children
 	 *         I
@@ -837,6 +1096,7 @@ void horizontal_resize(node_t *n, resize_t t) {
 			// sibling is internal
 			s = get_internal_sibling(n);
 			if (s == NULL) {
+				log_message(ERROR, "internal sibling is null");
 				return;
 			}
 			if (t == GROW) {
@@ -865,7 +1125,7 @@ void horizontal_resize(node_t *n, resize_t t) {
 	 * I's type is INTERNAL_NODE
 	 * Node to expand is E.
 	 * logic: grow the whole subtree(rectangle)'s width in E's side by 5 pixels
-	 * then move the opposite subtree(rectangle)'s x by 5 pixles and shrink its
+	 * then move the opposite subtree(rectangle)'s x by 5 pixels and shrink its
 	 * width by 5 pixels
 	 *         I
 	 *    	 /   \
@@ -953,6 +1213,9 @@ void unlink_node(node_t *node, desktop_t *d) {
 
 	if (is_sibling_external(node)) {
 		node_t *e = get_external_sibling(node);
+		if (e == NULL) {
+			return;
+		}
 		if (node->parent->node_type == ROOT_NODE) {
 			node->parent->node_type	   = ROOT_NODE;
 			node->parent->client	   = e->client;
@@ -977,11 +1240,11 @@ void unlink_node(node_t *node, desktop_t *d) {
 		node->parent = NULL;
 		return;
 	} else if (is_sibling_internal(node)) {
-		node_t *n = get_internal_sibling(node);
+		node_t *n = NULL;
 		if (node->parent->node_type == ROOT_NODE) {
 			n = get_internal_sibling(node);
 			if (n == NULL) {
-				log_message(ERROR, "intertal node is null");
+				log_message(ERROR, "internal node is null");
 				return;
 			}
 			if (d->tree == node->parent) {
@@ -1000,7 +1263,10 @@ void unlink_node(node_t *node, desktop_t *d) {
 			if (is_sibling_internal(node)) {
 				n = get_internal_sibling(node);
 			} else {
-				log_message(ERROR, "intertal node is null");
+				log_message(ERROR, "internal node is null");
+				return;
+			}
+			if (n == NULL) {
 				return;
 			}
 			n->parent = NULL;
@@ -1031,10 +1297,12 @@ int transfer_node_wrapper(arg_t *arg) {
 	if (w == wm->root_window) {
 		return -1;
 	}
+
 	int d = get_focused_desktop_idx();
 	if (d == -1) {
 		return -1;
 	}
+
 	const int i	   = arg->idx;
 	node_t	 *root = wm->desktops[d]->tree;
 	node_t	 *node = find_node_by_window_id(root, w);
@@ -1042,6 +1310,7 @@ int transfer_node_wrapper(arg_t *arg) {
 	if (d == i) {
 		return 0;
 	}
+
 	desktop_t *nd = wm->desktops[i];
 	desktop_t *od = wm->desktops[d];
 	log_message(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
@@ -1050,6 +1319,10 @@ int transfer_node_wrapper(arg_t *arg) {
 	}
 	unlink_node(node, od);
 	transfer_node(node, nd);
+
+	od->n_count--;
+	nd->n_count++;
+
 	if (render_tree(od->tree) != 0) {
 		return -1;
 	}
@@ -1057,8 +1330,6 @@ int transfer_node_wrapper(arg_t *arg) {
 }
 
 void transfer_node(node_t *node, desktop_t *d) {
-	log_message(DEBUG, "in TRANSFERRRR desktop = %d", d->id + 1);
-
 	if (node == NULL || d == NULL) {
 		return;
 	}
@@ -1073,12 +1344,13 @@ void transfer_node(node_t *node, desktop_t *d) {
 		rectangle_t r = {0};
 		uint16_t	w = wm->screen->width_in_pixels;
 		uint16_t	h = wm->screen->height_in_pixels;
-		if (XCB_NONE != wbar) {
-			xcb_get_geometry_reply_t *g = get_geometry(wbar, wm->connection);
-			r.x							= W_GAP;
-			r.y							= (int16_t)(g->height + W_GAP);
-			r.width						= (uint16_t)(w - 2 * W_GAP);
-			r.height					= (uint16_t)(h - 2 * W_GAP - g->height);
+		if (wm->bar != NULL) {
+			xcb_get_geometry_reply_t *g =
+				get_geometry(wm->bar->window, wm->connection);
+			r.x		 = W_GAP;
+			r.y		 = (int16_t)(g->height + W_GAP);
+			r.width	 = (uint16_t)(w - 2 * W_GAP);
+			r.height = (uint16_t)(h - 2 * W_GAP - g->height);
 			free(g);
 			g = NULL;
 		} else {
@@ -1092,8 +1364,11 @@ void transfer_node(node_t *node, desktop_t *d) {
 		d->tree->rectangle = r;
 		d->tree->node_type = ROOT_NODE;
 	} else if (d->tree->first_child == NULL && d->tree->second_child == NULL) {
-		client_t *c						 = d->tree->client;
-		d->tree->first_child			 = create_node(c);
+		client_t *c = d->tree->client;
+		//		d->tree->first_child			 = create_node(c);
+		if ((d->tree->first_child = create_node(c)) == NULL) {
+			return;
+		}
 		d->tree->first_child->node_type	 = EXTERNAL_NODE;
 		d->tree->second_child			 = node;
 		d->tree->second_child->node_type = EXTERNAL_NODE;
@@ -1140,14 +1415,16 @@ void fill_stack(node_t *root, client_t *arr, size_t *index) {
 	fill_stack(root->second_child, arr, index);
 }
 
-client_t *decompose_to_stack(node_t *root) {
-	if (stack == NULL) {
-		stack = (client_t *)malloc(sizeof(client_t));
-		if (stack == NULL) {
+client_t *decompose_tree_to_stack(desktop_t *d) {
+	if (d->stack == NULL) {
+		d->stack = (client_t *)malloc(sizeof(client_t) * d->n_count);
+		if (d->stack == NULL) {
 			return NULL;
 		}
 	}
-	size_t i = 0;
-	fill_stack(root, stack, &i);
-	return stack;
+	size_t	i	 = 0;
+	node_t *root = d->tree;
+	fill_stack(root, d->stack, &i);
+
+	return d->stack;
 }

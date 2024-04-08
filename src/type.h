@@ -6,10 +6,14 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
-#define W_GAP	 15
-#define MAXLEN	 (2 << 7)
-#define DLEN	 (2 << 4)
-#define NULL_STR "N/A"
+#define CAP					3
+#define W_GAP				10
+#define MAXLEN				(2 << 7)
+#define DLEN				(2 << 4)
+#define NULL_STR			"N/A"
+#define NORMAL_BORDER_COLOR 0x30302f
+#define ACTIVE_BORDER_COLOR 0x83a598
+#define BORDER_WIDTH		2
 
 typedef xcb_connection_t xcb_conn_t;
 
@@ -148,22 +152,31 @@ struct node_t {
 	split_type_t split_type;
 	rectangle_t	 rectangle;
 	bool		 is_focused;
+	bool		 is_master;
 };
 
 typedef struct {
-	node_t	*tree;
-	char	 name[DLEN];
-	uint8_t	 id;
-	int		 n_of_clients;
-	layout_t layout;
-	bool	 is_focused;
+	node_t	 *tree;
+	client_t *stack;
+	char	  name[DLEN];
+	uint8_t	  id;
+	int		  n_count;
+	layout_t  layout;
+	bool	  is_focused;
 } desktop_t;
+
+typedef struct {
+	uint32_t	 id;
+	xcb_window_t window;
+	rectangle_t	 rectangle;
+} bar_t;
 
 typedef struct {
 	desktop_t			 **desktops;
 	xcb_connection_t	  *connection;
 	xcb_ewmh_connection_t *ewmh;
 	xcb_screen_t		  *screen;
+	bar_t				  *bar;
 	xcb_window_t		   root_window;
 	split_type_t		   split_type;
 	int					   n_of_desktops;
@@ -177,6 +190,7 @@ typedef struct {
 	const int	 argc;
 	const int	 idx;
 	resize_t	 r;
+	layout_t	 t;
 } arg_t;
 
 typedef struct {
@@ -185,5 +199,10 @@ typedef struct {
 	int			 (*function_ptr)(arg_t *);
 	arg_t		*arg;
 } _key__t;
+
+typedef struct {
+	desktop_t *d;
+	client_t  *stack;
+} stack_t;
 
 #endif // ZWM_TYPE_H
