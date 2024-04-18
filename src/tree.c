@@ -56,29 +56,29 @@ node_t *init_root() {
 	return node;
 }
 
-int render_tree(node_t *node) {
+int render_tree(node_t *node, bool is_stacked) {
 	if (node == NULL) {
 		return 0;
 	}
 
 	if (node->node_type != INTERNAL_NODE && node->client != NULL) {
-		if (node->client->state == FULLSCREEN ||
-			node->client->state == FLOATING) {
-			raise_window(wm->connection, node->client->window);
-			goto skip_;
-		}
 		if (tile(node) != 0) {
 			log_message(ERROR, "error tiling window %d", node->client->window);
 			return -1;
 		}
-		lower_window(wm->connection, node->client->window);
+		if (node->client->state == FULLSCREEN ||
+			node->client->state == FLOATING) {
+			raise_window(wm->connection, node->client->window);
+		} else {
+			if (!is_stacked) lower_window(wm->connection, node->client->window);
+		}
 	}
 
-skip_:
+	// skip_:
 	// if (node->first_child != NULL)
-	render_tree(node->first_child);
+	render_tree(node->first_child, is_stacked);
 	// if (node->second_child != NULL)
-	render_tree(node->second_child);
+	render_tree(node->second_child, is_stacked);
 
 	return 0;
 }
@@ -92,6 +92,29 @@ int get_tree_level(node_t *node) {
 	int level_second_child = get_tree_level(node->second_child);
 
 	return 1 + MAX(level_first_child, level_second_child);
+}
+
+bool has_floating_children(const node_t *parent) {
+	return (parent->first_child != NULL &&
+			parent->first_child->client != NULL &&
+			parent->first_child->client->state == FLOATING) ||
+		   (parent->second_child != NULL &&
+			parent->second_child->client != NULL &&
+			parent->second_child->client->state == FLOATING);
+}
+
+node_t *get_floating_child(const node_t *parent) {
+	if (parent->first_child != NULL && parent->first_child->client != NULL &&
+		parent->first_child->client->state == FLOATING) {
+		return parent->first_child;
+	}
+
+	if (parent->second_child != NULL && parent->second_child->client != NULL &&
+		parent->second_child->client->state == FLOATING) {
+		return parent->second_child;
+	}
+
+	return NULL;
 }
 
 void insert_floating_node(node_t *node, desktop_t *d) {
@@ -111,6 +134,10 @@ void insert_floating_node(node_t *node, desktop_t *d) {
 }
 
 void insert_node(node_t *node, node_t *new_node) {
+	log_message(INFO,
+				"Node to split %d, node to insert %d",
+				node->client->window,
+				new_node->client->window);
 	if (node == NULL) {
 		log_message(ERROR, "node is null");
 		return;
@@ -131,19 +158,23 @@ void insert_node(node_t *node, node_t *new_node) {
 			return;
 		}
 		node->first_child->parent = node;
-		rectangle_t r			  = {0};
-		if (node->rectangle.width >= node->rectangle.height) {
-			r.x		 = node->rectangle.x;
-			r.y		 = node->rectangle.y;
-			r.width	 = (node->rectangle.width - W_GAP) / 2;
-			r.height = node->rectangle.height;
+		if (new_node->client->state != FLOATING) {
+			rectangle_t r = {0};
+			if (node->rectangle.width >= node->rectangle.height) {
+				r.x		 = node->rectangle.x;
+				r.y		 = node->rectangle.y;
+				r.width	 = (node->rectangle.width - W_GAP) / 2;
+				r.height = node->rectangle.height;
+			} else {
+				r.x		 = node->rectangle.x;
+				r.y		 = node->rectangle.y;
+				r.width	 = node->rectangle.width;
+				r.height = (node->rectangle.height - W_GAP) / 2;
+			}
+			node->first_child->rectangle = r;
 		} else {
-			r.x		 = node->rectangle.x;
-			r.y		 = node->rectangle.y;
-			r.width	 = node->rectangle.width;
-			r.height = (node->rectangle.height - W_GAP) / 2;
+			node->first_child->rectangle = node->rectangle;
 		}
-		node->first_child->rectangle = r;
 		node->first_child->node_type = EXTERNAL_NODE;
 		node->client				 = NULL;
 	}
@@ -154,23 +185,25 @@ void insert_node(node_t *node, node_t *new_node) {
 			return;
 		}
 		node->second_child->parent = node;
-		rectangle_t r			   = {0};
-		if (node->rectangle.width >= node->rectangle.height) {
-			r.x		= (int16_t)(node->rectangle.x +
-							node->first_child->rectangle.width + W_GAP);
-			r.y		= node->rectangle.y;
-			r.width = node->rectangle.width -
-					  node->first_child->rectangle.width - W_GAP;
-			r.height = node->rectangle.height;
-		} else {
-			r.x		 = node->rectangle.x;
-			r.y		 = (int16_t)(node->rectangle.y +
-							 node->first_child->rectangle.height + W_GAP);
-			r.width	 = node->rectangle.width;
-			r.height = node->rectangle.height -
-					   node->first_child->rectangle.height - W_GAP;
+		if (new_node->client->state != FLOATING) {
+			rectangle_t r = {0};
+			if (node->rectangle.width >= node->rectangle.height) {
+				r.x		= (int16_t)(node->rectangle.x +
+								node->first_child->rectangle.width + W_GAP);
+				r.y		= node->rectangle.y;
+				r.width = node->rectangle.width -
+						  node->first_child->rectangle.width - W_GAP;
+				r.height = node->rectangle.height;
+			} else {
+				r.x		 = node->rectangle.x;
+				r.y		 = (int16_t)(node->rectangle.y +
+								 node->first_child->rectangle.height + W_GAP);
+				r.width	 = node->rectangle.width;
+				r.height = node->rectangle.height -
+						   node->first_child->rectangle.height - W_GAP;
+			}
+			node->second_child->rectangle = r;
 		}
-		node->second_child->rectangle = r;
 		node->second_child->node_type = EXTERNAL_NODE;
 	}
 }
@@ -184,14 +217,14 @@ node_t *find_node_by_window_id(node_t *root, xcb_window_t win) {
 		return root;
 	}
 
-	node_t *left_result = find_node_by_window_id(root->first_child, win);
-	if (left_result != NULL) {
-		return left_result;
+	node_t *l = find_node_by_window_id(root->first_child, win);
+	if (l != NULL) {
+		return l;
 	}
 
-	node_t *right_result = find_node_by_window_id(root->second_child, win);
-	if (right_result != NULL) {
-		return right_result;
+	node_t *r = find_node_by_window_id(root->second_child, win);
+	if (r != NULL) {
+		return r;
 	}
 
 	return NULL;
@@ -266,17 +299,56 @@ node_t *find_master_node(node_t *root) {
 		return root;
 	}
 
-	node_t *left_result = find_master_node(root->first_child);
-	if (left_result != NULL) {
-		return left_result;
+	node_t *l = find_master_node(root->first_child);
+	if (l != NULL) {
+		return l;
 	}
 
-	node_t *right_result = find_master_node(root->second_child);
-	if (right_result != NULL) {
-		return right_result;
+	node_t *r = find_master_node(root->second_child);
+	if (r != NULL) {
+		return r;
 	}
 
 	return NULL;
+}
+
+node_t *find_floating_node(node_t *root) {
+	if (root == NULL) {
+		return NULL;
+	}
+
+	if (root->client->state == FLOATING) {
+		return root;
+	}
+
+	node_t *l = find_floating_node(root->first_child);
+	if (l != NULL) {
+		return l;
+	}
+
+	node_t *r = find_floating_node(root->second_child);
+	if (r != NULL) {
+		return r;
+	}
+
+	return NULL;
+}
+
+void restack(node_t *root) {
+	if (root == NULL) {
+		return;
+	}
+	if (root->client != NULL) {
+		if (root->client->state == FLOATING ||
+			root->client->state == FULLSCREEN) {
+			raise_window(wm->connection, root->client->window);
+		} else {
+			lower_window(wm->connection, root->client->window);
+		}
+	}
+
+	restack(root->first_child);
+	restack(root->second_child);
 }
 
 bool has_sibling(const node_t *node) {
@@ -410,22 +482,22 @@ client_t *find_client_by_window_id(node_t *root, xcb_window_t win) {
 		return root->client;
 	}
 
-	node_t *left_result = find_node_by_window_id(root->first_child, win);
-	if (left_result == NULL) {
+	node_t *l = find_node_by_window_id(root->first_child, win);
+	if (l == NULL) {
 		return NULL;
 	}
 
-	if (left_result->client != NULL) {
-		return left_result->client;
+	if (l->client != NULL) {
+		return l->client;
 	}
 
-	node_t *right_result = find_node_by_window_id(root->second_child, win);
-	if (right_result == NULL) {
+	node_t *r = find_node_by_window_id(root->second_child, win);
+	if (r == NULL) {
 		return NULL;
 	}
 
-	if (right_result->client != NULL) {
-		return right_result->client;
+	if (r->client != NULL) {
+		return r->client;
 	}
 
 	return NULL;
@@ -493,7 +565,7 @@ void default_layout(node_t *root) {
 		r.height = h - W_GAP;
 	}
 	root->rectangle = r;
-	log_message(DEBUG, " HHHHHHHHHHHHconst char *format, ..");
+	// log_message(DEBUG, " HHHHHHHHHHHHconst char *format, ..");
 	apply_default_layout(root);
 }
 
@@ -569,12 +641,47 @@ void master_layout(node_t *root) {
 	n->rectangle	= r1;
 	root->rectangle = r2;
 	apply_master_layout(root);
-	n->is_master = false;
+	// n->is_master = false;
 }
-void apply_stack_layout(node_t *root) {
+
+void master_clean_up(node_t *root) {
+	if (root == NULL) {
+		return;
+	}
+	if (root->is_master) root->is_master = false;
+	master_clean_up(root->first_child);
+	master_clean_up(root->second_child);
+}
+
+void apply_stack_layout(node_t *root, rectangle_t r) {
+	if (root == NULL) {
+		return;
+	}
+
+	// if (root->first_child->node_type != INTERNAL_NODE)
+	root->first_child->rectangle  = r;
+	// if (root->second_child->node_type != INTERNAL_NODE)
+	root->second_child->rectangle = r;
+
+	if (root->first_child->node_type == INTERNAL_NODE) {
+		apply_stack_layout(root->first_child, r);
+	}
+
+	if (root->second_child->node_type == INTERNAL_NODE) {
+		apply_stack_layout(root->second_child, r);
+	}
 }
 
 void stack_layout(node_t *root) {
+	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
+	if (win == XCB_NONE || win == wm->root_window) {
+		return;
+	}
+	node_t *n = find_node_by_window_id(root, win);
+	if (n == NULL) {
+		return;
+	}
+
 	rectangle_t	   r = {0};
 	const uint16_t w = wm->screen->width_in_pixels;
 	const uint16_t h = wm->screen->height_in_pixels;
@@ -593,18 +700,21 @@ void stack_layout(node_t *root) {
 		r.width	 = w - W_GAP;
 		r.height = h - W_GAP;
 	}
-	root->rectangle = r;
+	apply_stack_layout(root, r);
+	restack(root);
+	raise_window(wm->connection, n->client->window);
 }
 
-void grid_layout(node_t *root) {
-}
+// void grid_layout(node_t *root) {
+// }
+
 void apply_layout(desktop_t *d, layout_t t) {
 	d->layout	 = t;
 	node_t *root = d->tree;
+	master_clean_up(root);
 	switch (t) {
 	case DEFAULT: {
 		default_layout(root);
-		log_message(DEBUG, " IIIIIIIIIIIIIIIIIIIIII char *format, ..");
 		break;
 	}
 	case MASTER: {
@@ -723,6 +833,7 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
 			}
 		}
 		/* resize_subtree(wm->root); */
+		// if (d->layout != STACK) resize_subtree(d->tree);
 		resize_subtree(d->tree);
 	} else {
 		// if IN has a parent
@@ -756,6 +867,7 @@ int delete_node_with_internal_sibling(node_t *node, desktop_t *d) {
 			node->parent->first_child = internal_sibling->second_child;
 			internal_sibling->second_child->parent = node->parent;
 		}
+		// if (d->layout != STACK) resize_subtree(node->parent);
 		resize_subtree(node->parent);
 	}
 
@@ -794,6 +906,8 @@ void delete_floating_node(node_t *node, desktop_t *d) {
 	d->n_count -= 1;
 }
 
+// TODO: handle deletion in master layout
+// TODO: handle deletion in stack layout
 void delete_node(node_t *node, desktop_t *d) {
 	if (node == NULL || node->client == NULL || d->tree == NULL) {
 		log_message(ERROR, "node to be deleted is null");
@@ -821,9 +935,44 @@ void delete_node(node_t *node, desktop_t *d) {
 		free(node);
 		node	= NULL;
 		d->tree = NULL;
-		d->n_count -= 1;
-		return;
+		goto out;
 	}
+
+	// if (node->is_master) {
+	// 	node_t *next = next_node(node);
+	// 	if (next == NULL) next = prev_node(node);
+	// 	if (next == NULL) return;
+	// 	node->is_master = false;
+	// 	next->is_master = true;
+	// 	next->rectangle = node->rectangle;
+	// 	apply_master_layout(d->tree);
+	// }
+
+	// if (node->client->state == FLOATING) {
+	// 	log_message(DEBUG, "DELETE floating window %d", node->client->window);
+	// 	node_t *p = node->parent;
+	// 	if (p == NULL) {
+	// 		log_message(ERROR, "parent of floating window is NULL");
+	// 		return;
+	// 	}
+	// 	log_message(DEBUG,
+	// 				"DELETE floating window %d, parent %d",
+	// 				node->client->window,
+	// 				p->client->window);
+	// 	if (p->first_child == node) {
+	// 		p->first_child = NULL;
+	// 	} else {
+	// 		p->second_child = NULL;
+	// 	}
+	// 	node->parent = NULL;
+	// 	free(node->client);
+	// 	node->client = NULL;
+	// 	free(node);
+	// 	node = NULL;
+	// 	resize_subtree(p);
+	// 	log_message(DEBUG, "DELETE floating window sucess");
+	// 	goto out;
+	// }
 
 	/*
 	 * case 1: node's parent has two external children
@@ -838,8 +987,7 @@ void delete_node(node_t *node, desktop_t *d) {
 			log_message(ERROR, "cannot delete node with id: %d", w);
 			return;
 		}
-		d->n_count -= 1;
-		return;
+		goto out;
 	}
 
 	/*
@@ -857,8 +1005,12 @@ void delete_node(node_t *node, desktop_t *d) {
 			log_message(ERROR, "cannot delete node with id: %d", w);
 			return;
 		}
-		d->n_count -= 1;
+		goto out;
 	}
+
+out:
+	d->n_count -= 1;
+	return;
 }
 
 bool has_first_child(const node_t *parent) {
@@ -1011,7 +1163,7 @@ bool in_right_subtree(node_t *rc, node_t *n) {
 	return false;
 }
 
-int horizontal_resize_wrapper(arg_t *arg) {
+int horizontal_resize_wrapper(const arg_t *arg) {
 
 	const int i = get_focused_desktop_idx();
 	if (i == -1) {
@@ -1028,7 +1180,7 @@ int horizontal_resize_wrapper(arg_t *arg) {
 	}
 
 	horizontal_resize(n, arg->r);
-	render_tree(root);
+	render_tree(root, false);
 	return 0;
 }
 
@@ -1185,7 +1337,7 @@ node_t *find_left_leaf(node_t *root) {
 		return NULL;
 	}
 
-	if ((root->node_type == EXTERNAL_NODE || root->parent == NULL) &&
+	if ((root->node_type != INTERNAL_NODE || root->parent == NULL) &&
 		root->client != NULL) {
 		return root;
 	}
@@ -1292,7 +1444,7 @@ void unlink_node(node_t *node, desktop_t *d) {
 	}
 }
 
-int transfer_node_wrapper(arg_t *arg) {
+int transfer_node_wrapper(const arg_t *arg) {
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
 		return -1;
@@ -1323,12 +1475,14 @@ int transfer_node_wrapper(arg_t *arg) {
 	od->n_count--;
 	nd->n_count++;
 
-	if (render_tree(od->tree) != 0) {
+	if (render_tree(od->tree, false) != 0) {
 		return -1;
 	}
 	return 0;
 }
 
+// TODO: handle transfer in master layout
+// TODO: handle transfer in stack layout
 void transfer_node(node_t *node, desktop_t *d) {
 	if (node == NULL || d == NULL) {
 		return;
@@ -1374,7 +1528,7 @@ void transfer_node(node_t *node, desktop_t *d) {
 		d->tree->second_child->node_type = EXTERNAL_NODE;
 		d->tree->client					 = NULL;
 		d->tree->first_child->parent = d->tree->second_child->parent = d->tree;
-		resize_subtree(d->tree);
+		if (d->layout != STACK) resize_subtree(d->tree);
 	} else {
 		node_t *leaf = find_left_leaf(d->tree);
 		if (leaf == NULL) {
@@ -1397,34 +1551,96 @@ void transfer_node(node_t *node, desktop_t *d) {
 		}
 		leaf->second_child->parent	  = leaf;
 		leaf->second_child->node_type = EXTERNAL_NODE;
-		resize_subtree(leaf);
+		if (d->layout != STACK) resize_subtree(leaf);
 	}
 }
 
-void fill_stack(node_t *root, client_t *arr, size_t *index) {
+bool has_floating_window(node_t *root) {
 	if (root == NULL) {
-		return;
+		return false;
 	}
 
-	if (root->client != NULL && root->client->window != XCB_NONE) {
-		arr[*index] = *(root->client);
-		(*index)++;
+	if (root->client != NULL && root->client->state == FLOATING) {
+		return true;
 	}
 
-	fill_stack(root->first_child, arr, index);
-	fill_stack(root->second_child, arr, index);
+	if (has_floating_window(root->first_child)) {
+		return true;
+	}
+
+	if (has_floating_window(root->second_child)) {
+		return true;
+	}
+
+	return false;
 }
 
-client_t *decompose_tree_to_stack(desktop_t *d) {
-	if (d->stack == NULL) {
-		d->stack = (client_t *)malloc(sizeof(client_t) * d->n_count);
-		if (d->stack == NULL) {
-			return NULL;
+node_t *next_node(node_t *n) {
+	if (n == NULL) {
+		return NULL;
+	}
+
+	if (n->parent && n->parent->second_child != n) {
+		node_t *l = n->parent->second_child;
+		while (l->node_type != EXTERNAL_NODE) {
+			l = l->first_child;
+		}
+		return l;
+	}
+
+	node_t *c = n;
+	node_t *p = c->parent;
+	while (p && p->second_child == c) {
+		c = p;
+		p = c->parent;
+	}
+
+	if (p == NULL) {
+		return NULL;
+	}
+
+	node_t *r = p->second_child;
+	while (r->node_type != EXTERNAL_NODE) {
+		r = r->first_child;
+	}
+	return r;
+}
+
+node_t *prev_node(node_t *n) {
+	if (n == NULL) {
+		return NULL;
+	}
+
+	if (n->parent && n->parent->first_child != n) {
+		node_t *l = n->parent->first_child;
+		while (l->node_type != EXTERNAL_NODE) {
+			if (l->second_child) {
+				l = l->second_child;
+			} else {
+				l = l->first_child;
+			}
+		}
+		return l;
+	}
+
+	node_t *c = n;
+	node_t *p = c->parent;
+	while (p && p->first_child == c) {
+		c = p;
+		p = c->parent;
+	}
+
+	if (p == NULL) {
+		return NULL;
+	}
+
+	node_t *l = p->first_child;
+	while (l->node_type != EXTERNAL_NODE) {
+		if (l->second_child) {
+			l = l->second_child;
+		} else {
+			l = l->first_child;
 		}
 	}
-	size_t	i	 = 0;
-	node_t *root = d->tree;
-	fill_stack(root, d->stack, &i);
-
-	return d->stack;
+	return l;
 }

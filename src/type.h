@@ -95,17 +95,18 @@ typedef enum {
 	EXTERNAL_NODE = 1 << 3
 } node_type_t;
 
+// clang-format off
 /*
-		I         ROOT (root is also an INTERNAL NODE, unless it is leaf)
+		I         ROOT (root is also an INTERNAL NODE, unless it is leaf by definition)
 	  /   \
 	 I     I      INTERNAL NODES
 	/     / \
    E     E   E    EXTERNAL NODES (or leaves)
 
- I, if parent of E = screen sections/partitions in which windows can be mapped
-(displayed). E = windows in every screen partition. windows are basically the
-leaves of a full binary tree. E nodes, on the screen, evenly share the width &
-height of their I parent, and the  I's x & y as well.
+	I (if parent of E) = screen sections/partitions in which windows can be mapped
+	(displayed). E = windows in every screen partition. windows are basically the
+	leaves of a full binary tree. E nodes, on the screen, evenly share the width &
+	height of their I parent, and the I's x & y as well.
 
 		I
 	  /   \
@@ -115,11 +116,13 @@ height of their I parent, and the  I's x & y as well.
 			/ \
 		   E   E
 
- [I] partitions/sections can be:
- 1- container of other partitions
- 2- contained by other partitions
+	[I] partitions/sections can be:
+	1- container of other partitions
+	2- contained by other partitions
 
-the behviour should be
+	- the behviour should be -> 
+	- 1,2,3 are leaves (EXTERNAL_NODE) 
+	- a,b are internal nodes (INTERNAL_NODE), or screen sections/partitions
 
 			 1                          a                          a
 			 ^                         / \                        / \
@@ -128,18 +131,18 @@ the behviour should be
 																   2   3
 																	   ^
 
- +-----------------------+  +-----------------------+  +-----------------------+
- |                       |  |           |           |  |           |           |
- |                       |  |           |           |  |           |     2     |
- |                       |  |           |           |  |           |           |
- |           1           |  |     1     |     2     |  |     1     |-----------|
- |           ^           |  |           |     ^     |  |           |           |
- |                       |  |           |           |  |           |     3     |
- |                       |  |           |           |  |           |     ^     |
- +-----------------------+  +-----------------------+  +-----------------------+
+	+-----------------------+  +-----------------------+  +-----------------------+
+	|                       |  |           |           |  |           |           |
+	|                       |  |           |           |  |           |     2     |
+	|                       |  |           |           |  |           |           |
+	|           1           |  |     1     |     2     |  |     1     |-----------|
+	|           ^           |  |           |     ^     |  |           |           |
+	|                       |  |           |           |  |           |     3     |
+	|                       |  |           |           |  |           |     ^     |
+	+-----------------------+  +-----------------------+  +-----------------------+
 
-			 X                          Y                          Z
 */
+// clang-format on
 
 typedef struct node_t node_t;
 struct node_t {
@@ -156,13 +159,18 @@ struct node_t {
 };
 
 typedef struct {
-	node_t	 *tree;
-	client_t *stack;
-	char	  name[DLEN];
-	uint8_t	  id;
-	int		  n_count;
-	layout_t  layout;
-	bool	  is_focused;
+	size_t	  current_ptr;
+	client_t *arr;
+} stack_t;
+
+typedef struct {
+	node_t	*tree;
+	stack_t *stack;
+	char	 name[DLEN];
+	uint8_t	 id;
+	int		 n_count;
+	layout_t layout;
+	bool	 is_focused;
 } desktop_t;
 
 typedef struct {
@@ -181,28 +189,23 @@ typedef struct {
 	split_type_t		   split_type;
 	int					   n_of_desktops;
 	int					   screen_nbr;
-	/* node_t           *root; */
 } wm_t;
 
 // arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
-	const char **cmd;
-	const int	 argc;
-	const int	 idx;
-	resize_t	 r;
-	layout_t	 t;
+	const char		**cmd;
+	const int		  argc;
+	const int		  idx;
+	const resize_t	  r;
+	const layout_t	  t;
+	const direction_t d;
 } arg_t;
 
 typedef struct {
 	unsigned int mod;
 	xcb_keysym_t keysym;
-	int			 (*function_ptr)(arg_t *);
+	int			 (*function_ptr)(const arg_t *);
 	arg_t		*arg;
 } _key__t;
-
-typedef struct {
-	desktop_t *d;
-	client_t  *stack;
-} stack_t;
 
 #endif // ZWM_TYPE_H

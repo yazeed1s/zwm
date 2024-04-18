@@ -67,8 +67,6 @@ static _key__t keys_[] = {
 	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})             },
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
 	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
-    // {SUPER_MASK,              XK_u,      stack_up,                  &((arg_t){.r = GROW})            },
-	// {SUPER_MASK,              XK_d,      stack_down,                &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
 	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})             },
@@ -78,6 +76,8 @@ static _key__t keys_[] = {
 	{SUPER_MASK | SHIFT_MASK, XK_m,      layout_handler,            &((arg_t){.t = MASTER})          },
     {SUPER_MASK | SHIFT_MASK, XK_d,      layout_handler,            &((arg_t){.t = DEFAULT})         },
     {SUPER_MASK | SHIFT_MASK, XK_s,      layout_handler,            &((arg_t){.t = STACK})           },
+	{SUPER_MASK | SHIFT_MASK, XK_k,      traverse_stack_wrapper,    &((arg_t){.d = UP})              },
+    {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})            },
 };
 // clang-format on
 
@@ -117,11 +117,11 @@ char *win_name(xcb_window_t win) {
 	return NULL;
 }
 
-int layout_handler(arg_t *arg) {
+int layout_handler(const arg_t *arg) {
 	int		   i = get_focused_desktop_idx();
 	desktop_t *d = wm->desktops[i];
 	apply_layout(d, arg->t);
-	return render_tree(d->tree);
+	return render_tree(d->tree, d->layout == STACK);
 }
 
 xcb_ewmh_connection_t *ewmh_init(xcb_conn_t *conn) {
@@ -246,12 +246,9 @@ int ewmh_update_desktop_names() {
 void remove_property(xcb_connection_t *con, xcb_window_t win, xcb_atom_t prop,
 					 xcb_atom_t atom) {
 	xcb_grab_server(con);
-
-	xcb_get_property_reply_t *reply = xcb_get_property_reply(
-		con,
-		xcb_get_property(
-			con, false, win, prop, XCB_GET_PROPERTY_TYPE_ANY, 0, 4096),
-		NULL);
+	xcb_get_property_cookie_t c = xcb_get_property(
+		con, false, win, prop, XCB_GET_PROPERTY_TYPE_ANY, 0, 4096);
+	xcb_get_property_reply_t *reply = xcb_get_property_reply(con, c, NULL);
 	if (reply == NULL || xcb_get_property_value_length(reply) == 0)
 		goto release_grab;
 	const xcb_atom_t *atoms = xcb_get_property_value(reply);
@@ -340,7 +337,7 @@ int set_fullscreen(node_t *n, bool flag) {
 	rectangle_t r = {0};
 
 	if (flag) {
-		// long data[]		 = {wm->ewmh->_NET_WM_STATE_FULLSCREEN};
+		long data[]		 = {wm->ewmh->_NET_WM_STATE_FULLSCREEN};
 		r.x				 = 0;
 		r.y				 = 0;
 		r.width			 = wm->screen->width_in_pixels;
@@ -357,21 +354,22 @@ int set_fullscreen(node_t *n, bool flag) {
 			move_window(n->client->window, r.x, r.y) != 0) {
 			return -1;
 		}
-		// xcb_void_cookie_t c =
-		// 	xcb_change_property_checked(wm->connection,
-		// 								XCB_PROP_MODE_REPLACE,
-		// 								n->client->window,
-		// 								wm->ewmh->_NET_WM_STATE,
-		// 								XCB_ATOM_ATOM,
-		// 								32,
-		// 								true,
-		// 								data);
-		// xcb_generic_error_t *err =
-		// xcb_request_check(wm->connection, c); if (err) {
-		// 	log_message(
-		// 		ERROR, "Error changing window property: %d\n",
-		// err->error_code); 	free(err); 	return -1;
-		// }
+		xcb_void_cookie_t c =
+			xcb_change_property_checked(wm->connection,
+										XCB_PROP_MODE_REPLACE,
+										n->client->window,
+										wm->ewmh->_NET_WM_STATE,
+										XCB_ATOM_ATOM,
+										32,
+										true,
+										data);
+		xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+		if (err) {
+			log_message(
+				ERROR, "Error changing window property: %d\n", err->error_code);
+			free(err);
+			return -1;
+		}
 		goto out;
 	}
 
@@ -381,11 +379,11 @@ int set_fullscreen(node_t *n, bool flag) {
 		move_window(n->client->window, r.x, r.y) != 0) {
 		return -1;
 	}
-	// remove_property(wm->connection,
-	// 				n->client->window,
-	// 				wm->ewmh->_NET_WM_STATE,
-	// 				wm->ewmh->_NET_WM_STATE_FULLSCREEN);
-	// xcb_void_cookie_t c = xcb_delete_property_checked(
+	remove_property(wm->connection,
+					n->client->window,
+					wm->ewmh->_NET_WM_STATE,
+					wm->ewmh->_NET_WM_STATE_FULLSCREEN);
+	/* xcb_void_cookie_t c = xcb_delete_property_checked( */
 	// 	wm->connection, n->client->window,
 	// wm->ewmh->_NET_WM_STATE_FULLSCREEN); xcb_generic_error_t *err =
 	// xcb_request_check(wm->connection, c); if (err) { 	log_message(
@@ -394,6 +392,39 @@ int set_fullscreen(node_t *n, bool flag) {
 	// }
 out:
 	xcb_flush(wm->connection);
+	return 0;
+}
+
+int traverse_stack_wrapper(const arg_t *arg) {
+	log_message(DEBUG, "HERE STACK UP");
+	direction_t	 d = arg->d;
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+
+	if (w == wm->root_window) {
+		return 0;
+	}
+
+	int i = get_focused_desktop_idx();
+	if (i == -1) {
+		return i;
+	}
+
+	node_t *root = wm->desktops[i]->tree;
+	node_t *node = find_node_by_window_id(root, w);
+	node_t *n	 = NULL;
+	if (d == UP) {
+		n = next_node(node);
+		if (n == NULL) {
+			return -1;
+		}
+	} else if (d == DOWN) {
+		n = prev_node(node);
+		if (n == NULL) {
+			return -1;
+		}
+	}
+	// restack(root);
+	raise_window(wm->connection, n->client->window);
 	return 0;
 }
 
@@ -684,20 +715,20 @@ wm_t *init_wm() {
 int resize_window(xcb_window_t win, uint16_t width, uint16_t height) {
 	if (win == 0 || win == XCB_NONE) return 0;
 
-	const uint32_t values[] = {width, height};
-	log_message(DEBUG,
-				"in resize, width = %d, height = %d, win = %d",
-				width,
-				height,
-				win);
+	const uint32_t	  values[] = {width, height};
+	// log_message(DEBUG,
+	// 			"in resize, width = %d, height = %d, win = %d",
+	// 			width,
+	// 			height,
+	// 			win);
 	xcb_void_cookie_t cookie =
 		xcb_configure_window_checked(wm->connection, win, XCB_RESIZE, values);
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
-	log_message(DEBUG,
-				"in resize, width = %d, height = %d, win = %d",
-				width,
-				height,
-				win);
+	// log_message(DEBUG,
+	// 			"in resize, width = %d, height = %d, win = %d",
+	// 			width,
+	// 			height,
+	// 			win);
 	if (err) {
 		log_message(
 			ERROR, "Error resizing window (ID %u): %d", win, err->error_code);
@@ -750,6 +781,7 @@ int change_border_attr(xcb_conn_t *conn, xcb_window_t win, uint32_t bcolor,
 		if (configure_window(conn, win, stack_, arg) != 0) {
 			return -1;
 		}
+
 		if (set_input_focus(conn, input, win, XCB_CURRENT_TIME) != 0) {
 			return -1;
 		}
@@ -1152,7 +1184,7 @@ int kill_window(xcb_window_t win) {
 		set_active_window_name(XCB_NONE);
 	}
 
-	if (render_tree(d->tree) != 0) {
+	if (render_tree(d->tree, false) != 0) {
 		log_message(ERROR, "cannot render tree");
 		return -1;
 	}
@@ -1246,7 +1278,7 @@ int hide_window(xcb_window_t win) {
 	return 0;
 }
 
-int exec_process(arg_t *arg) {
+int exec_process(const arg_t *arg) {
 	pid_t pid = fork();
 
 	if (pid < 0) {
@@ -1301,7 +1333,7 @@ void shift_cmd(xcb_key_press_event_t *key_event) {
 			}
 			unlink_node(node, od);
 			transfer_node(node, nd);
-			if (render_tree(od->tree) != 0) {
+			if (render_tree(od->tree, false) != 0) {
 				return;
 			}
 			break;
@@ -1333,11 +1365,11 @@ void update_focused_desktop(int id) {
 	}
 }
 
-int switch_desktop_wrapper(arg_t *arg) {
+int switch_desktop_wrapper(const arg_t *arg) {
 	if (switch_desktop(arg->idx) != 0) {
 		return -1;
 	}
-	return render_tree(wm->desktops[arg->idx]->tree);
+	return render_tree(wm->desktops[arg->idx]->tree, false);
 }
 
 int switch_desktop(const int nd) {
@@ -1622,6 +1654,11 @@ int handle_subsequent_window(client_t *client, desktop_t *d) {
 
 	node_t *n = find_node_by_window_id(d->tree, wi);
 
+	if (n->client->state == FLOATING) {
+		log_message(ERROR, "node under cusor is floating %d", wi);
+		n = find_left_leaf(d->tree);
+	}
+
 	if (n == NULL || n->client == NULL) {
 		log_message(ERROR, "cannot find node with window id %d", wi);
 		return -1;
@@ -1643,7 +1680,51 @@ int handle_subsequent_window(client_t *client, desktop_t *d) {
 
 	ewmh_update_client_list();
 
-	return render_tree(d->tree);
+	return render_tree(d->tree, false);
+}
+
+int handle_floating_window(client_t *client, desktop_t *d) {
+	xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
+
+	if (wi == wm->root_window || wi == 0) {
+		// don't attempt to split root_window
+		free(client);
+		return 0;
+	}
+
+	node_t *n = find_node_by_window_id(d->tree, wi);
+
+	if (n == NULL || n->client == NULL) {
+		free(client);
+		log_message(ERROR, "cannot find node with window id %d", wi);
+		return -1;
+	}
+
+	node_t *new_node = create_node(client);
+	if (new_node == NULL) {
+		free(client);
+		log_message(ERROR, "new node is null");
+		return -1;
+	}
+
+	xcb_get_geometry_reply_t *g = get_geometry(client->window, wm->connection);
+	if (g == NULL) {
+		log_message(ERROR, "cannot get %d geometry", wm->bar->window);
+		return -1;
+	}
+
+	int			x  = (wm->screen->width_in_pixels / 2) - (g->width / 2);
+	int			y  = (wm->screen->height_in_pixels / 2) - (g->height / 2);
+	rectangle_t rc = {.x = x, .y = y, .width = g->width, .height = g->height};
+	new_node->rectangle = rc;
+	free(g);
+
+	insert_node(n, new_node);
+	d->n_count += 1;
+	ewmh_update_client_list();
+
+	// return display_client(rc, client->window);
+	return render_tree(d->tree, false);
 }
 
 int handle_map_request(xcb_map_request_event_t *ev) {
@@ -1660,15 +1741,22 @@ int handle_map_request(xcb_map_request_event_t *ev) {
 	 * */
 	int x = get_cursor_axis(wm->connection, wm->root_window);
 	log_message(DEBUG, "value of x = %d", x);
-	xcb_window_t win = ev->window;
+	xcb_window_t win  = ev->window;
+	xcb_window_t winp = ev->parent;
+	log_message(DEBUG,
+				"MAP window %d, name %s, parent %d, name %s",
+				win,
+				win_name(win),
+				winp,
+				win_name(winp));
 
-	if (is_splash(win)) {
-		map_floating(win);
-		raise_window(wm->connection, win);
-		xcb_flush(wm->connection);
-		log_message(INFO, "win %d, is splash.. ignoring request", win);
-		return 0;
-	}
+	// if (is_splash(win)) {
+	// 	map_floating(win);
+	// 	raise_window(wm->connection, win);
+	// 	xcb_flush(wm->connection);
+	// 	log_message(INFO, "win %d, is splash.. ignoring request", win);
+	// 	return 0;
+	// }
 
 	// if (is_transient(win)) {
 	// 	map_floating(win);
@@ -1706,9 +1794,9 @@ int handle_map_request(xcb_map_request_event_t *ev) {
 	case -1:
 	case 0:
 	case 1: {
-		// if (is_splash(win)) {
-		// 	goto float_;
-		// }
+		if (is_splash(win)) {
+			goto float_;
+		}
 		client		  = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 		client->state = TILED;
 		/* log_children(wm->connection, wm->root_window); */
@@ -1722,7 +1810,7 @@ int handle_map_request(xcb_map_request_event_t *ev) {
 		if (wm->bar != NULL) {
 			return 0;
 		}
-		log_message(DEBUG, "here bar %d", win);
+		// log_message(DEBUG, "here bar %d", win);
 		wm->bar = (bar_t *)malloc(sizeof(bar_t));
 		if (wm->bar == NULL) {
 			return -1;
@@ -1750,7 +1838,7 @@ int handle_map_request(xcb_map_request_event_t *ev) {
 			if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
 				return -1;
 			}
-			return render_tree(d->tree);
+			return render_tree(d->tree, false);
 		}
 		if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
 			return -1;
@@ -1761,44 +1849,10 @@ int handle_map_request(xcb_map_request_event_t *ev) {
 	case 4:
 	case 5:
 	case 6: {
-		// float_:
-		// client		  = create_client(win, XCB_ATOM_WINDOW, wm->connection);
-		// client->state = FLOATING;
-		// xcb_window_t wi =
-		// 	get_window_under_cursor(wm->connection, wm->root_window);
-
-		// if (wi == wm->root_window || wi == 0) {
-		// 	// don't attempt to split root_window
-		// 	return 0;
-		// }
-
-		// node_t *n = find_node_by_window_id(d->tree, wi);
-
-		// if (n == NULL || n->client == NULL) {
-		// 	log_message(ERROR, "cannot find node with window id %d", wi);
-		// 	return -1;
-		// }
-
-		// node_t *new_node = create_node(client);
-		// if (new_node == NULL) {
-		// 	log_message(ERROR, "new node is null");
-		// 	return -1;
-		// }
-
-		// insert_floating_node(new_node, d);
-		// d->n_count += 1;
-		// ewmh_update_client_list();
-		// const xcb_get_geometry_reply_t *g = get_geometry(win,
-		// wm->connection); if (g == NULL) { 	log_message(ERROR, "cannot get
-		// %d geometry", wm->bar->window); 	return -1;
-
-		map_floating(win);
-		raise_window(wm->connection, win);
-		xcb_flush(wm->connection);
-		char *s = win_name(win);
-		if (s == NULL) return -1;
-		log_message(INFO, "FLOAT window %s, id %d wants to be floated", s, win);
-		break;
+	float_:
+		client		  = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+		client->state = FLOATING;
+		return handle_floating_window(client, d);
 	}
 
 	default: break;
@@ -1815,7 +1869,6 @@ int handle_enter_notify(const xcb_enter_notify_event_t *ev) {
 	}
 
 	if (win == wm->bar->window) {
-		log_message(DEBUG, "pointer on wbar");
 		return 0;
 	}
 
@@ -1841,10 +1894,10 @@ int handle_enter_notify(const xcb_enter_notify_event_t *ev) {
 	}
 
 	if (win == wm->root_window) {
-		// return 0;
-		log_message(DEBUG, "pointer on root");
+		return 0;
 	}
 
+	// restack(root);
 	const int r = set_active_window_name(win);
 	if (r != 0 || change_border_attr(wm->connection,
 									 client->window,
@@ -1852,6 +1905,10 @@ int handle_enter_notify(const xcb_enter_notify_event_t *ev) {
 									 BORDER_WIDTH,
 									 true) != 0) {
 		return -1;
+	}
+
+	if (has_floating_window(root)) {
+		restack(root);
 	}
 
 	return 0;
@@ -1905,7 +1962,8 @@ int handle_leave_notify(const xcb_leave_notify_event_t *ev) {
 		return -1;
 	}
 
-	lower_window(wm->connection, client->window);
+	if (wm->desktops[curd]->layout != STACK)
+		lower_window(wm->connection, client->window);
 
 	return 0;
 }
@@ -1929,6 +1987,50 @@ void handle_key_press(xcb_key_press_event_t *key_press) {
 	}
 }
 
+int handle_state(node_t *n, xcb_atom_t state, xcb_atom_t state_,
+				 unsigned int action) {
+	if (state == wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
+		state_ == wm->ewmh->_NET_WM_STATE_FULLSCREEN) {
+		log_message(INFO,
+					"_NET_WM_STATE_FULLSCREEN received for win %d",
+					n->client->window);
+		if (action == XCB_EWMH_WM_STATE_ADD) {
+			return set_fullscreen(n, true);
+		} else if (action == XCB_EWMH_WM_STATE_REMOVE) {
+			/* if (n->client->state == FULLSCREEN) { */
+			return set_fullscreen(n, false);
+			/* } */
+		} else if (action == XCB_EWMH_WM_STATE_TOGGLE) {
+			uint32_t mode = (n->client->state == FULLSCREEN)
+								? XCB_EWMH_WM_STATE_REMOVE
+								: XCB_EWMH_WM_STATE_ADD;
+			return set_fullscreen(n, mode == XCB_EWMH_WM_STATE_ADD);
+		}
+	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
+		log_message(
+			INFO, "_NET_WM_STATE_BELOW received for win %d", n->client->window);
+	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
+		log_message(
+			INFO, "_NET_WM_STATE_ABOVE received for win %d", n->client->window);
+
+	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
+		log_message(INFO,
+					"_NET_WM_STATE_HIDDEN received for win %d",
+					n->client->window);
+
+	} else if (state == wm->ewmh->_NET_WM_STATE_STICKY) {
+		log_message(INFO,
+					"_NET_WM_STATE_STICKY received for win %d",
+					n->client->window);
+
+	} else if (state == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
+		log_message(INFO,
+					"_NET_WM_STATE_DEMANDS_ATTENTION received for win %d",
+					n->client->window);
+	}
+	return 0;
+}
+
 int handle_client_message(xcb_client_message_event_t *client_message) {
 	if (client_message->format != 32) {
 		return 0;
@@ -1939,12 +2041,19 @@ int handle_client_message(xcb_client_message_event_t *client_message) {
 		return d;
 	}
 
-	node_t		 *root = wm->desktops[d]->tree;
+	node_t *root = wm->desktops[d]->tree;
 
-	const node_t *n	   = find_node_by_window_id(root, client_message->window);
+	node_t *n	 = find_node_by_window_id(root, client_message->window);
 	if (n == NULL) {
 		return 0;
 	}
+
+	log_message(DEBUG, "received data32 for win %d:\n", client_message->window);
+	for (ulong i = 0; i < LENGTH(client_message->data.data32); i++) {
+		log_message(
+			DEBUG, "data32[%d]: %u\n", i, client_message->data.data32[i]);
+	}
+
 	if (client_message->type == wm->ewmh->_NET_CURRENT_DESKTOP) {
 		uint32_t nd = client_message->data.data32[0];
 		if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
@@ -1953,47 +2062,33 @@ int handle_client_message(xcb_client_message_event_t *client_message) {
 		if (switch_desktop(nd) != 0) {
 			return -1;
 		}
-		/* log_message(DEBUG, "received data32:\n"); */
-		/* for (ulong i = 0; i < LENGTH(client_message->data.data32);
-		 * i++) {
-		 */
-		/*     log_message(DEBUG, "data32[%d]: %u\n", i,
-		 * client_message->data.data32[i]); */
-		/* } */
 		// log_active_desktop(w);
 		return 0;
 	} else if (client_message->type == wm->ewmh->_NET_CLOSE_WINDOW) {
 		log_message(
 			INFO, "window want to be closed %d", client_message->window);
 	} else if (client_message->type == wm->ewmh->_NET_WM_STATE) {
-		log_message(
-			INFO, "WM_STATE received for win %d", client_message->window);
-		if (((unsigned)client_message->data.data32[1] ==
-				 wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
-			 (unsigned)client_message->data.data32[2] ==
-				 wm->ewmh->_NET_WM_STATE_FULLSCREEN)) {
-			// uint32_t mode = client_message->data.data32[0];
-			// enum {
-			// 	_NET_WM_STATE_REMOVE,
-			// 	_NET_WM_STATE_ADD,
-			// 	_NET_WM_STATE_TOGGLE
-			// };
-			// if (mode == _NET_WM_STATE_TOGGLE)
-			// 	mode = (n->client->state == FULLSCREEN) ?
-			// _NET_WM_STATE_REMOVE
-			// : _NET_WM_STATE_ADD; set_fullscreen(n, wm, mode ==
-			// _NET_WM_STATE_ADD);
-			log_message(INFO,
-						"window wants to be fullscreend %d",
-						client_message->window);
-		}
+		handle_state(n,
+					 client_message->data.data32[1],
+					 client_message->data.data32[2],
+					 client_message->data.data32[0]);
+		/* 	handle_state( */
+		/* 		n, client_message->data.data32[2],
+		 * client_message->data.data32[0]); */
+	} else if (client_message->type == wm->ewmh->_NET_ACTIVE_WINDOW) {
+
+	} else if (client_message->type ==
+			   wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
+
+	} else if (client_message->type == wm->ewmh->_NET_WM_STATE_STICKY) {
+
+	} else if (client_message->type == wm->ewmh->_NET_WM_DESKTOP) {
 	}
 	// TODO: ewmh->_NET_WM_STATE
 	// TODO: ewmh->_NET_CLOSE_WINDOW
 	// TODO: ewmh->_NET_WM_DESKTOP
 	// TODO: ewmh->_NET_WM_STATE_FULLSCREEN
 	// TODO: ewmh->_NET_ACTIVE_WINDOW
-
 	return 0;
 }
 
@@ -2040,7 +2135,7 @@ void handle_configure_request(xcb_configure_request_event_t *e) {
 
 	log_message(INFO,
 				"window %d  name %s wants to be at %dx%d with %dx%d\n",
-				e->window,
+				win,
 				name,
 				e->x,
 				e->y,
@@ -2053,7 +2148,7 @@ void handle_configure_request(xcb_configure_request_event_t *e) {
 	}
 
 	node_t *n		   = wm->desktops[d]->tree;
-	bool	is_managed = client_exist(n, e->window);
+	bool	is_managed = client_exist(n, win);
 	if (!is_managed) {
 		uint16_t mask = 0;
 		uint32_t values[7];
@@ -2093,8 +2188,8 @@ void handle_configure_request(xcb_configure_request_event_t *e) {
 			values[i++] = e->stack_mode;
 		}
 
-		xcb_configure_window(wm->connection, e->window, mask, values);
-		xcb_flush(wm->connection);
+		xcb_configure_window(wm->connection, win, mask, values);
+		// xcb_flush(wm->connection);
 	} else {
 		const node_t *node = find_node_by_window_id(n, e->window);
 		if (node == NULL) {
@@ -2103,6 +2198,7 @@ void handle_configure_request(xcb_configure_request_event_t *e) {
 						e->window);
 			return;
 		}
+
 		// TODO: deal with *node
 	}
 }
@@ -2204,7 +2300,8 @@ int main() {
 		case XCB_MAP_REQUEST: {
 			xcb_map_request_event_t *map_request =
 				(xcb_map_request_event_t *)event;
-			log_message(DEBUG, "MAP_REQUEST FOR %d,", map_request->window);
+			/* log_message(DEBUG, "MAP_REQUEST FOR %d,", map_request->window);
+			 */
 			if (handle_map_request(map_request) != 0) {
 				log_message(ERROR,
 							"Failed to handle MAP_REQUEST for window %d\n",
@@ -2271,7 +2368,8 @@ int main() {
 		case XCB_ENTER_NOTIFY: {
 			xcb_enter_notify_event_t *enter_event =
 				(xcb_enter_notify_event_t *)event;
-			log_message(DEBUG, "XCB_ENTER_NOTIFY win %d\n", enter_event->event);
+			/* log_message(DEBUG, "XCB_ENTER_NOTIFY win %d\n",
+			 * enter_event->event); */
 			if (handle_enter_notify(enter_event) != 0) {
 				log_message(ERROR,
 							"Failed to handle XCB_ENTER_NOTIFY for "
@@ -2284,7 +2382,8 @@ int main() {
 		case XCB_LEAVE_NOTIFY: {
 			xcb_leave_notify_event_t *leave_event =
 				(xcb_leave_notify_event_t *)event;
-			log_message(DEBUG, "XCB_LEAVE_NOTIFY win %d\n", leave_event->event);
+			/* log_message(DEBUG, "XCB_LEAVE_NOTIFY win %d\n",
+			 * leave_event->event); */
 			if (handle_leave_notify(leave_event) != 0) {
 				log_message(ERROR,
 							"Failed to handle XCB_LEAVE_NOTIFY for "
