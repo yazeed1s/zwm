@@ -24,8 +24,8 @@ typedef enum {
 } split_type_t;
 
 typedef enum {
-	HORIZONTAL_FLIP __attribute__((unused)),
-	VERTICAL_FLIP __attribute__((unused))
+	HORIZONTAL_FLIP,
+	VERTICAL_FLIP
 } flip_t;
 
 typedef enum {
@@ -204,8 +204,8 @@ typedef struct {
 typedef struct {
 	unsigned int mod;
 	xcb_keysym_t keysym;
-	int			 (*function_ptr)(const arg_t *);
-	arg_t		*arg;
+	int (*function_ptr)(const arg_t *);
+	arg_t *arg;
 } _key__t;
 
 #endif // ZWM_TYPE_H

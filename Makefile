@@ -8,6 +8,11 @@ OBJ_FILES = $(SRC_FILES:.c=.o)
 
 TARGET = zwm
 
+DEBUG ?= 0
+ifeq ($(DEBUG),1)
+	CFLAGS += -D_DEBUG__=1
+endif
+
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 

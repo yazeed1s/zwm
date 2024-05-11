@@ -5,7 +5,9 @@
 
 #define MAX_LINE_LENGTH 100
 
-void trim_whitespaces(char *str) {
+void
+trim_whitespaces(char *str)
+{
 	char *end	= str + strlen(str);
 	char *start = str;
 	if (*end == '\0') {
@@ -25,7 +27,9 @@ void trim_whitespaces(char *str) {
 	}
 }
 
-int parse_config(const char *filename, config_t *c) {
+int
+parse_config(const char *filename, config_t *c)
+{
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
 		fprintf(stderr, "Error: Could not open file '%s'\n", filename);

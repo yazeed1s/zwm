@@ -3,16 +3,25 @@
 
 #include "type.h"
 
-node_t	 *create_node(client_t *c);
+node_t   *create_node(client_t *c);
 node_t	 *init_root();
 node_t	 *find_node_by_window_id(node_t *root, xcb_window_t window_id);
 node_t	 *find_floating_node(node_t *root);
 client_t *find_client_by_window_id(node_t *root, xcb_window_t window_id);
+node_t   *find_master_node(node_t *root);
 node_t	 *prev_node(node_t *current);
-node_t	 *next_node(node_t *current);
+node_t   *next_node(node_t *current);
+node_t   *find_tree_root(node_t *);
 void	  unlink_node(node_t *node, desktop_t *d);
-void	  restack(node_t *root);
-int		  render_tree(node_t *current_node, bool is_stacked);
+void      restack(node_t *root);
+void      apply_master_layout(node_t *parent);
+void      apply_default_layout(node_t *root);
+void      apply_stack_layout(node_t *root);
+void      flip_node(node_t *node);
+void      master_layout(node_t *parent, node_t *);
+void      stack_layout(node_t *parent);
+void      default_layout(node_t *parent);
+int 	  render_tree(node_t *current_node);
 int		  get_tree_level(node_t *current_node);
 int		  hide_windows(node_t *tree);
 int		  show_windows(node_t *tree);
@@ -36,11 +45,13 @@ void	  apply_layout(desktop_t *d, layout_t t);
 void	  free_tree(node_t *root);
 void	  horizontal_resize(node_t *n, resize_t t);
 void	  delete_node(node_t *node, desktop_t *d);
-void	  insert_node(node_t *current_node, node_t *new_node);
+void	  insert_node(node_t *current_node, node_t *new_node, layout_t layout);
 node_t	 *find_left_leaf(node_t *root);
+node_t	 *get_focused_node(node_t *n);
 void	  delete_floating_node(node_t *node, desktop_t *d);
 void	  insert_floating_node(node_t *node, desktop_t *d);
 void	  log_tree_nodes(node_t *node);
 void	  transfer_node(node_t *, desktop_t *);
 int		  transfer_node_wrapper(const arg_t *arg);
+int		  update_focused_node(node_t *root);
 #endif // ZWM_TREE_H

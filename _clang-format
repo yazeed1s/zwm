@@ -6,29 +6,29 @@ AccessModifierOffset: 1
 AlignAfterOpenBracket: Align
 AlignArrayOfStructures: Left
 AlignConsecutiveAssignments:
-  Enabled:         true
-  AcrossEmptyLines: true
-  AcrossComments:  true
-  AlignCompound:   false
-  PadOperators:    true
+ Enabled:         true
+ AcrossEmptyLines: true
+ AcrossComments:  true
+ AlignCompound:   false
+ PadOperators:    true
 AlignConsecutiveBitFields:
-  Enabled:         true
-  AcrossEmptyLines: true
-  AcrossComments:  true
-  AlignCompound:   true
-  PadOperators:    true
+ Enabled:         true
+ AcrossEmptyLines: true
+ AcrossComments:  true
+ AlignCompound:   true
+ PadOperators:    true
 AlignConsecutiveDeclarations:
-  Enabled:         true
-  AcrossEmptyLines: true
-  AcrossComments:  true
-  AlignCompound:   true
-  PadOperators:    true
+ Enabled:         true
+ AcrossEmptyLines: true
+ AcrossComments:  true
+ AlignCompound:   true
+ PadOperators:    true
 AlignConsecutiveMacros:
-  Enabled:         true
-  AcrossEmptyLines: true
-  AcrossComments:  true
-  AlignCompound:   true
-  PadOperators:    true
+ Enabled:         true
+ AcrossEmptyLines: true
+ AcrossComments:  true
+ AlignCompound:   true
+ PadOperators:    true
 AlignTrailingComments: true
 AllowAllArgumentsOnNextLine: true
 AllowAllConstructorInitializersOnNextLine: true
@@ -41,11 +41,11 @@ AllowShortLambdasOnASingleLine: All
 AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
 AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterReturnType: All
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: false
-BinPackParameters: true
+BinPackParameters: false
 BreakBeforeBinaryOperators: None
 BreakBeforeConceptDeclarations: true
 BreakBeforeBraces: Custom
@@ -87,3 +87,9 @@ ReferenceAlignment: Pointer
 ReflowComments:  true
 ShortNamespaceLines: 1
 SortIncludes:    CaseSensitive
+BraceWrapping:
+    AfterClass: false
+    AfterCaseLabel: false
+    # AfterControlStatement: MultiLine
+    AfterEnum: false
+    AfterFunction: true

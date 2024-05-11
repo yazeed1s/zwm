@@ -6,7 +6,9 @@
 
 #define YEAR_OFFSET 1900
 
-void log_message(log_level_t level, const char *format, ...) {
+void
+log_message(log_level_t level, const char *format, ...)
+{
 	struct tm *ptr;
 	time_t	   t;
 	va_list	   args;
@@ -36,6 +38,8 @@ void log_message(log_level_t level, const char *format, ...) {
 	/* free(ptr); */
 }
 
-void log_window_id(xcb_window_t window, const char *message) {
+void
+log_window_id(xcb_window_t window, const char *message)
+{
 	log_message(DEBUG, "%s: Window ID: %u", message, window);
 }
