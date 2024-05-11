@@ -1186,11 +1186,13 @@ close_or_kill(xcb_window_t win)
 		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
 	if (supports_protocol(win, wm_delete, wm->connection)) {
 		if (wr == 1) {
+#ifdef _DEBUG__
 			log_message(DEBUG,
 						"window id = %d, reply name = %s: supports "
 						"WM_DELETE_WINDOW\n",
 						win,
 						t_reply.name);
+#endif
 			xcb_icccm_get_text_property_reply_wipe(&t_reply);
 		}
 		int ret = send_client_message(
@@ -1265,10 +1267,12 @@ kill_window(xcb_window_t win)
 		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
 
 	if (wr == 1) {
+#ifdef _DEBUG__
 		log_message(DEBUG,
 					"delete window id = %d, reply name = %s\n",
 					win,
 					t_reply.name);
+#endif
 		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 	}
 
@@ -1797,8 +1801,9 @@ handle_first_window(client_t *client, desktop_t *d)
 	d->tree->client	   = client;
 	d->tree->rectangle = r;
 	d->n_count += 1;
-
+#ifdef _DEBUG__
 	log_tree_nodes(d->tree);
+#endif
 	ewmh_update_client_list();
 	return tile(d->tree);
 }
@@ -1957,7 +1962,9 @@ handle_map_request(xcb_map_request_event_t *ev)
 		if (is_tree_empty(d->tree)) {
 			return handle_first_window(client, d);
 		}
+#ifdef _DEBUG__
 		log_tree_nodes(d->tree);
+#endif
 		return handle_subsequent_window(client, d);
 	}
 	case 2: {
