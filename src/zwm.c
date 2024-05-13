@@ -469,6 +469,7 @@ traverse_stack_wrapper(const arg_t *arg)
 		}
 	}
 	set_focus(n, true);
+	wm->desktops[i]->top_w = n->client->window;
 	return 0;
 }
 
@@ -614,7 +615,7 @@ init_desktop()
 	d->is_focused = false;
 	d->n_count	  = 0;
 	d->tree		  = NULL;
-	d->stack	  = NULL;
+	d->top_w	  = XCB_NONE;
 	return d;
 }
 
@@ -1517,11 +1518,19 @@ switch_desktop_wrapper(const arg_t *arg)
 	if (switch_desktop(arg->idx) != 0) {
 		return -1;
 	}
-
 	node_t *tree = wm->desktops[arg->idx]->tree;
-	// if (has_floating_window(tree)) {
-	// 	restack(tree);
-	// }
+	if (wm->desktops[arg->idx]->layout == STACK) {
+		if (wm->desktops[arg->idx]->top_w == XCB_NONE) {
+			log_message(ERROR, "Top window is empty");
+			goto out;
+		}
+		// restack(tree);
+		xcb_window_t w = wm->desktops[arg->idx]->top_w;
+		node_t		*n = find_node_by_window_id(tree, w);
+		set_focus(n, true);
+		return 0;
+	}
+out:
 	return render_tree(tree);
 }
 
@@ -1704,8 +1713,7 @@ window_type(xcb_window_t win)
 				 * */
 				xcb_ewmh_get_atoms_reply_wipe(&w_type);
 				return 5;
-			} else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG ||
-					   a != wm->ewmh->_NET_WM_WINDOW_TYPE) {
+			} else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG) {
 				/*
 				 * _NET_WM_WINDOW_TYPE_DIALOG
 				 * indicates that this is a dialog window.
@@ -1843,6 +1851,10 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
+	if (d->layout == STACK) {
+		set_focus(new_node, true);
+		d->top_w = new_node->client->window;
+	}
 	ewmh_update_client_list();
 	return render_tree(d->tree);
 }
@@ -1916,13 +1928,14 @@ handle_map_request(xcb_map_request_event_t *ev)
 	xcb_window_t win = ev->window;
 
 	if (is_transient(win)) {
-		map_floating(win);
-		raise_window(wm->connection, win);
-		xcb_flush(wm->connection);
+		// map_floating(win);
+		// raise_window(wm->connection, win);
+		// xcb_flush(wm->connection);
 #ifdef _DEBUG__
 		log_message(INFO, "win %d, is transient.. ignoring request", win);
 #endif
-		return 0;
+		// goto float_;
+		// return 0;
 	}
 
 	if (!should_manage(win, wm->connection)) {
@@ -1962,9 +1975,6 @@ handle_map_request(xcb_map_request_event_t *ev)
 		if (is_tree_empty(d->tree)) {
 			return handle_first_window(client, d);
 		}
-#ifdef _DEBUG__
-		log_tree_nodes(d->tree);
-#endif
 		return handle_subsequent_window(client, d);
 	}
 	case 2: {
@@ -2010,6 +2020,11 @@ handle_map_request(xcb_map_request_event_t *ev)
 	case 5:
 	case 6: {
 	float_:
+#ifdef _DEBUG__
+		char *name = win_name(win);
+		log_message(DEBUG, "Window %s id %d is floating", name, win);
+		free(name);
+#endif
 		client		  = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 		client->state = FLOATING;
 		return handle_floating_window(client, d);
@@ -2041,6 +2056,10 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	const int curd = get_focused_desktop_idx();
 	if (curd == -1) return curd;
 
+	if (wm->desktops[curd]->layout == STACK) {
+		win = wm->desktops[curd]->top_w;
+	}
+
 	node_t	 *root	 = wm->desktops[curd]->tree;
 	node_t	 *n		 = find_node_by_window_id(root, win);
 	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
@@ -2067,6 +2086,10 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		restack(root);
 	}
 
+	update_focus(root, n);
+#ifdef _DEBUG__
+	log_tree_nodes(root);
+#endif
 	return 0;
 }
 
@@ -2090,6 +2113,9 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 
 	const int curd = get_focused_desktop_idx();
 	if (curd == -1) return -1;
+	if (wm->desktops[curd]->layout == STACK) {
+		return 0;
+	}
 
 	node_t		*root		   = wm->desktops[curd]->tree;
 	xcb_window_t active_window = XCB_NONE;
@@ -2108,22 +2134,11 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 		return 0;
 	}
 
-	if (wm->desktops[curd]->layout != STACK) {
-		if (set_focus(n, false) != 0) {
-			log_message(ERROR,
-						"Failed to change border attr for window %d\n",
-						client->window);
-			return -1;
-		} else {
-#ifdef _DEBUG__
-			log_message(DEBUG,
-						"SUCCESS to change border attr for window %d\n",
-						client->window);
-#endif
-		}
-		n->is_focused = false;
-	} else {
-		n->is_focused = false;
+	if (set_focus(n, false) != 0) {
+		log_message(ERROR,
+					"Failed to change border attr for window %d\n",
+					client->window);
+		return -1;
 	}
 
 	return 0;
@@ -2268,9 +2283,6 @@ handle_unmap_notify(xcb_window_t win)
 
 	if (!client_exist(root, win)) {
 		log_message(ERROR, "cannot find win %d", win);
-#ifdef _DEBUG__
-		log_tree_nodes(root);
-#endif
 		return 0;
 	}
 
@@ -2381,9 +2393,6 @@ handle_destroy_notify(xcb_window_t win)
 
 	if (!client_exist(root, win)) {
 		log_message(ERROR, "cannot find win %d", win);
-#ifdef _DEBUG__
-		log_tree_nodes(root);
-#endif
 		return 0;
 	}
 

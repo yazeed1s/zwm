@@ -165,7 +165,7 @@ typedef struct {
 
 typedef struct {
 	node_t	*tree;
-	stack_t *stack;
+	xcb_window_t top_w;
 	char	 name[DLEN];
 	uint8_t	 id;
 	int		 n_count;

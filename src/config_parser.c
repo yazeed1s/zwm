@@ -4,6 +4,36 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 100
+#define CONF_PATH		".config/zwm/zwm.conf.ini"
+
+int
+file_exists(const char *filename)
+{
+	FILE *file = fopen(filename, "r");
+	if (file != NULL) {
+		fclose(file);
+		return 1;
+	}
+	return 0;
+}
+
+int
+write_default_config(const char *filename, config_t *c)
+{
+	const char *content = "border_width = 2\n"
+						  "border_color = 0x83a598\n"
+						  "window_gap = 5\n";
+	FILE	   *file	= fopen(filename, "w");
+	if (file == NULL) {
+		return -1;
+	}
+	c->border_color = 0x83a598;
+	c->border_width = 2;
+	c->window_gap	= 5;
+	fprintf(file, "%s", content);
+	fclose(file);
+	return 0;
+}
 
 void
 trim_whitespaces(char *str)
@@ -61,4 +91,15 @@ parse_config(const char *filename, config_t *c)
 
 	fclose(file);
 	return 0;
+}
+
+int
+load_config(config_t *c)
+{
+	const char *filename = CONF_PATH;
+	if (!file_exists(filename)) {
+		return write_default_config(filename, c);
+	} else {
+		return parse_config(filename, c);
+	}
 }

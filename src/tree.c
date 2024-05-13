@@ -66,17 +66,10 @@ render_tree(node_t *node)
 			log_message(ERROR, "error tiling window %d", node->client->window);
 			return -1;
 		}
-		bool flag = node->client->state == FULLSCREEN ||
-					node->client->state == FLOATING;
-
+		// bool flag = node->client->state == FULLSCREEN ||
+		// 			node->client->state == FLOATING;
 		// if (flag) raise_window(wm->connection, node->client->window);
-		//  else
-		//  	lower_window(wm->connection, node->client->window);
-		//  } else {
-		//  	lower_window(wm->connection, node->client->window);
-		//  	//  if (!is_stacked) lower_window(wm->connection,
-		//  	//  node->client->window);
-		//  }
+		// else lower_window(wm->connection, node->client->window);
 	}
 
 	// skip_:
@@ -142,6 +135,41 @@ insert_floating_node(node_t *node, desktop_t *d)
 }
 
 void
+split_node(node_t *n, node_t *nd)
+{
+	if (nd->client->state == FLOATING) {
+		n->first_child->rectangle = n->rectangle;
+	} else {
+		if (n->rectangle.width >= n->rectangle.height) {
+			n->first_child->rectangle.x		 = n->rectangle.x;
+			n->first_child->rectangle.y		 = n->rectangle.y;
+			n->first_child->rectangle.width	 = (n->rectangle.width - W_GAP) / 2;
+			n->first_child->rectangle.height = n->rectangle.height;
+			n->second_child->rectangle.x =
+				(int16_t)(n->rectangle.x + n->first_child->rectangle.width +
+						  W_GAP);
+			n->second_child->rectangle.y = n->rectangle.y;
+			n->second_child->rectangle.width =
+				n->rectangle.width - n->first_child->rectangle.width - W_GAP;
+			n->second_child->rectangle.height = n->rectangle.height;
+		} else {
+			n->first_child->rectangle.x		= n->rectangle.x;
+			n->first_child->rectangle.y		= n->rectangle.y;
+			n->first_child->rectangle.width = n->rectangle.width;
+			n->first_child->rectangle.height =
+				(n->rectangle.height - W_GAP) / 2;
+			n->second_child->rectangle.x = n->rectangle.x;
+			n->second_child->rectangle.y =
+				(int16_t)(n->rectangle.y + n->first_child->rectangle.height +
+						  W_GAP);
+			n->second_child->rectangle.width = n->rectangle.width;
+			n->second_child->rectangle.height =
+				n->rectangle.height - n->first_child->rectangle.height - W_GAP;
+		}
+	}
+}
+
+void
 insert_node(node_t *node, node_t *new_node, layout_t layout)
 {
 #ifdef _DEBUG__
@@ -181,42 +209,11 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 	node->second_child->node_type = EXTERNAL_NODE;
 
 	if (layout == DEFAULT) {
-		if (new_node->client->state == FLOATING) {
-			node->first_child->rectangle = node->rectangle;
-		} else {
-			if (node->rectangle.width >= node->rectangle.height) {
-				node->first_child->rectangle.x = node->rectangle.x;
-				node->first_child->rectangle.y = node->rectangle.y;
-				node->first_child->rectangle.width =
-					(node->rectangle.width - W_GAP) / 2;
-				node->first_child->rectangle.height = node->rectangle.height;
-				node->second_child->rectangle.x =
-					(int16_t)(node->rectangle.x +
-							  node->first_child->rectangle.width + W_GAP);
-				node->second_child->rectangle.y = node->rectangle.y;
-				node->second_child->rectangle.width =
-					node->rectangle.width - node->first_child->rectangle.width -
-					W_GAP;
-				node->second_child->rectangle.height = node->rectangle.height;
-			} else {
-				node->first_child->rectangle.x	   = node->rectangle.x;
-				node->first_child->rectangle.y	   = node->rectangle.y;
-				node->first_child->rectangle.width = node->rectangle.width;
-				node->first_child->rectangle.height =
-					(node->rectangle.height - W_GAP) / 2;
-				node->second_child->rectangle.x = node->rectangle.x;
-				node->second_child->rectangle.y =
-					(int16_t)(node->rectangle.y +
-							  node->first_child->rectangle.height + W_GAP);
-				node->second_child->rectangle.width = node->rectangle.width;
-				node->second_child->rectangle.height =
-					node->rectangle.height -
-					node->first_child->rectangle.height - W_GAP;
-			}
-		}
+		split_node(node, new_node);
 	} else if (layout == STACK) {
 		node->second_child->rectangle = node->first_child->rectangle =
 			node->rectangle;
+
 	} else if (layout == MASTER) {
 		// todo
 		node_t *p = find_tree_root(node);
@@ -1115,13 +1112,13 @@ log_tree_nodes(node_t *node)
 				snprintf(name, sizeof(name), "%s", t_reply.name);
 				xcb_icccm_get_text_property_reply_wipe(&t_reply);
 			}
-			log_message(
-				DEBUG,
-				"Node Type: %d, Client Window ID: %u, name: %s, is_focused %s",
-				node->node_type,
-				node->client->window,
-				name,
-				node->is_focused ? "true" : "false");
+			log_message(DEBUG,
+						"Node Type: %d, Client Window ID: %u, name: %s, "
+						"is_focused %s",
+						node->node_type,
+						node->client->window,
+						name,
+						node->is_focused ? "true" : "false");
 		} else {
 			log_message(DEBUG, "Node Type: %d", node->node_type);
 		}
@@ -1350,9 +1347,9 @@ horizontal_resize(node_t *n, resize_t t)
 	 *
 	 * I's type is INTERNAL_NODE
 	 * Node to expand is E.
-	 * logic: grow the whole subtree(rectangle)'s width in E's side by 5 pixels
-	 * then move the opposite subtree(rectangle)'s x by 5 pixels and shrink its
-	 * width by 5 pixels
+	 * logic: grow the whole subtree(rectangle)'s width in E's side by 5
+	 * pixels then move the opposite subtree(rectangle)'s x by 5 pixels and
+	 * shrink its width by 5 pixels
 	 *         I
 	 *    	 /   \
 	 *   	I     E/I
@@ -1756,6 +1753,22 @@ flip_node(node_t *node)
 	if (s->node_type == INTERNAL_NODE) {
 		resize_subtree(s);
 	}
+}
+
+void
+update_focus(node_t *root, node_t *n)
+{
+	if (root == NULL) return;
+
+	bool flag = root->node_type != INTERNAL_NODE && root->client != NULL;
+	if (flag && root != n) {
+		root->is_focused = false;
+	} else if (flag && root == n) {
+		root->is_focused = true;
+	}
+
+	update_focus(root->first_child, n);
+	update_focus(root->second_child, n);
 }
 
 node_t *
