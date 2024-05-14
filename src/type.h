@@ -74,9 +74,10 @@ typedef enum {
 } layout_t;
 
 typedef struct {
-	int			 border_width;
-	unsigned int border_color;
-	int			 window_gap;
+	uint16_t border_width;
+	uint16_t window_gap;
+	uint32_t active_border_color;
+	uint32_t normal_border_color;
 } config_t;
 
 typedef struct {
@@ -164,13 +165,13 @@ typedef struct {
 } stack_t;
 
 typedef struct {
-	node_t	*tree;
+	node_t		*tree;
 	xcb_window_t top_w;
-	char	 name[DLEN];
-	uint8_t	 id;
-	int		 n_count;
-	layout_t layout;
-	bool	 is_focused;
+	char		 name[DLEN];
+	uint8_t		 id;
+	int			 n_count;
+	layout_t	 layout;
+	bool		 is_focused;
 } desktop_t;
 
 typedef struct {
