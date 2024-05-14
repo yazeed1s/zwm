@@ -1,4 +1,5 @@
 #include "zwm.h"
+#include "config_parser.h"
 #include "logger.h"
 #include "tree.h"
 #include "type.h"
@@ -129,6 +130,7 @@ layout_handler(const arg_t *arg)
 {
 	int		   i = get_focused_desktop_idx();
 	desktop_t *d = wm->desktops[i];
+	if (arg->t == STACK && d->n_count < 2) return 0;
 	apply_layout(d, arg->t);
 	return render_tree(d->tree);
 }
@@ -593,9 +595,11 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 		exit(EXIT_FAILURE);
 	}
 
-	if (change_border_attr(
-			wm->connection, win, NORMAL_BORDER_COLOR, BORDER_WIDTH, false) !=
-		0) {
+	if (change_border_attr(wm->connection,
+						   win,
+						   conf.normal_border_color,
+						   conf.border_width,
+						   false) != 0) {
 		log_message(ERROR, "Failed to change border attr for window %d\n", win);
 		free(c);
 		c = NULL;
@@ -819,8 +823,9 @@ win_focus(xcb_conn_t *conn, xcb_window_t win, bool set_focus)
 	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
 	uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
 	uint32_t input	   = XCB_INPUT_FOCUS_PARENT;
-	uint32_t bcolor	   = set_focus ? ACTIVE_BORDER_COLOR : NORMAL_BORDER_COLOR;
-	uint32_t bwidth	   = BORDER_WIDTH;
+	uint32_t bcolor =
+		set_focus ? conf.active_border_color : conf.normal_border_color;
+	uint32_t bwidth = conf.border_width;
 
 	if (change_window_attr(conn, win, bpx_width, &bcolor) != 0) {
 		log_message(ERROR, "cannot update win attributes");
@@ -1789,15 +1794,16 @@ handle_first_window(client_t *client, desktop_t *d)
 	const uint16_t h = wm->screen->height_in_pixels;
 
 	if (wm->bar != NULL) {
-		r.x		 = W_GAP - BORDER_WIDTH * 1.5;
-		r.y		 = (int16_t)(wm->bar->rectangle.height + W_GAP);
-		r.width	 = (uint16_t)(w - 2 * W_GAP);
-		r.height = (uint16_t)(h - 2 * W_GAP - wm->bar->rectangle.height);
+		r.x		= conf.window_gap - conf.border_width * 1.5;
+		r.y		= (int16_t)(wm->bar->rectangle.height + conf.window_gap);
+		r.width = (uint16_t)(w - 2 * conf.window_gap);
+		r.height =
+			(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
 	} else {
-		r.x		 = W_GAP;
-		r.y		 = W_GAP;
-		r.width	 = w - W_GAP;
-		r.height = h - W_GAP;
+		r.x		 = conf.window_gap;
+		r.y		 = conf.window_gap;
+		r.width	 = w - conf.window_gap;
+		r.height = h - conf.window_gap;
 	}
 
 	if (client == NULL) {
@@ -2001,8 +2007,8 @@ handle_map_request(xcb_map_request_event_t *ev)
 		g = NULL;
 		if (!is_tree_empty(d->tree)) {
 			d->tree->rectangle.height =
-				(uint16_t)(wm->screen->height_in_pixels - W_GAP - rc.height -
-						   5);
+				(uint16_t)(wm->screen->height_in_pixels - conf.window_gap -
+						   rc.height - 5);
 			d->tree->rectangle.y = (int16_t)(rc.height + 5);
 			resize_subtree(d->tree);
 			if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
@@ -2064,11 +2070,19 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	node_t	 *n		 = find_node_by_window_id(root, win);
 	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
 
-	if (client == NULL) return 0;
+	if (client == NULL) {
+		return 0;
+	}
 
-	if (win == wm->root_window) return 0;
+	if (win == wm->root_window) {
+		return 0;
+	}
 
 	const int r = set_active_window_name(win);
+	if (r != 0) {
+		return 0;
+	}
+
 	if (n->client->state == FLOATING) {
 		restack(root);
 		if (win_focus(wm->connection, n->client->window, true) != 0) {
@@ -2086,7 +2100,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		restack(root);
 	}
 
-	update_focus(root, n);
+	// update_focus(root, n);
 #ifdef _DEBUG__
 	log_tree_nodes(root);
 #endif
@@ -2468,6 +2482,16 @@ main()
 	if (wm == 0x00) {
 		log_message(ERROR, "Failed to initialize window manager\n");
 		exit(EXIT_FAILURE);
+	}
+
+	int r = load_config(&conf);
+	if (load_config(&conf) != 0) {
+		log_message(ERROR,
+					"error while loding config -> assigning default macros");
+		conf.active_border_color = ACTIVE_BORDER_COLOR;
+		conf.normal_border_color = NORMAL_BORDER_COLOR;
+		conf.border_width		 = BORDER_WIDTH;
+		conf.window_gap			 = W_GAP;
 	}
 
 	// if (parse_config("$HOME/_dev/c_dev//zwm.conf", &conf) != 0) {
