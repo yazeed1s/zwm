@@ -1800,10 +1800,10 @@ handle_first_window(client_t *client, desktop_t *d)
 		r.height =
 			(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
 	} else {
-		r.x		 = conf.window_gap;
-		r.y		 = conf.window_gap;
-		r.width	 = w - conf.window_gap;
-		r.height = h - conf.window_gap;
+		r.x		 = conf.window_gap - conf.border_width * 1.5;
+		r.y		 = conf.window_gap - conf.border_width * 1.5;
+		r.width	 = w - conf.window_gap * 2;
+		r.height = h - conf.window_gap * 2;
 	}
 
 	if (client == NULL) {
@@ -2051,7 +2051,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		return 0;
 	}
 
-	if (win == wm->bar->window) {
+	if (wm->bar != NULL && win == wm->bar->window) {
 		return 0;
 	}
 
@@ -2112,7 +2112,7 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
 
-	if (win == wm->bar->window) {
+	if (wm->bar != NULL && win == wm->bar->window) {
 		return 0;
 	}
 
@@ -2484,7 +2484,7 @@ main()
 		exit(EXIT_FAILURE);
 	}
 
-	int r = load_config(&conf);
+	// int r = load_config(&conf);
 	if (load_config(&conf) != 0) {
 		log_message(ERROR,
 					"error while loding config -> assigning default macros");
@@ -2498,7 +2498,7 @@ main()
 	// 	return -1;
 	// }
 
-	polybar_exec("~/_dev/c_dev/zwm/config.ini");
+	// polybar_exec("~/_dev/c_dev/zwm/config.ini");
 	xcb_flush(wm->connection);
 
 	xcb_generic_event_t *event;

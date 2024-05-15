@@ -311,15 +311,18 @@ resize_subtree(node_t *parent)
 		r2.height = parent->rectangle.height - r.height - conf.window_gap;
 	}
 
-	parent->first_child->rectangle	= r;
-	parent->second_child->rectangle = r2;
-
-	if (parent->first_child->node_type == INTERNAL_NODE) {
-		resize_subtree(parent->first_child);
+	if (parent->first_child != NULL) {
+		parent->first_child->rectangle = r;
+		if (parent->first_child->node_type == INTERNAL_NODE) {
+			resize_subtree(parent->first_child);
+		}
 	}
 
-	if (parent->second_child->node_type == INTERNAL_NODE) {
-		resize_subtree(parent->second_child);
+	if (parent->second_child != NULL) {
+		parent->second_child->rectangle = r2;
+		if (parent->second_child->node_type == INTERNAL_NODE) {
+			resize_subtree(parent->second_child);
+		}
 	}
 }
 
