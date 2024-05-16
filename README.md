@@ -25,8 +25,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 ```
 git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && make all
-// for debug mode
-cd zwm && make all DEBUG=1
+sudo make install
 ```
 ## Configuration
 A config file will be generated when you first start `zwm`. The file can be found in the following location:
@@ -92,7 +91,6 @@ label-empty-padding 		= 1
 label-separator 			= " "
 ```
 For further custmization please refer to polybar's wiki.
-
 
 ## Contributing
 If you would like to add a feature or to fix a bug please feel free to send a PR.

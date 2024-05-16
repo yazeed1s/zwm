@@ -61,23 +61,67 @@ render_tree(node_t *node)
 {
 	if (node == NULL) return 0;
 
-	if (node->node_type != INTERNAL_NODE && node->client != NULL) {
-		if (tile(node) != 0) {
-			log_message(ERROR, "error tiling window %d", node->client->window);
-			return -1;
-		}
-		// bool flag = node->client->state == FULLSCREEN ||
-		// 			node->client->state == FLOATING;
-		// if (flag) raise_window(wm->connection, node->client->window);
-		// else lower_window(wm->connection, node->client->window);
+	node_t **stack = malloc(10 * sizeof(node_t *));
+	if (stack == NULL) {
+		log_message(ERROR, "Stack allocation failed\n");
+		return -1;
 	}
 
-	// skip_:
-	// if (node->first_child != NULL)
-	render_tree(node->first_child);
-	// if (node->second_child != NULL)
-	render_tree(node->second_child);
+	int stack_size = 10;
+	int top		   = -1;
+	stack[++top]   = node;
 
+	while (top >= 0) {
+		node_t *current_node = stack[top--];
+
+		if (current_node == NULL) continue;
+
+		if (current_node->node_type != INTERNAL_NODE &&
+			current_node->client != NULL) {
+			bool flag = current_node->client->state == FULLSCREEN;
+			if (!flag) {
+				if (tile(current_node) != 0) {
+					log_message(ERROR,
+								"error tiling window %d",
+								current_node->client->window);
+					free(stack);
+					return -1;
+				}
+			}
+		}
+
+		if (current_node->second_child != NULL) {
+			if (top == stack_size - 1) {
+				stack_size *= 2;
+				node_t **new_stack =
+					realloc(stack, stack_size * sizeof(node_t *));
+				if (new_stack == NULL) {
+					log_message(ERROR, "Stack reallocation failed\n");
+					free(stack);
+					return -1;
+				}
+				stack = new_stack;
+			}
+			stack[++top] = current_node->second_child;
+		}
+
+		if (current_node->first_child != NULL) {
+			if (top == stack_size - 1) {
+				stack_size *= 2;
+				node_t **new_stack =
+					realloc(stack, stack_size * sizeof(node_t *));
+				if (new_stack == NULL) {
+					log_message(ERROR, "Stack reallocation failed\n");
+					free(stack);
+					return -1;
+				}
+				stack = new_stack;
+			}
+			stack[++top] = current_node->first_child;
+		}
+	}
+
+	free(stack);
 	return 0;
 }
 
@@ -245,6 +289,7 @@ arrange_tree(node_t *tree, layout_t l)
 	case GRID: break;
 	}
 }
+
 node_t *
 find_node_by_window_id(node_t *root, xcb_window_t win)
 {
@@ -326,6 +371,76 @@ resize_subtree(node_t *parent)
 	}
 }
 
+// void
+// resize_subtree(node_t *parent)
+// {
+// 	if (parent == NULL) return;
+
+// 	node_t **stack		= malloc(10 * sizeof(node_t *));
+// 	int		 stack_size = 10;
+// 	int		 top		= -1;
+// 	stack[++top]		= parent;
+
+// 	while (top >= 0) {
+// 		node_t *current_node = stack[top--];
+
+// 		if (current_node == NULL) continue;
+
+// 		rectangle_t r, r2 = {0};
+
+// 		if (current_node->rectangle.width >= current_node->rectangle.height) {
+// 			r.x		 = current_node->rectangle.x;
+// 			r.y		 = current_node->rectangle.y;
+// 			r.width	 = (current_node->rectangle.width - conf.window_gap) / 2;
+// 			r.height = current_node->rectangle.height;
+
+// 			r2.x	 = (int16_t)(current_node->rectangle.x + r.width +
+// 							 conf.window_gap);
+// 			r2.y	 = current_node->rectangle.y;
+// 			r2.width =
+// 				current_node->rectangle.width - r.width - conf.window_gap;
+// 			r2.height = current_node->rectangle.height;
+// 		} else {
+// 			r.x		 = current_node->rectangle.x;
+// 			r.y		 = current_node->rectangle.y;
+// 			r.width	 = current_node->rectangle.width;
+// 			r.height = (current_node->rectangle.height - conf.window_gap) / 2;
+
+// 			r2.x	 = current_node->rectangle.x;
+// 			r2.y	 = (int16_t)(current_node->rectangle.y + r.height +
+// 							 conf.window_gap);
+// 			r2.width = current_node->rectangle.width;
+// 			r2.height =
+// 				current_node->rectangle.height - r.height - conf.window_gap;
+// 		}
+
+// 		if (current_node->first_child != NULL) {
+// 			current_node->first_child->rectangle = r;
+// 			if (current_node->first_child->node_type == INTERNAL_NODE) {
+// 				stack[++top] = current_node->first_child;
+// 			}
+// 		}
+
+// 		if (current_node->second_child != NULL) {
+// 			current_node->second_child->rectangle = r2;
+// 			if (current_node->second_child->node_type == INTERNAL_NODE) {
+// 				stack[++top] = current_node->second_child;
+// 			}
+// 		}
+
+// 		if (top >= stack_size - 1) {
+// 			stack_size *= 2;
+// 			stack = realloc(stack, stack_size * sizeof(node_t *));
+// 			if (stack == NULL) {
+// 				fprintf(stderr, "Stack allocation failed\n");
+// 				return;
+// 			}
+// 		}
+// 	}
+
+// 	free(stack);
+// }
+
 node_t *
 find_master_node(node_t *root)
 {
@@ -366,9 +481,9 @@ restack(node_t *root)
 	if (root->client != NULL) {
 		if (root->client->state == FLOATING ||
 			root->client->state == FULLSCREEN) {
-			raise_window(wm->connection, root->client->window);
+			raise_window(root->client->window);
 		} else {
-			lower_window(wm->connection, root->client->window);
+			lower_window(root->client->window);
 		}
 	}
 
@@ -577,15 +692,18 @@ apply_default_layout(node_t *root)
 		r2.height = root->rectangle.height - r.height - conf.window_gap;
 	}
 
-	root->first_child->rectangle  = r;
-	root->second_child->rectangle = r2;
-
-	if (root->first_child->node_type == INTERNAL_NODE) {
-		apply_default_layout(root->first_child);
+	if (root->first_child != NULL) {
+		root->first_child->rectangle = r;
+		if (root->first_child->node_type == INTERNAL_NODE) {
+			apply_default_layout(root->first_child);
+		}
 	}
 
-	if (root->second_child->node_type == INTERNAL_NODE) {
-		apply_default_layout(root->second_child);
+	if (root->second_child != NULL) {
+		root->second_child->rectangle = r2;
+		if (root->second_child->node_type == INTERNAL_NODE) {
+			apply_default_layout(root->second_child);
+		}
 	}
 }
 
@@ -695,23 +813,24 @@ master_clean_up(node_t *root)
 void
 apply_stack_layout(node_t *root)
 {
-
 	if (root == NULL) return;
 
 	if (root->first_child == NULL && root->second_child == NULL) {
 		return;
 	}
-	// if (root->first_child->node_type != INTERNAL_NODE)
-	root->first_child->rectangle  = root->rectangle;
-	// if (root->second_child->node_type != INTERNAL_NODE)
-	root->second_child->rectangle = root->rectangle;
 
-	if (root->first_child->node_type == INTERNAL_NODE) {
-		apply_stack_layout(root->first_child);
+	if (root->first_child != NULL) {
+		root->first_child->rectangle = root->rectangle;
+		if (root->first_child->node_type == INTERNAL_NODE) {
+			apply_stack_layout(root->first_child);
+		}
 	}
 
-	if (root->second_child->node_type == INTERNAL_NODE) {
-		apply_stack_layout(root->second_child);
+	if (root->second_child != NULL) {
+		root->second_child->rectangle = root->rectangle;
+		if (root->second_child->node_type == INTERNAL_NODE) {
+			apply_stack_layout(root->second_child);
+		}
 	}
 }
 
@@ -1158,6 +1277,50 @@ hide_windows(node_t *cn)
 	return 0;
 }
 
+// int
+// hide_windows(node_t *cn)
+// {
+// 	if (cn == NULL) return 0;
+// 	node_t **stack		= malloc(10 * sizeof(node_t *));
+// 	int		 stack_size = 10;
+// 	int		 top		= -1;
+// 	stack[++top]		= cn;
+
+// 	while (top >= 0) {
+// 		node_t *current_node = stack[top--];
+// 		if (current_node == NULL) continue;
+// 		if (current_node->node_type != INTERNAL_NODE &&
+// 			current_node->client != NULL) {
+// 			if (hide_window(current_node->client->window) != 0) {
+// 				free(stack);
+// 				return -1;
+// 			}
+// 			if (set_focus(current_node, false) != 0) {
+// 				free(stack);
+// 				return -1;
+// 			}
+// 		}
+// 		// push children onto the stack
+// 		if (current_node->second_child != NULL) {
+// 			stack[++top] = current_node->second_child;
+// 		}
+// 		if (current_node->first_child != NULL) {
+// 			stack[++top] = current_node->first_child;
+// 		}
+// 		// resize if needed
+// 		if (top >= stack_size - 1) {
+// 			stack_size *= 2;
+// 			stack = realloc(stack, stack_size * sizeof(node_t *));
+// 			if (stack == NULL) {
+// 				fprintf(stderr, "Stack allocation failed\n");
+// 				return -1;
+// 			}
+// 		}
+// 	}
+// 	free(stack);
+// 	return 0;
+// }
+
 int
 show_windows(node_t *cn)
 {
@@ -1177,6 +1340,47 @@ show_windows(node_t *cn)
 
 	return 0;
 }
+
+// int
+// show_windows(node_t *cn)
+// {
+// 	if (cn == NULL) return 0;
+
+// 	node_t **stack		= malloc(10 * sizeof(node_t *));
+// 	int		 stack_size = 10;
+// 	int		 top		= -1;
+// 	stack[++top]		= cn;
+
+// 	while (top >= 0) {
+// 		node_t *current_node = stack[top--];
+// 		if (current_node == NULL) continue;
+// 		if (current_node->node_type != INTERNAL_NODE &&
+// 			current_node->client != NULL) {
+// 			if (show_window(current_node->client->window) != 0) {
+// 				free(stack);
+// 				return -1;
+// 			}
+// 		}
+// 		// push the children onto the stack
+// 		if (current_node->second_child != NULL) {
+// 			stack[++top] = current_node->second_child;
+// 		}
+// 		if (current_node->first_child != NULL) {
+// 			stack[++top] = current_node->first_child;
+// 		}
+// 		// resize if needed
+// 		if (top >= stack_size - 1) {
+// 			stack_size *= 2;
+// 			stack = realloc(stack, stack_size * sizeof(node_t *));
+// 			if (stack == NULL) {
+// 				fprintf(stderr, "Stack allocation failed\n");
+// 				return -1;
+// 			}
+// 		}
+// 	}
+// 	free(stack);
+// 	return 0;
+// }
 
 bool
 client_exist(node_t *cn, xcb_window_t win)

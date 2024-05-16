@@ -160,16 +160,11 @@ struct node_t {
 };
 
 typedef struct {
-	size_t	  current_ptr;
-	client_t *arr;
-} stack_t;
-
-typedef struct {
 	node_t		*tree;
 	xcb_window_t top_w;
 	char		 name[DLEN];
 	uint8_t		 id;
-	int			 n_count;
+	uint8_t		 n_count;
 	layout_t	 layout;
 	bool		 is_focused;
 } desktop_t;
@@ -188,22 +183,22 @@ typedef struct {
 	bar_t				  *bar;
 	xcb_window_t		   root_window;
 	split_type_t		   split_type;
-	int					   n_of_desktops;
-	int					   screen_nbr;
+	uint8_t				   n_of_desktops;
+	uint8_t				   screen_nbr;
 } wm_t;
 
 // arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
 	const char		**cmd;
-	const int		  argc;
-	const int		  idx;
+	const uint8_t	  argc;
+	const uint8_t	  idx;
 	const resize_t	  r;
 	const layout_t	  t;
 	const direction_t d;
 } arg_t;
 
 typedef struct {
-	unsigned int mod;
+	uint32_t	 mod;
 	xcb_keysym_t keysym;
 	int (*function_ptr)(const arg_t *);
 	arg_t *arg;

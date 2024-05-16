@@ -1,6 +1,7 @@
 #include "type.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <xcb/xcb.h>
 
@@ -13,6 +14,7 @@ log_message(log_level_t level, const char *format, ...)
 	time_t	   t;
 	va_list	   args;
 	char	   buf[100];
+	memset(buf, 0, sizeof(buf));
 	t	= time(NULL);
 	ptr = localtime(&t);
 	strftime(buf, 100, "%F - %I:%M:%S %p", ptr);
