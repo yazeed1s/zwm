@@ -25,7 +25,7 @@ write_default_config(const char *filename, config_t *c)
 	const char *content = "border_width = 2\n"
 						  "active_border_color = 0x83a598\n"
 						  "normal_border_color = 0x30302f\n"
-						  "window_gap = 5\n";
+						  "window_gap = 10\n";
 
 	char		dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);

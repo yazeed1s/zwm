@@ -117,7 +117,8 @@ win_name(xcb_window_t win)
 		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
 	if (wr == 1) {
 		char *str = (char *)malloc(t_reply.name_len * sizeof(char));
-		if (str == NULL) return NULL;
+		if (str == NULL)
+			return NULL;
 		strncpy(str, t_reply.name, t_reply.name_len);
 		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 		return str;
@@ -130,7 +131,8 @@ layout_handler(const arg_t *arg)
 {
 	int		   i = get_focused_desktop_idx();
 	desktop_t *d = wm->desktops[i];
-	if (arg->t == STACK && d->n_count < 2) return 0;
+	if (arg->t == STACK && d->n_count < 2)
+		return 0;
 	apply_layout(d, arg->t);
 	return render_tree(d->tree);
 }
@@ -292,7 +294,8 @@ remove_property(xcb_connection_t *con,
 		xcb_atom_t values[current_size];
 		memset(values, 0, sizeof(values));
 		for (int i = 0; i < current_size; i++) {
-			if (atoms[i] != atom) values[num++] = atoms[i];
+			if (atoms[i] != atom)
+				values[num++] = atoms[i];
 		}
 
 		xcb_change_property(con,
@@ -306,7 +309,8 @@ remove_property(xcb_connection_t *con,
 	}
 
 release_grab:
-	if (reply) free(reply);
+	if (reply)
+		free(reply);
 	xcb_ungrab_server(con);
 }
 
@@ -350,10 +354,12 @@ int
 set_fullscreen_wrapper()
 {
 	const int i = get_focused_desktop_idx();
-	if (i == -1) return i;
+	if (i == -1)
+		return i;
 
 	node_t *root = wm->desktops[i]->tree;
-	if (root == NULL) return -1;
+	if (root == NULL)
+		return -1;
 
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 
@@ -366,7 +372,8 @@ set_fullscreen_wrapper()
 int
 set_fullscreen(node_t *n, bool flag)
 {
-	if (n == NULL) return -1;
+	if (n == NULL)
+		return -1;
 
 	rectangle_t r = {0};
 
@@ -436,11 +443,13 @@ flip_node_wrapper()
 {
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 
-	if (w == wm->root_window) return 0;
+	if (w == wm->root_window)
+		return 0;
 
 	node_t *node = find_node_by_window_id(
 		wm->desktops[get_focused_desktop_idx()]->tree, w);
-	if (node == NULL) return -1;
+	if (node == NULL)
+		return -1;
 
 	flip_node(node);
 	return render_tree(wm->desktops[get_focused_desktop_idx()]->tree);
@@ -452,10 +461,12 @@ traverse_stack_wrapper(const arg_t *arg)
 	direction_t	 d = arg->d;
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 
-	if (w == wm->root_window) return 0;
+	if (w == wm->root_window)
+		return 0;
 
 	int i = get_focused_desktop_idx();
-	if (i == -1) return i;
+	if (i == -1)
+		return i;
 
 	node_t *root = wm->desktops[i]->tree;
 	node_t *node = find_node_by_window_id(root, w);
@@ -489,7 +500,8 @@ get_active_clients_size(desktop_t **d, const int n)
 void
 populate_client_array(node_t *root, xcb_window_t *arr, size_t *index)
 {
-	if (root == NULL) return;
+	if (root == NULL)
+		return;
 
 	if (root->client != NULL && root->client->window != XCB_NONE) {
 		arr[*index] = root->client->window;
@@ -574,7 +586,8 @@ client_t *
 create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 {
 	client_t *c = (client_t *)malloc(sizeof(client_t));
-	if (c == 0x00) return NULL;
+	if (c == 0x00)
+		return NULL;
 
 	c->id					   = win;
 	c->is_managed			   = false;
@@ -614,7 +627,8 @@ desktop_t *
 init_desktop()
 {
 	desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
-	if (d == 0x00) return NULL;
+	if (d == 0x00)
+		return NULL;
 
 	d->id		  = 0;
 	d->is_focused = false;
@@ -768,9 +782,11 @@ wm_t *
 init_wm()
 {
 	wm = setup_wm();
-	if (wm == NULL) return NULL;
+	if (wm == NULL)
+		return NULL;
 
-	if (!setup_ewmh()) return NULL;
+	if (!setup_ewmh())
+		return NULL;
 
 	return wm;
 }
@@ -778,7 +794,8 @@ init_wm()
 int
 resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 {
-	if (win == 0 || win == XCB_NONE) return 0;
+	if (win == 0 || win == XCB_NONE)
+		return 0;
 
 	const uint32_t	  values[] = {width, height};
 
@@ -1137,7 +1154,8 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 
 	for (size_t i = n; i--;) {
 		xcb_keycode_t *key = get_keycode(keys_[i].keysym, conn);
-		if (key == NULL) return -1;
+		if (key == NULL)
+			return -1;
 		xcb_void_cookie_t cookie = xcb_grab_key_checked(conn,
 														1,
 														win,
@@ -1208,7 +1226,8 @@ int
 close_or_kill_wrapper()
 {
 	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
-	if (!window_exists(wm->connection, win)) return 0;
+	if (!window_exists(wm->connection, win))
+		return 0;
 	return close_or_kill(win);
 }
 
@@ -1478,10 +1497,12 @@ shift_cmd(xcb_key_press_event_t *key_event)
 	xcb_keysym_t k = get_keysym(key_event->detail, wm->connection);
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 
-	if (w == wm->root_window) return;
+	if (w == wm->root_window)
+		return;
 
 	int d = get_focused_desktop_idx();
-	if (d == -1) return;
+	if (d == -1)
+		return;
 
 	node_t *root = wm->desktops[d]->tree;
 	node_t *node = find_node_by_window_id(root, w);
@@ -1573,8 +1594,10 @@ int
 switch_desktop(const int nd)
 {
 	int current = get_focused_desktop_idx();
-	if (current == -1) return current;
-	if (nd == current) return 0;
+	if (current == -1)
+		return current;
+	if (nd == current)
+		return 0;
 
 	update_focused_desktop(nd);
 
@@ -2090,7 +2113,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	}
 
 	const int curd = get_focused_desktop_idx();
-	if (curd == -1) return curd;
+	if (curd == -1)
+		return curd;
 
 	if (wm->desktops[curd]->layout == STACK) {
 		win = wm->desktops[curd]->top_w;
@@ -2162,7 +2186,8 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 	}
 
 	const int curd = get_focused_desktop_idx();
-	if (curd == -1) return -1;
+	if (curd == -1)
+		return -1;
 	if (wm->desktops[curd]->layout == STACK) {
 		return 0;
 	}
@@ -2270,12 +2295,14 @@ handle_client_message(xcb_client_message_event_t *client_message)
 	}
 
 	int d = get_focused_desktop_idx();
-	if (d == -1) return d;
+	if (d == -1)
+		return d;
 
 	node_t *root = wm->desktops[d]->tree;
 
 	node_t *n	 = find_node_by_window_id(root, client_message->window);
-	if (n == NULL) return 0;
+	if (n == NULL)
+		return 0;
 #ifdef _DEBUG__
 	log_message(DEBUG, "received data32 for win %d:\n", client_message->window);
 	for (ulong i = 0; i < LENGTH(client_message->data.data32); i++) {
@@ -2325,10 +2352,12 @@ int
 handle_unmap_notify(xcb_window_t win)
 {
 	int idx = get_focused_desktop_idx();
-	if (idx == -1) return -1;
+	if (idx == -1)
+		return -1;
 
 	node_t *root = wm->desktops[idx]->tree;
-	if (root == NULL) return -1;
+	if (root == NULL)
+		return -1;
 
 	if (!client_exist(root, win)) {
 #ifdef _DEBUG__
@@ -2437,10 +2466,12 @@ int
 handle_destroy_notify(xcb_window_t win)
 {
 	int idx = get_focused_desktop_idx();
-	if (idx == -1) return -1;
+	if (idx == -1)
+		return -1;
 
 	node_t *root = wm->desktops[idx]->tree;
-	if (root == NULL) return -1;
+	if (root == NULL)
+		return -1;
 
 	if (!client_exist(root, win)) {
 #ifdef _DEBUG__
@@ -2536,7 +2567,7 @@ main()
 	// 	return -1;
 	// }
 
-	polybar_exec("~/_dev/c_dev/zwm/config.ini");
+	// polybar_exec("~/_dev/c_dev/zwm/config.ini");
 	xcb_flush(wm->connection);
 
 	xcb_generic_event_t *event;
