@@ -53,4 +53,5 @@ int                       change_window_attr(xcb_conn_t *, xcb_window_t, uint32_
 int                       configure_window(xcb_conn_t *, xcb_window_t, uint16_t, const void *);
 int                       set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t );
 int                       handle_xcb_error(xcb_conn_t *, xcb_void_cookie_t, const char *);
+int 					  swap_node_wrapper();
 #endif // ZWM_ZWM_H

@@ -70,6 +70,7 @@ static _key__t keys_[] = {
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
 	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
+	{SUPER_MASK,              XK_s,      swap_node_wrapper,    NULL                             },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
 	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})             },
 	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})             },
@@ -348,6 +349,27 @@ raise_window(xcb_window_t win)
 					err->error_code);
 		free(err);
 	}
+}
+
+int
+swap_node_wrapper()
+{
+	if (wm->desktops[get_focused_desktop_idx()]->layout != DEFAULT)
+		return 0;
+
+	node_t *root = wm->desktops[get_focused_desktop_idx()]->tree;
+	if (root == NULL)
+		return -1;
+
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	node_t		*n = find_node_by_window_id(root, w);
+	if (n == NULL)
+		return -1;
+
+	if (swap_node(n) != 0)
+		return -1;
+
+	return render_tree(root);
 }
 
 int
@@ -2544,8 +2566,23 @@ free_desktops(desktop_t **d, int n)
 	d = NULL;
 }
 
+void
+parse_args(int argc, char **argv)
+{
+	// quick and dirty solution
+	char *c = NULL;
+	if (strcmp(argv[1], "-r") == 0 || strcmp(argv[1], "-run") == 0) {
+		if (argc >= 2) {
+			c = argv[2];
+		} else {
+			log_message(ERROR, "Missing argument after -r/--run\n");
+		}
+	}
+	exec_process(&((arg_t){.argc = 1, .cmd = (const char *[]){c}}));
+}
+
 int
-main()
+main(int argc, char **argv)
 {
 
 	wm = init_wm();
@@ -2567,7 +2604,10 @@ main()
 	// 	return -1;
 	// }
 
-	// polybar_exec("~/_dev/c_dev/zwm/config.ini");
+	if (argc >= 2) {
+		parse_args(argc, argv);
+	}
+
 	xcb_flush(wm->connection);
 
 	xcb_generic_event_t *event;

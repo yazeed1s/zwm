@@ -2068,3 +2068,23 @@ get_focused_node(node_t *n)
 
 	return NULL;
 }
+
+int
+swap_node(node_t *n)
+{
+	if (n->parent == NULL)
+		return -1;
+
+	node_t	   *s  = (n->parent->first_child == n) ? n->parent->second_child
+												   : n->parent->first_child;
+	rectangle_t sr = s->rectangle;
+	rectangle_t nr = n->rectangle;
+	n->rectangle   = sr;
+	s->rectangle   = nr;
+
+	if (s->node_type == INTERNAL_NODE) {
+		resize_subtree(s);
+	}
+
+	return 0;
+}
