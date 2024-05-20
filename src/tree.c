@@ -753,10 +753,10 @@ default_layout(node_t *root)
 		r.height =
 			(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
 	} else {
-		r.x		 = conf.window_gap;
-		r.y		 = conf.window_gap;
-		r.width	 = w - conf.window_gap;
-		r.height = h - conf.window_gap;
+		r.x		 = conf.window_gap - conf.border_width * 1.5;
+		r.y		 = conf.window_gap - conf.border_width * 1.5;
+		r.width	 = w - conf.window_gap * 2;
+		r.height = h - conf.window_gap * 2;
 	}
 	root->rectangle = r;
 	apply_default_layout(root);

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
@@ -72,13 +73,6 @@ typedef enum {
 	STACK,
 	GRID,
 } layout_t;
-
-typedef struct {
-	uint16_t border_width;
-	uint16_t window_gap;
-	uint32_t active_border_color;
-	uint32_t normal_border_color;
-} config_t;
 
 typedef struct {
 	uint32_t	 id;
@@ -204,4 +198,22 @@ typedef struct {
 	arg_t *arg;
 } _key__t;
 
+typedef struct {
+	char *func;
+	int (*function_ptr)(const arg_t *);
+} conf_mapper_t;
+
+typedef struct {
+	char		 key[6];
+	xcb_keysym_t val;
+} key_mapper_t;
+
+typedef struct {
+	uint16_t border_width;
+	uint16_t window_gap;
+	uint32_t active_border_color;
+	uint32_t normal_border_color;
+	_key__t *keys;
+	size_t	 key_size;
+} config_t;
 #endif // ZWM_TYPE_H

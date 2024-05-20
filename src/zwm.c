@@ -2592,6 +2592,11 @@ main(int argc, char **argv)
 	}
 
 	// int r = load_config(&conf);
+	conf.key_size = 30;
+	conf.keys	  = (_key__t *)malloc(conf.key_size * sizeof(_key__t));
+	if (conf.keys == NULL) {
+		log_message(ERROR, "error while allocating config keys");
+	}
 	if (load_config(&conf) != 0) {
 		log_message(ERROR, "error while loding config -> using default macros");
 		conf.active_border_color = ACTIVE_BORDER_COLOR;
