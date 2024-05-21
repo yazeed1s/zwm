@@ -76,7 +76,7 @@ int (*str_to_func(char *ch))(const arg_t *)
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (_cmapper_[i].func == ch) {
+		if (strcmp(_cmapper_[i].func, ch) == 0) {
 			return _cmapper_[i].function_ptr;
 		}
 	}
@@ -88,7 +88,7 @@ str_to_key(char *ch)
 {
 	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (_kmapper_[i].key == ch) {
+		if (strcmp(_kmapper_[i].key, ch) == 0) {
 			return _kmapper_[i].val;
 		}
 	}
@@ -96,6 +96,30 @@ str_to_key(char *ch)
 	return -1;
 }
 
+char *
+func_to_str(int (*ptr)(const arg_t *))
+{
+	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
+	for (int i = 0; i < n; i++) {
+		if (_cmapper_[i].function_ptr == ptr) {
+			return _cmapper_[i].func;
+		}
+	}
+	return NULL;
+}
+
+char *
+key_to_str(uint32_t val)
+{
+	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
+	for (int i = 0; i < n; i++) {
+		if (_kmapper_[i].val == val) {
+			return _kmapper_[i].key;
+		}
+	}
+
+	return NULL;
+}
 int
 file_exists(const char *filename)
 {
@@ -107,6 +131,26 @@ file_exists(const char *filename)
 	return 0;
 }
 
+void
+print_key_array(config_t *c)
+{
+	int n = c->key_size;
+	for (int i = 0; i < n; i++) {
+		if (c->keys[i].arg != NULL) {
+			log_message(DEBUG,
+						"key %d = { \n mod = %s \n keysym = %s, func = %s, "
+						"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+						i,
+						key_to_str(c->keys[i].mod),
+						key_to_str(c->keys[i].keysym),
+						func_to_str(c->keys[i].function_ptr),
+						c->keys[i].arg->idx,
+						c->keys[i].arg->d,
+						c->keys[i].arg->r,
+						c->keys[i].arg->t);
+		}
+	}
+}
 int
 write_default_config(const char *filename, config_t *c)
 {
@@ -273,17 +317,54 @@ key_exist(_key__t *key)
 	return false;
 }
 
+char *
+extract_func_body(const char *str)
+{
+	const char *start = strchr(str, '(');
+	if (!start) {
+		return NULL;
+	}
+
+	const char *end = strchr(start, ')');
+	if (!end) {
+		return NULL;
+	}
+	size_t length = end - start + 1;
+	char  *result = (char *)malloc(length + 1);
+	if (!result) {
+		perror("Failed to allocate memory");
+		exit(EXIT_FAILURE);
+	}
+
+	strncpy(result, start, length);
+	result[length] = '\0';
+	return result;
+}
+
 void
 add_key(char *mod, char *keysym, char *func)
 {
-	_key__t	 key  = {};
-	uint32_t _mod = str_to_key(mod);
+	_key__t	 key	   = {};
+	uint32_t _mod	   = str_to_key(mod);
+	char	*func_name = extract_func_body(func);
+	if (func_name == NULL) {
+		log_message(ERROR, "failed to extract func body for %s\n", func);
+		return;
+	}
+
+	trim(func_name, PARENTHESIS);
 
 	if ((int)_mod == -1) {
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
-		if (mods == NULL || count != 2)
+		if (mods == NULL) {
+			log_message(ERROR,
+						"failed to split string %s into %s and %s\n",
+						mod,
+						mods[0],
+						mods[1]);
 			return;
+		}
 
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
@@ -294,13 +375,19 @@ add_key(char *mod, char *keysym, char *func)
 	}
 
 	if (keysym == NULL) {
-		if ((strcmp(func, "switch_desktop") == 0 &&
+		if ((strcmp(func_name, "switch_desktop") == 0 &&
 			 !switch_desktop_is_filled) ||
-			(strcmp(func, "transfer_node") == 0 && !transfer_node_is_filled)) {
+			(strcmp(func_name, "transfer_node") == 0 &&
+			 !transfer_node_is_filled)) {
 
 			int d_count				  = wm->n_of_desktops;
-			int (*ptr)(const arg_t *) = str_to_func(func);
+			int (*ptr)(const arg_t *) = str_to_func(func_name);
 
+			if (ptr == NULL) {
+				log_message(
+					ERROR, "failed to find function pointer for %s", func_name);
+				return;
+			}
 			for (int i = 0; i < d_count; i++) {
 				_key__t k			= {.mod			 = key.mod,
 									   .keysym		 = (xcb_keysym_t)(XK_0 + i),
@@ -308,9 +395,9 @@ add_key(char *mod, char *keysym, char *func)
 									   .arg			 = &((arg_t){.idx = i})};
 				conf.keys[_keys_++] = k;
 			}
-			if (strcmp(func, "switch_desktop") == 0) {
+			if (strcmp(func_name, "switch_desktop") == 0) {
 				switch_desktop_is_filled = true;
-			} else {
+			} else if (strcmp(func_name, "transfer_node") == 0) {
 				transfer_node_is_filled = true;
 			}
 		}
@@ -318,26 +405,28 @@ add_key(char *mod, char *keysym, char *func)
 	}
 
 	key.keysym				  = (xcb_keysym_t)str_to_key(keysym);
-	int (*ptr)(const arg_t *) = str_to_func(func);
+	int (*ptr)(const arg_t *) = str_to_func(func_name);
 	key.function_ptr		  = ptr;
 
-	if (strcmp(func, "grow") == 0) {
+	if (strcmp(func_name, "grow") == 0) {
 		key.arg = &((arg_t){.r = GROW});
-	} else if (strcmp(func, "shrink") == 0) {
+	} else if (strcmp(func_name, "shrink") == 0) {
 		key.arg = &((arg_t){.r = SHRINK});
-	} else if (strcmp(func, "master") == 0) {
+	} else if (strcmp(func_name, "master") == 0) {
 		key.arg = &((arg_t){.t = MASTER});
-	} else if (strcmp(func, "default") == 0) {
+	} else if (strcmp(func_name, "default") == 0) {
 		key.arg = &((arg_t){.t = DEFAULT});
-	} else if (strcmp(func, "grid") == 0) {
+	} else if (strcmp(func_name, "grid") == 0) {
 		key.arg = &((arg_t){.t = GRID});
-	} else if (strcmp(func, "stack") == 0) {
+	} else if (strcmp(func_name, "stack") == 0) {
 		key.arg = &((arg_t){.t = STACK});
-	} else if (strcmp(func, "traverse_up") == 0) {
+	} else if (strcmp(func_name, "traverse_up") == 0) {
 		key.arg = &((arg_t){.d = UP});
-	} else if (strcmp(func, "traverse_down") == 0) {
+	} else if (strcmp(func_name, "traverse_down") == 0) {
 		key.arg = &((arg_t){.d = DOWN});
 	}
+
+	free(func_name);
 
 	conf.keys[_keys_++] = key;
 }
@@ -446,6 +535,7 @@ parse_config(const char *filename, config_t *c)
 		}
 	}
 
+	print_key_array(c);
 	fclose(file);
 	return 0;
 }
