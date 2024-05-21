@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <xcb/xproto.h>
 
 #define MAX_LINE_LENGTH 100
@@ -69,14 +70,18 @@ static key_mapper_t	 _kmapper_[] = {
  	{"alt",     (xcb_keysym_t)ALT_MASK}, 
  	{"ctr",    (xcb_keysym_t)CTRL_MASK}, 
  	{"shift", (xcb_keysym_t)SHIFT_MASK}, 
+    {"sup+sh", (xcb_keysym_t)SUPER_MASK|SHIFT_MASK}, 
+ 	{"alt",     (xcb_keysym_t)ALT_MASK}, 
+ 	{"ctr",    (xcb_keysym_t)CTRL_MASK}, 
+ 	{"shift", (xcb_keysym_t)SHIFT_MASK}, 
 };
 // clang-format on
 
-int (*str_to_func(char *ch))(const arg_t *)
+int (*str_to_func(char *ch))(arg_t *)
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (strcmp(_cmapper_[i].func, ch) == 0) {
+		if (strcmp(_cmapper_[i].func_name, ch) == 0) {
 			return _cmapper_[i].function_ptr;
 		}
 	}
@@ -89,7 +94,7 @@ str_to_key(char *ch)
 	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
 	for (int i = 0; i < n; i++) {
 		if (strcmp(_kmapper_[i].key, ch) == 0) {
-			return _kmapper_[i].val;
+			return _kmapper_[i].keysym;
 		}
 	}
 
@@ -97,12 +102,12 @@ str_to_key(char *ch)
 }
 
 char *
-func_to_str(int (*ptr)(const arg_t *))
+func_to_str(int (*ptr)(arg_t *))
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
 		if (_cmapper_[i].function_ptr == ptr) {
-			return _cmapper_[i].func;
+			return _cmapper_[i].func_name;
 		}
 	}
 	return NULL;
@@ -113,13 +118,14 @@ key_to_str(uint32_t val)
 {
 	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (_kmapper_[i].val == val) {
+		if (_kmapper_[i].keysym == val) {
 			return _kmapper_[i].key;
 		}
 	}
 
 	return NULL;
 }
+
 int
 file_exists(const char *filename)
 {
@@ -136,7 +142,10 @@ print_key_array(config_t *c)
 {
 	int n = c->key_size;
 	for (int i = 0; i < n; i++) {
-		if (c->keys[i].arg != NULL) {
+		if (strcmp(func_to_str(c->keys[i].function_ptr), "switch_desktop") ==
+				0 ||
+			strcmp(func_to_str(c->keys[i].function_ptr), "transfer_node") ==
+				0) {
 			log_message(DEBUG,
 						"key %d = { \n mod = %s \n keysym = %s, func = %s, "
 						"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
@@ -149,8 +158,22 @@ print_key_array(config_t *c)
 						c->keys[i].arg->r,
 						c->keys[i].arg->t);
 		}
+		// if (c->keys[i].arg != NULL) {
+		// 	log_message(DEBUG,
+		// 				"key %d = { \n mod = %s \n keysym = %s, func = %s, "
+		// 				"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+		// 				i,
+		// 				key_to_str(c->keys[i].mod),
+		// 				key_to_str(c->keys[i].keysym),
+		// 				func_to_str(c->keys[i].function_ptr),
+		// 				c->keys[i].arg->idx,
+		// 				c->keys[i].arg->d,
+		// 				c->keys[i].arg->r,
+		// 				c->keys[i].arg->t);
+		// }
 	}
 }
+
 int
 write_default_config(const char *filename, config_t *c)
 {
@@ -341,19 +364,11 @@ extract_func_body(const char *str)
 	return result;
 }
 
-void
-add_key(char *mod, char *keysym, char *func)
+uint32_t
+parse_mod_key(char *mod)
 {
-	_key__t	 key	   = {};
-	uint32_t _mod	   = str_to_key(mod);
-	char	*func_name = extract_func_body(func);
-	if (func_name == NULL) {
-		log_message(ERROR, "failed to extract func body for %s\n", func);
-		return;
-	}
-
-	trim(func_name, PARENTHESIS);
-
+	uint32_t _mod = str_to_key(mod);
+	uint32_t mask = -1;
 	if ((int)_mod == -1) {
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
@@ -363,76 +378,136 @@ add_key(char *mod, char *keysym, char *func)
 						mod,
 						mods[0],
 						mods[1]);
-			return;
+			return -1;
 		}
 
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
-		key.mod		   = mask1 | mask2;
+		mask		   = mask1 | mask2;
 		free_tokens(mods, count);
 	} else {
-		key.mod = _mod;
+		mask = _mod;
+	}
+	return mask;
+}
+
+uint32_t
+parse_keysym(char *keysym)
+{
+	uint32_t keysym_ = str_to_key(keysym);
+	if ((int)keysym_ == -1) {
+		log_message(ERROR, "failed to find keysym %s\n", keysym);
+		return -1;
 	}
 
+	return keysym_;
+}
+
+void
+construct_key(char *mod, char *keysym, char *func, _key__t *key)
+{
+
+	bool	 iterative_func = false;
+	uint32_t _keysym		= -1;
+	uint32_t _mod			= -1;
+	int (*ptr)(arg_t *)		= NULL;
+
+	// deal with mod
+	_mod					= parse_mod_key(mod);
+	if ((int)_mod == -1) {
+		log_message(ERROR, "failed to parse mod key for %s\n", mod);
+	}
+	// deal with keysysm
 	if (keysym == NULL) {
-		if ((strcmp(func_name, "switch_desktop") == 0 &&
-			 !switch_desktop_is_filled) ||
-			(strcmp(func_name, "transfer_node") == 0 &&
-			 !transfer_node_is_filled)) {
+		log_message(INFO,
+					"keysym %s is null, func must be switch or transfer %s\n",
+					keysym,
+					func);
+		iterative_func = true;
+	} else {
+		_keysym = parse_keysym(keysym);
+		if ((int)_keysym == -1) {
+			log_message(ERROR, "failed to parse keysywm for %s\n", keysym);
+		}
+	}
 
-			int d_count				  = wm->n_of_desktops;
-			int (*ptr)(const arg_t *) = str_to_func(func_name);
+	// deal with func
+	// func(...), run(...)
+	if (strncmp(func, "run", 3) == 0) {
+		// we are dealing with run key, for now this i a headache, just ignoring
+		log_message(INFO, "found run func %s, ... ignoring\n", func);
+		return;
+	}
 
+	char *func_name = extract_func_body(func);
+	if (func_name == NULL) {
+		log_message(ERROR, "failed to extract func body for %s\n", func);
+		return;
+	}
+
+	trim(func_name, PARENTHESIS);
+
+	if (keysym == NULL || iterative_func) {
+		if (strcmp(func_name, "switch_desktop") == 0 ||
+			strcmp(func_name, "transfer_node") == 0) {
+			ptr = str_to_func(func_name);
 			if (ptr == NULL) {
 				log_message(
 					ERROR, "failed to find function pointer for %s", func_name);
 				return;
 			}
-			for (int i = 0; i < d_count; i++) {
-				_key__t k			= {.mod			 = key.mod,
-									   .keysym		 = (xcb_keysym_t)(XK_0 + i),
-									   .function_ptr = ptr,
-									   .arg			 = &((arg_t){.idx = i})};
-				conf.keys[_keys_++] = k;
-			}
-			if (strcmp(func_name, "switch_desktop") == 0) {
-				switch_desktop_is_filled = true;
-			} else if (strcmp(func_name, "transfer_node") == 0) {
-				transfer_node_is_filled = true;
-			}
+			key->function_ptr = ptr;
+			key->keysym		  = -10;
+			key->arg		  = NULL;
+			conf.keys[_keys_] = *key;
+			_keys_++;
 		}
+		goto _out_;
+	}
+
+	ptr = str_to_func(func_name);
+	if (ptr == NULL) {
+		log_message(ERROR, "failed to find function pointer for %s", func_name);
 		return;
 	}
 
-	key.keysym				  = (xcb_keysym_t)str_to_key(keysym);
-	int (*ptr)(const arg_t *) = str_to_func(func_name);
-	key.function_ptr		  = ptr;
+	key->mod		  = _mod;
+	key->keysym		  = _keysym;
+	key->function_ptr = ptr;
 
 	if (strcmp(func_name, "grow") == 0) {
-		key.arg = &((arg_t){.r = GROW});
+		key->arg = &((arg_t){.r = GROW});
 	} else if (strcmp(func_name, "shrink") == 0) {
-		key.arg = &((arg_t){.r = SHRINK});
+		key->arg = &((arg_t){.r = SHRINK});
 	} else if (strcmp(func_name, "master") == 0) {
-		key.arg = &((arg_t){.t = MASTER});
+		key->arg = &((arg_t){.t = MASTER});
 	} else if (strcmp(func_name, "default") == 0) {
-		key.arg = &((arg_t){.t = DEFAULT});
+		key->arg = &((arg_t){.t = DEFAULT});
 	} else if (strcmp(func_name, "grid") == 0) {
-		key.arg = &((arg_t){.t = GRID});
+		key->arg = &((arg_t){.t = GRID});
 	} else if (strcmp(func_name, "stack") == 0) {
-		key.arg = &((arg_t){.t = STACK});
+		key->arg = &((arg_t){.t = STACK});
 	} else if (strcmp(func_name, "traverse_up") == 0) {
-		key.arg = &((arg_t){.d = UP});
+		key->arg = &((arg_t){.d = UP});
 	} else if (strcmp(func_name, "traverse_down") == 0) {
-		key.arg = &((arg_t){.d = DOWN});
+		key->arg = &((arg_t){.d = DOWN});
+	} else if (strcmp(func_name, "kill") == 0) {
+		key->arg = NULL;
+	} else if (strcmp(func_name, "fullscreen") == 0) {
+		key->arg = NULL;
+	} else if (strcmp(func_name, "swap") == 0) {
+		key->arg = NULL;
+	} else if (strcmp(func_name, "flip") == 0) {
+		key->arg = NULL;
 	}
-
+	conf.keys[_keys_] = *key;
+	_keys_++;
+_out_:
 	free(func_name);
-
-	conf.keys[_keys_++] = key;
 }
 
 void
-parse_keybinding(char *str)
+parse_keybinding(char *str, _key__t *key)
 {
 #ifdef _DEBUG__
 	log_message(DEBUG, "value before trim = %s ", str);
@@ -491,7 +566,7 @@ parse_keybinding(char *str)
 				keysym,
 				func);
 #endif
-	add_key(mod, keysym, func);
+	construct_key(mod, keysym, func, key);
 }
 
 int
@@ -531,11 +606,13 @@ parse_config(const char *filename, config_t *c)
 		} else if (strcmp(key, "window_gap") == 0) {
 			c->window_gap = atoi(value);
 		} else if (strcmp(key, "key") == 0) {
-			parse_keybinding(value);
+			_key__t k = {0};
+			parse_keybinding(value, &k);
+			// conf.keys[_keys_] = k;
+			// _keys_++;
 		}
 	}
-
-	print_key_array(c);
+	/* print_key_array(c); */
 	fclose(file);
 	return 0;
 }
