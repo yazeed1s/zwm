@@ -183,29 +183,29 @@ typedef struct {
 
 // arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
-	const char		**cmd;
-	const uint8_t	  argc;
-	const uint8_t	  idx;
-	const resize_t	  r;
-	const layout_t	  t;
-	const direction_t d;
+	char	  **cmd;
+	uint8_t		argc;
+	uint8_t		idx;
+	resize_t	r;
+	layout_t	t;
+	direction_t d;
 } arg_t;
 
 typedef struct {
 	uint32_t	 mod;
 	xcb_keysym_t keysym;
-	int (*function_ptr)(const arg_t *);
+	int (*function_ptr)(arg_t *);
 	arg_t *arg;
 } _key__t;
 
 typedef struct {
-	char *func;
-	int (*function_ptr)(const arg_t *);
+	char *func_name;
+	int (*function_ptr)(arg_t *);
 } conf_mapper_t;
 
 typedef struct {
 	char		 key[6];
-	xcb_keysym_t val;
+	xcb_keysym_t keysym;
 } key_mapper_t;
 
 typedef struct {

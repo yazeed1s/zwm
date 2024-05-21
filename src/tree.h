@@ -53,7 +53,7 @@ void	  delete_floating_node(node_t *node, desktop_t *d);
 void	  insert_floating_node(node_t *node, desktop_t *d);
 void	  log_tree_nodes(node_t *node);
 void	  transfer_node(node_t *, desktop_t *);
-int		  transfer_node_wrapper(const arg_t *arg);
+int		  transfer_node_wrapper(arg_t *arg);
 int       update_focused_node(node_t *root);
 int 	  swap_node(node_t *root);
 #endif // ZWM_TREE_H

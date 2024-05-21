@@ -1484,7 +1484,7 @@ in_right_subtree(node_t *rc, node_t *n)
 }
 
 int
-horizontal_resize_wrapper(const arg_t *arg)
+horizontal_resize_wrapper(arg_t *arg)
 {
 	const int i = get_focused_desktop_idx();
 	if (i == -1)
@@ -1773,7 +1773,7 @@ unlink_node(node_t *node, desktop_t *d)
 }
 
 int
-transfer_node_wrapper(const arg_t *arg)
+transfer_node_wrapper(arg_t *arg)
 {
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window)

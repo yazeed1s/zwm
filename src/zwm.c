@@ -57,11 +57,11 @@ config_t conf = {0};
 static _key__t keys_[] = {
 	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL                            },
 	{SUPER_MASK,              XK_Return,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (const char *[]){("alacritty")}})          },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          	     },
 	{SUPER_MASK,              XK_space,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (const char *[]){("dmenu_run")}})          },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("dmenu_run")}})                },
 	{SUPER_MASK,              XK_p,
-    exec_process,             &((arg_t){.argc = 3, .cmd = (const char *[]){"rofi", "-show", "drun"}})},
+    exec_process,             &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})},
 	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})             },
 	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})             },
 	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})             },
@@ -70,7 +70,7 @@ static _key__t keys_[] = {
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
 	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
-	{SUPER_MASK,              XK_s,      swap_node_wrapper,    NULL                             },
+	{SUPER_MASK,              XK_s,      swap_node_wrapper,    NULL                                  },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
 	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})             },
 	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})             },
@@ -128,7 +128,7 @@ win_name(xcb_window_t win)
 }
 
 int
-layout_handler(const arg_t *arg)
+layout_handler(arg_t *arg)
 {
 	int		   i = get_focused_desktop_idx();
 	desktop_t *d = wm->desktops[i];
@@ -478,7 +478,7 @@ flip_node_wrapper()
 }
 
 int
-traverse_stack_wrapper(const arg_t *arg)
+traverse_stack_wrapper(arg_t *arg)
 {
 	direction_t	 d = arg->d;
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
@@ -1485,7 +1485,7 @@ hide_window(xcb_window_t win)
 }
 
 int
-exec_process(const arg_t *arg)
+exec_process(arg_t *arg)
 {
 	pid_t pid = fork();
 
@@ -1591,7 +1591,7 @@ set_focus(node_t *n, bool flag)
 }
 
 int
-switch_desktop_wrapper(const arg_t *arg)
+switch_desktop_wrapper(arg_t *arg)
 {
 	if (switch_desktop(arg->idx) != 0) {
 		return -1;
@@ -2578,7 +2578,7 @@ parse_args(int argc, char **argv)
 			log_message(ERROR, "Missing argument after -r/--run\n");
 		}
 	}
-	exec_process(&((arg_t){.argc = 1, .cmd = (const char *[]){c}}));
+	exec_process(&((arg_t){.argc = 1, .cmd = (char *[]){c}}));
 }
 
 int
