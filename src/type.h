@@ -30,16 +30,16 @@ typedef enum {
 } flip_t;
 
 typedef enum {
-	GROW,
-	SHRINK
+	GROW   = 1 << 1,
+	SHRINK = 1 << 2,
 } resize_t;
 
 typedef enum {
-	LEFT,
-	RIGHT,
-	UP,
-	DOWN,
-	NONE
+	LEFT  = 1 << 1,
+	RIGHT = 1 << 2,
+	UP	  = 1 << 3,
+	DOWN  = 1 << 4,
+	NONE  = 1 << 5
 } direction_t;
 
 typedef enum {
@@ -68,10 +68,10 @@ typedef enum {
 } state_t;
 
 typedef enum {
-	DEFAULT,
-	MASTER,
-	STACK,
-	GRID,
+	DEFAULT = 1 << 1,
+	MASTER	= 1 << 2,
+	STACK	= 1 << 3,
+	GRID	= 1 << 4,
 } layout_t;
 
 typedef struct {
@@ -213,7 +213,8 @@ typedef struct {
 	uint16_t window_gap;
 	uint32_t active_border_color;
 	uint32_t normal_border_color;
-	_key__t *keys;
-	size_t	 key_size;
+	int		 virtual_desktops;
+	// _key__t *keys;
+	// size_t	 key_size;
 } config_t;
 #endif // ZWM_TYPE_H

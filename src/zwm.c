@@ -70,7 +70,7 @@ static _key__t keys_[] = {
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
 	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
-	{SUPER_MASK,              XK_s,      swap_node_wrapper,    NULL                                  },
+	{SUPER_MASK,              XK_s,      swap_node_wrapper,         NULL                             },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
 	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})             },
 	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})             },
@@ -1172,6 +1172,30 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 		return -1;
 	}
 
+//	if (conf_keys != NULL && _entries_ != 0) {
+//		for (size_t i = _entries_; i--;) {
+//			xcb_keycode_t *key = get_keycode(conf_keys[i]->keysym, conn);
+//			if (key == NULL)
+//				return -1;
+//			xcb_void_cookie_t cookie =
+//				xcb_grab_key_checked(conn,
+//									 1,
+//									 win,
+//									 (uint16_t)conf_keys[i]->mod,
+//									 *key,
+//									 XCB_GRAB_MODE_ASYNC,
+//									 XCB_GRAB_MODE_ASYNC);
+//			free(key);
+//			xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+//			if (err != NULL) {
+//				log_message(ERROR, "error grabbing key %d\n", err->error_code);
+//				free(err);
+//				return -1;
+//			}
+//		}
+//		return 0;
+//	}
+
 	const size_t n = sizeof(keys_) / sizeof(keys_[0]);
 
 	for (size_t i = n; i--;) {
@@ -2245,7 +2269,24 @@ handle_key_press(xcb_key_press_event_t *key_press)
 {
 	uint16_t	 cleaned_state = (key_press->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t k			   = get_keysym(key_press->detail, wm->connection);
-	size_t		 n			   = sizeof(keys_) / sizeof(keys_[0]);
+//	if (conf_keys != NULL && _entries_ != 0) {
+//		for (size_t i = _entries_; i--;) {
+//			if (cleaned_state == (conf_keys[i]->mod & ~(XCB_MOD_MASK_LOCK))) {
+//				if (conf_keys[i]->keysym == k) {
+//					arg_t *a   = conf_keys[i]->arg;
+//					int	   ret = conf_keys[i]->function_ptr(a);
+//					if (ret != 0) {
+//						log_message(ERROR,
+//									"error while executing function_ptr(..)");
+//					}
+//					break;
+//				}
+//			}
+//		}
+//		return;
+//	}
+
+	size_t n = sizeof(keys_) / sizeof(keys_[0]);
 	for (size_t i = n; i--;) {
 		if (cleaned_state == (keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
 			if (keys_[i].keysym == k) {
@@ -2592,11 +2633,6 @@ main(int argc, char **argv)
 	}
 
 	// int r = load_config(&conf);
-	conf.key_size = 30;
-	conf.keys	  = (_key__t *)malloc(conf.key_size * sizeof(_key__t));
-	if (conf.keys == NULL) {
-		log_message(ERROR, "error while allocating config keys");
-	}
 	if (load_config(&conf) != 0) {
 		log_message(ERROR, "error while loding config -> using default macros");
 		conf.active_border_color = ACTIVE_BORDER_COLOR;
@@ -2774,6 +2810,7 @@ main(int argc, char **argv)
 	xcb_disconnect(wm->connection);
 	free_desktops(wm->desktops, wm->n_of_desktops);
 	xcb_ewmh_connection_wipe(wm->ewmh);
+	free_keys();
 	free(wm);
 	wm = NULL;
 	return 0;
