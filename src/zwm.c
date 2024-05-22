@@ -1172,30 +1172,32 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 		return -1;
 	}
 
-//	if (conf_keys != NULL && _entries_ != 0) {
-//		for (size_t i = _entries_; i--;) {
-//			xcb_keycode_t *key = get_keycode(conf_keys[i]->keysym, conn);
-//			if (key == NULL)
-//				return -1;
-//			xcb_void_cookie_t cookie =
-//				xcb_grab_key_checked(conn,
-//									 1,
-//									 win,
-//									 (uint16_t)conf_keys[i]->mod,
-//									 *key,
-//									 XCB_GRAB_MODE_ASYNC,
-//									 XCB_GRAB_MODE_ASYNC);
-//			free(key);
-//			xcb_generic_error_t *err = xcb_request_check(conn, cookie);
-//			if (err != NULL) {
-//				log_message(ERROR, "error grabbing key %d\n", err->error_code);
-//				free(err);
-//				return -1;
-//			}
-//		}
-//		return 0;
-//	}
+	if (conf_keys != NULL && _entries_ != 0) {
+		log_message(INFO, "----grabing conf keys------\n");
+		for (int i = 0; i < _entries_; i++) {
+			xcb_keycode_t *key = get_keycode(conf_keys[i]->keysym, conn);
+			if (key == NULL)
+				return -1;
+			xcb_void_cookie_t cookie =
+				xcb_grab_key_checked(conn,
+									 1,
+									 win,
+									 (uint16_t)conf_keys[i]->mod,
+									 *key,
+									 XCB_GRAB_MODE_ASYNC,
+									 XCB_GRAB_MODE_ASYNC);
+			free(key);
+			xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+			if (err != NULL) {
+				log_message(ERROR, "error grabbing key %d\n", err->error_code);
+				free(err);
+				return -1;
+			}
+		}
+		return 0;
+	}
 
+	log_message(INFO, "----grabing default keys------\n");
 	const size_t n = sizeof(keys_) / sizeof(keys_[0]);
 
 	for (size_t i = n; i--;) {
@@ -2269,23 +2271,25 @@ handle_key_press(xcb_key_press_event_t *key_press)
 {
 	uint16_t	 cleaned_state = (key_press->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t k			   = get_keysym(key_press->detail, wm->connection);
-//	if (conf_keys != NULL && _entries_ != 0) {
-//		for (size_t i = _entries_; i--;) {
-//			if (cleaned_state == (conf_keys[i]->mod & ~(XCB_MOD_MASK_LOCK))) {
-//				if (conf_keys[i]->keysym == k) {
-//					arg_t *a   = conf_keys[i]->arg;
-//					int	   ret = conf_keys[i]->function_ptr(a);
-//					if (ret != 0) {
-//						log_message(ERROR,
-//									"error while executing function_ptr(..)");
-//					}
-//					break;
-//				}
-//			}
-//		}
-//		return;
-//	}
+	if (conf_keys != NULL && _entries_ != 0) {
+		log_message(INFO, "----using conf keys------\n");
+		for (int i = 0; i < _entries_; i++) {
+			if (cleaned_state == (conf_keys[i]->mod & ~(XCB_MOD_MASK_LOCK))) {
+				if (conf_keys[i]->keysym == k) {
+					arg_t *a   = conf_keys[i]->arg;
+					int	   ret = conf_keys[i]->function_ptr(a);
+					if (ret != 0) {
+						log_message(ERROR,
+									"error while executing function_ptr(..)");
+					}
+					break;
+				}
+			}
+		}
+		return;
+	}
 
+	log_message(INFO, "----using default keys------\n");
 	size_t n = sizeof(keys_) / sizeof(keys_[0]);
 	for (size_t i = n; i--;) {
 		if (cleaned_state == (keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {

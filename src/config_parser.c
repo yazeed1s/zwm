@@ -16,12 +16,12 @@
 #include <xcb/xproto.h>
 
 #define MAX_LINE_LENGTH 100
+#define MAX_KEYBINDINGS 40
 #define CONF_PATH		".config/zwm/zwm.conf"
 #define ALT_MASK		XCB_MOD_MASK_1
 #define SUPER_MASK		XCB_MOD_MASK_4
 #define SHIFT_MASK		XCB_MOD_MASK_SHIFT
 #define CTRL_MASK		XCB_MOD_MASK_CONTROL
-#define MAX_KEYBINDINGS 40
 
 typedef enum {
 	WHITE_SPACE,
@@ -39,21 +39,21 @@ int		  _entries_				   = 0;
 
 // clang-format off
 static conf_mapper_t _cmapper_[] = { 
- 	{"run", exec_process}, 
- 	{"kill", close_or_kill_wrapper}, 
+ 	{"run", 					 exec_process}, 
+ 	{"kill", 		    close_or_kill_wrapper}, 
  	{"switch_desktop", switch_desktop_wrapper}, 
- 	{"grow", horizontal_resize_wrapper}, 
- 	{"shrink", horizontal_resize_wrapper}, 
- 	{"fullscreen", set_fullscreen_wrapper}, 
- 	{"swap", swap_node_wrapper}, 
- 	{"transfer_node", transfer_node_wrapper}, 
- 	{"master", layout_handler}, 
- 	{"default", layout_handler}, 
- 	{"grid", layout_handler}, 
- 	{"stack", layout_handler}, 
- 	{"traverse_up", traverse_stack_wrapper}, 
- 	{"traverse_down", traverse_stack_wrapper}, 
-	{"flip", flip_node_wrapper}
+ 	{"grow", 		horizontal_resize_wrapper}, 
+ 	{"shrink", 		horizontal_resize_wrapper}, 
+ 	{"fullscreen", 	   set_fullscreen_wrapper}, 
+ 	{"swap", 				swap_node_wrapper}, 
+ 	{"transfer_node", 	transfer_node_wrapper}, 
+ 	{"master", 				   layout_handler}, 
+ 	{"default", 			   layout_handler}, 
+ 	{"grid", 				   layout_handler}, 
+ 	{"stack", 			       layout_handler}, 
+ 	{"traverse_up",    traverse_stack_wrapper}, 
+ 	{"traverse_down",  traverse_stack_wrapper}, 
+	{"flip", 	            flip_node_wrapper}
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -69,16 +69,16 @@ static key_mapper_t	 _kmapper_[] = {
  	{"r", XK_r},{"s", XK_s},{"t", XK_t}, 
  	{"u", XK_u},{"v", XK_v},{"w", XK_w}, 
  	{"x", XK_x},{"y", XK_y},{"z", XK_z}, 
-	{"space", XK_space},
-	{"return", XK_Return}, 
- 	{"super", (xcb_keysym_t)SUPER_MASK}, 
- 	{"alt",     (xcb_keysym_t)ALT_MASK}, 
- 	{"ctr",    (xcb_keysym_t)CTRL_MASK}, 
- 	{"shift", (xcb_keysym_t)SHIFT_MASK}, 
-    {"sup+sh", (xcb_keysym_t)SUPER_MASK|SHIFT_MASK}, 
- 	{"alt",     (xcb_keysym_t)ALT_MASK}, 
- 	{"ctr",    (xcb_keysym_t)CTRL_MASK}, 
- 	{"shift", (xcb_keysym_t)SHIFT_MASK}, 
+	{"space", 				  XK_space},
+	{"return", 	             XK_Return}, 
+ 	{"super",               SUPER_MASK}, 
+ 	{"alt",                   ALT_MASK}, 
+ 	{"ctr",    				 CTRL_MASK}, 
+ 	{"shift", 				SHIFT_MASK}, 
+    {"sup+sh", 	 SUPER_MASK|SHIFT_MASK}, 
+ 	{"alt",     			  ALT_MASK}, 
+ 	{"ctr",    			     CTRL_MASK}, 
+ 	{"shift", 				SHIFT_MASK}, 
 };
 // clang-format on
 
@@ -375,6 +375,7 @@ extract_func_body(const char *str)
 uint32_t
 parse_mod_key(char *mod)
 {
+	log_message(DEBUG, "recieved mod key = (%s)", mod);
 	uint32_t _mod = str_to_key(mod);
 	uint32_t mask = -1;
 	if ((int)_mod == -1) {
@@ -388,7 +389,8 @@ parse_mod_key(char *mod)
 						mods[1]);
 			return -1;
 		}
-
+		log_message(
+			DEBUG, "mod (%s) splited into (%s), (%s)\n", mod, mods[0], mods[1]);
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
 		mask		   = mask1 | mask2;
@@ -434,7 +436,7 @@ build_run_func(char	   *func_param,
 			   int (*ptr)(arg_t *))
 {
 	key->mod		  = mod;
-	key->keysym		  = keysym;
+	key->keysym		  = (xcb_keysym_t)keysym;
 	key->function_ptr = ptr;
 
 	if (strchr(func_param, ']')) {
@@ -745,7 +747,7 @@ parse_config(const char *filename, config_t *c)
 			_entries_++;
 		}
 	}
-	print_key_array();
+	// print_key_array();
 	fclose(file);
 	return 0;
 }
