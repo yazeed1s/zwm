@@ -43,6 +43,7 @@ client_t                 *find_client_by_window(xcb_window_t win);
 wm_t                     *init_wm();
 xcb_window_t 			  get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win);
 bool                      window_exists(xcb_conn_t *conn, xcb_window_t win);
+bool					  should_ingore_hints(xcb_window_t win, const char *name);
 void                      init_clients();
 void                      add_client(client_t *new_client);
 void                      free_clients();

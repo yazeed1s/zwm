@@ -1827,6 +1827,34 @@ should_manage(xcb_window_t win, xcb_conn_t *conn)
 }
 
 int
+apply_floating_hints(xcb_window_t win)
+{
+	xcb_get_property_cookie_t c =
+		xcb_icccm_get_wm_normal_hints(wm->connection, win);
+	xcb_size_hints_t size_hints;
+
+	uint8_t			 r = xcb_icccm_get_wm_normal_hints_reply(
+		 wm->connection, c, &size_hints, NULL);
+	if (1 == r) {
+		/* if min-h == max-h && min-w == max-w, */
+		/* then window should be floated */
+		uint32_t size_mask = (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
+							  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE);
+		int32_t	 miw	   = size_hints.min_width;
+		int32_t	 mxw	   = size_hints.max_width;
+		int32_t	 mih	   = size_hints.min_height;
+		int32_t	 mxh	   = size_hints.max_height;
+
+		if ((size_hints.flags & size_mask) && (miw == mxw) &&
+			(mih == mxh)) {
+			// window should be floated
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int
 window_type(xcb_window_t win)
 {
 	xcb_ewmh_get_atoms_reply_t w_type;
@@ -1909,16 +1937,16 @@ window_type(xcb_window_t win)
 }
 
 bool
-is_splash(xcb_window_t win)
+should_ingore_hints(xcb_window_t win, const char *name)
 {
-	xcb_icccm_get_text_property_reply_t t_reply;
-	xcb_get_property_cookie_t			cn =
-		xcb_icccm_get_wm_name(wm->connection, win);
+	xcb_icccm_get_wm_class_reply_t t_reply;
+	xcb_get_property_cookie_t	   cn =
+		xcb_icccm_get_wm_class(wm->connection, win);
 	const uint8_t wr =
-		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+		xcb_icccm_get_wm_class_reply(wm->connection, cn, &t_reply, NULL);
 	if (wr == 1) {
-		if (strcmp(t_reply.name, "splash") == 0) {
-			xcb_icccm_get_text_property_reply_wipe(&t_reply);
+		if (strcasecmp(t_reply.class_name, name) == 0) {
+			xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 			return true;
 		}
 	}
@@ -2099,7 +2127,7 @@ handle_map_request(xcb_map_request_event_t *ev)
 	 * _NET_WM_WINDOW_TYPE(ATOM) type. this is a hacky solution till
 	 * jetbrains' devs fix the splash window type
 	 * */
-	// if (is_splash(win)) {
+	// if (should_ingore_hints(win, "splash")) {
 	// 	map_floating(win);
 	// 	raise_window(wm->connection, win);
 	// 	xcb_flush(wm->connection);
@@ -2125,9 +2153,9 @@ handle_map_request(xcb_map_request_event_t *ev)
 		return 0;
 	}
 
-	const int win_t = window_type(win);
+	const int wint = window_type(win);
 
-	const int idx	= get_focused_desktop_idx();
+	const int idx  = get_focused_desktop_idx();
 	if (idx == -1) {
 		log_message(ERROR, "cannot get focused desktop idx");
 		return idx;
@@ -2143,13 +2171,25 @@ handle_map_request(xcb_map_request_event_t *ev)
 
 	client_t  *client = NULL;
 	desktop_t *d	  = wm->desktops[idx];
-	switch (win_t) {
+
+	// 1- if window's hints suggests floating client
+	// 2- or window is not for emacs (emacs waints floating for some
+	//    reason)
+	// 3- and window type is not _NET_WM_WINDOW_TYPE_DOCK (rules in
+	//    apply_floating_hints match duck window)
+	// then window should be floated
+	if ((apply_floating_hints(win) != -1 && (wint != 2))) {
+		if (!should_ingore_hints(win, "emacs"))
+			goto float_;
+	}
+
+	switch (wint) {
 	case -1:
 	case 0:
 	case 1: {
-		if (is_splash(win)) {
-			goto float_;
-		}
+		/* if (should_ingore_hints(win, "splash")) { */
+		/* 	goto float_; */
+		/* } */
 		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 		client->state = TILED;
 		if (is_tree_empty(d->tree)) {
@@ -2662,8 +2702,7 @@ log_children(xcb_conn_t *conn, xcb_window_t root_window)
 		xcb_icccm_get_text_property_reply_t t_reply;
 		xcb_get_property_cookie_t			cn =
 			xcb_icccm_get_wm_name(conn, children[i]);
-		uint8_t wr =
-			xcb_icccm_get_wm_name_reply(conn, cn, &t_reply, NULL);
+		uint8_t wr = xcb_icccm_get_wm_name_reply(conn, cn, &t_reply, NULL);
 		if (wr == 1) {
 			log_message(DEBUG, "Child %d: %s\n", i + 1, t_reply.name);
 			xcb_icccm_get_text_property_reply_wipe(&t_reply);
