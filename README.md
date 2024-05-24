@@ -12,7 +12,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Performance
 
 ## Features
-- [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) compliant
+- Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) standards.
 - Multi-layout (default, master, stack, grid)
 - Virtual desktops
 - Resize window/partion 
