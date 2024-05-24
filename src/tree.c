@@ -1,29 +1,30 @@
 /*
-	BSD 2-Clause License
-	Copyright (c) 2024, Yazeed Alharthi
-
-	Redistribution and use in source and binary forms, with or without
-	modification, are permitted provided that the following conditions are met:
-
-		1. Redistributions of source code must retain the above copyright
-		notice, this list of conditions and the following disclaimer.
-
-		2. Redistributions in binary form must reproduce the above copyright
-		notice, this list of conditions and the following disclaimer in the
-		documentation and/or other materials provided with the distribution.
-
-	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-	ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-	LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-	CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-	SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-	INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-	CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-	ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-	POSSIBILITY OF SUCH DAMAGE.
-*/
+ * BSD 2-Clause License
+ * Copyright (c) 2024, Yazeed Alharthi
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *	  1. Redistributions of source code must retain the above copyright
+ *	  notice, this list of conditions and the following disclaimer.
+ *
+ *	  2. Redistributions in binary form must reproduce the above copyright
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include "tree.h"
 
@@ -39,11 +40,11 @@
 #include "type.h"
 #include "zwm.h"
 
-#define MAX(a, b)                                                              \
-	({                                                                         \
-		__typeof__(a) _a = (a);                                                \
-		__typeof__(b) _b = (b);                                                \
-		_a > _b ? _a : _b;                                                     \
+#define MAX(a, b)                                                         \
+	({                                                                    \
+		__typeof__(a) _a = (a);                                           \
+		__typeof__(b) _b = (b);                                           \
+		_a > _b ? _a : _b;                                                \
 	})
 
 node_t *
@@ -183,12 +184,14 @@ has_floating_children(const node_t *parent)
 node_t *
 get_floating_child(const node_t *parent)
 {
-	if (parent->first_child != NULL && parent->first_child->client != NULL &&
+	if (parent->first_child != NULL &&
+		parent->first_child->client != NULL &&
 		parent->first_child->client->state == FLOATING) {
 		return parent->first_child;
 	}
 
-	if (parent->second_child != NULL && parent->second_child->client != NULL &&
+	if (parent->second_child != NULL &&
+		parent->second_child->client != NULL &&
 		parent->second_child->client->state == FLOATING) {
 		return parent->second_child;
 	}
@@ -225,12 +228,13 @@ split_node(node_t *n, node_t *nd)
 				(n->rectangle.width - conf.window_gap) / 2;
 			n->first_child->rectangle.height = n->rectangle.height;
 			n->second_child->rectangle.x =
-				(int16_t)(n->rectangle.x + n->first_child->rectangle.width +
+				(int16_t)(n->rectangle.x +
+						  n->first_child->rectangle.width +
 						  conf.window_gap);
-			n->second_child->rectangle.y	 = n->rectangle.y;
-			n->second_child->rectangle.width = n->rectangle.width -
-											   n->first_child->rectangle.width -
-											   conf.window_gap;
+			n->second_child->rectangle.y = n->rectangle.y;
+			n->second_child->rectangle.width =
+				n->rectangle.width - n->first_child->rectangle.width -
+				conf.window_gap;
 			n->second_child->rectangle.height = n->rectangle.height;
 		} else {
 			n->first_child->rectangle.x		= n->rectangle.x;
@@ -240,7 +244,8 @@ split_node(node_t *n, node_t *nd)
 				(n->rectangle.height - conf.window_gap) / 2;
 			n->second_child->rectangle.x = n->rectangle.x;
 			n->second_child->rectangle.y =
-				(int16_t)(n->rectangle.y + n->first_child->rectangle.height +
+				(int16_t)(n->rectangle.y +
+						  n->first_child->rectangle.height +
 						  conf.window_gap);
 			n->second_child->rectangle.width = n->rectangle.width;
 			n->second_child->rectangle.height =
@@ -377,23 +382,23 @@ resize_subtree(node_t *parent)
 	rectangle_t r, r2 = {0};
 
 	if (parent->rectangle.width >= parent->rectangle.height) {
-		r.x		  = parent->rectangle.x;
-		r.y		  = parent->rectangle.y;
-		r.width	  = (parent->rectangle.width - conf.window_gap) / 2;
-		r.height  = parent->rectangle.height;
+		r.x		 = parent->rectangle.x;
+		r.y		 = parent->rectangle.y;
+		r.width	 = (parent->rectangle.width - conf.window_gap) / 2;
+		r.height = parent->rectangle.height;
 
-		r2.x	  = (int16_t)(parent->rectangle.x + r.width + conf.window_gap);
-		r2.y	  = parent->rectangle.y;
+		r2.x = (int16_t)(parent->rectangle.x + r.width + conf.window_gap);
+		r2.y = parent->rectangle.y;
 		r2.width  = parent->rectangle.width - r.width - conf.window_gap;
 		r2.height = parent->rectangle.height;
 	} else {
-		r.x		  = parent->rectangle.x;
-		r.y		  = parent->rectangle.y;
-		r.width	  = parent->rectangle.width;
-		r.height  = (parent->rectangle.height - conf.window_gap) / 2;
+		r.x		 = parent->rectangle.x;
+		r.y		 = parent->rectangle.y;
+		r.width	 = parent->rectangle.width;
+		r.height = (parent->rectangle.height - conf.window_gap) / 2;
 
-		r2.x	  = parent->rectangle.x;
-		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap);
+		r2.x	 = parent->rectangle.x;
+		r2.y = (int16_t)(parent->rectangle.y + r.height + conf.window_gap);
 		r2.width  = parent->rectangle.width;
 		r2.height = parent->rectangle.height - r.height - conf.window_gap;
 	}
@@ -430,11 +435,12 @@ resize_subtree(node_t *parent)
 
 // 		rectangle_t r, r2 = {0};
 
-// 		if (current_node->rectangle.width >= current_node->rectangle.height) {
-// 			r.x		 = current_node->rectangle.x;
-// 			r.y		 = current_node->rectangle.y;
-// 			r.width	 = (current_node->rectangle.width - conf.window_gap) / 2;
-// 			r.height = current_node->rectangle.height;
+// 		if (current_node->rectangle.width >=
+// current_node->rectangle.height) { 			r.x		 =
+// current_node->rectangle.x; 			r.y		 =
+// current_node->rectangle.y; 			r.width	 =
+// (current_node->rectangle.width - conf.window_gap) / 2; r.height =
+// current_node->rectangle.height;
 
 // 			r2.x	 = (int16_t)(current_node->rectangle.x + r.width +
 // 							 conf.window_gap);
@@ -446,14 +452,16 @@ resize_subtree(node_t *parent)
 // 			r.x		 = current_node->rectangle.x;
 // 			r.y		 = current_node->rectangle.y;
 // 			r.width	 = current_node->rectangle.width;
-// 			r.height = (current_node->rectangle.height - conf.window_gap) / 2;
+// 			r.height = (current_node->rectangle.height - conf.window_gap) /
+// 2;
 
 // 			r2.x	 = current_node->rectangle.x;
 // 			r2.y	 = (int16_t)(current_node->rectangle.y + r.height +
 // 							 conf.window_gap);
 // 			r2.width = current_node->rectangle.width;
 // 			r2.height =
-// 				current_node->rectangle.height - r.height - conf.window_gap;
+// 				current_node->rectangle.height - r.height -
+// conf.window_gap;
 // 		}
 
 // 		if (current_node->first_child != NULL) {
@@ -576,8 +584,9 @@ is_sibling_external(const node_t *node)
 	}
 
 	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node) ? parent->second_child
-														  : parent->first_child;
+	const node_t *sibling = (parent->first_child == node)
+								? parent->second_child
+								: parent->first_child;
 
 	return (sibling != NULL && sibling->node_type == EXTERNAL_NODE);
 }
@@ -589,12 +598,13 @@ get_external_sibling(const node_t *node)
 		return NULL;
 	}
 
-	const node_t *parent  = node->parent;
-	node_t		 *sibling = (parent->first_child == node) ? parent->second_child
-														  : parent->first_child;
+	const node_t *parent = node->parent;
+	node_t *sibling = (parent->first_child == node) ? parent->second_child
+													: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == EXTERNAL_NODE) ? sibling
-																	: NULL;
+	return (sibling != NULL && sibling->node_type == EXTERNAL_NODE)
+			   ? sibling
+			   : NULL;
 }
 
 bool
@@ -605,8 +615,9 @@ is_sibling_internal(const node_t *node)
 	}
 
 	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node) ? parent->second_child
-														  : parent->first_child;
+	const node_t *sibling = (parent->first_child == node)
+								? parent->second_child
+								: parent->first_child;
 
 	return (sibling != NULL && sibling->node_type == INTERNAL_NODE);
 }
@@ -622,8 +633,9 @@ get_internal_sibling(node_t *node)
 	node_t *sibling = (parent->first_child == node) ? parent->second_child
 													: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == INTERNAL_NODE) ? sibling
-																	: NULL;
+	return (sibling != NULL && sibling->node_type == INTERNAL_NODE)
+			   ? sibling
+			   : NULL;
 }
 
 node_t *
@@ -677,10 +689,12 @@ has_single_external_child(const node_t *parent)
 	if (parent == NULL)
 		return false;
 
-	return ((parent->first_child != NULL && parent->second_child != NULL) &&
+	return ((parent->first_child != NULL &&
+			 parent->second_child != NULL) &&
 			(parent->first_child->node_type == EXTERNAL_NODE &&
 			 parent->second_child->node_type != EXTERNAL_NODE)) ||
-		   ((parent->first_child != NULL && parent->second_child != NULL) &&
+		   ((parent->first_child != NULL &&
+			 parent->second_child != NULL) &&
 			(parent->second_child->node_type == EXTERNAL_NODE &&
 			 parent->first_child->node_type != EXTERNAL_NODE));
 }
@@ -727,23 +741,23 @@ apply_default_layout(node_t *root)
 	rectangle_t r, r2 = {0};
 
 	if (root->rectangle.width >= root->rectangle.height) {
-		r.x		  = root->rectangle.x;
-		r.y		  = root->rectangle.y;
-		r.width	  = (root->rectangle.width - conf.window_gap) / 2;
-		r.height  = root->rectangle.height;
+		r.x		 = root->rectangle.x;
+		r.y		 = root->rectangle.y;
+		r.width	 = (root->rectangle.width - conf.window_gap) / 2;
+		r.height = root->rectangle.height;
 
-		r2.x	  = (int16_t)(root->rectangle.x + r.width + conf.window_gap);
-		r2.y	  = root->rectangle.y;
+		r2.x = (int16_t)(root->rectangle.x + r.width + conf.window_gap);
+		r2.y = root->rectangle.y;
 		r2.width  = root->rectangle.width - r.width - conf.window_gap;
 		r2.height = root->rectangle.height;
 	} else {
-		r.x		  = root->rectangle.x;
-		r.y		  = root->rectangle.y;
-		r.width	  = root->rectangle.width;
-		r.height  = (root->rectangle.height - conf.window_gap) / 2;
+		r.x		 = root->rectangle.x;
+		r.y		 = root->rectangle.y;
+		r.width	 = root->rectangle.width;
+		r.height = (root->rectangle.height - conf.window_gap) / 2;
 
-		r2.x	  = root->rectangle.x;
-		r2.y	  = (int16_t)(root->rectangle.y + r.height + conf.window_gap);
+		r2.x	 = root->rectangle.x;
+		r2.y = (int16_t)(root->rectangle.y + r.height + conf.window_gap);
 		r2.width  = root->rectangle.width;
 		r2.height = root->rectangle.height - r.height - conf.window_gap;
 	}
@@ -774,11 +788,11 @@ default_layout(node_t *root)
 	const uint16_t h = wm->screen->height_in_pixels;
 
 	if (wm->bar != NULL) {
-		r.x		= conf.window_gap - conf.border_width * 1.5;
-		r.y		= (int16_t)(wm->bar->rectangle.height + conf.window_gap);
-		r.width = (uint16_t)(w - 2 * conf.window_gap);
-		r.height =
-			(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
+		r.x		 = conf.window_gap - conf.border_width * 1.5;
+		r.y		 = (int16_t)(wm->bar->rectangle.height + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap);
+		r.height = (uint16_t)(h - 2 * conf.window_gap -
+							  wm->bar->rectangle.height);
 	} else {
 		r.x		 = conf.window_gap - conf.border_width * 1.5;
 		r.y		 = conf.window_gap - conf.border_width * 1.5;
@@ -802,13 +816,13 @@ apply_master_layout(node_t *parent)
 		parent->first_child->rectangle = parent->rectangle;
 	} else {
 		rectangle_t r, r2 = {0};
-		r.x		  = parent->rectangle.x;
-		r.y		  = parent->rectangle.y;
-		r.width	  = parent->rectangle.width;
-		r.height  = (parent->rectangle.height - conf.window_gap) / 2;
+		r.x		 = parent->rectangle.x;
+		r.y		 = parent->rectangle.y;
+		r.width	 = parent->rectangle.width;
+		r.height = (parent->rectangle.height - conf.window_gap) / 2;
 		// r.height  = h;
-		r2.x	  = parent->rectangle.x;
-		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap);
+		r2.x	 = parent->rectangle.x;
+		r2.y = (int16_t)(parent->rectangle.y + r.height + conf.window_gap);
 		r2.width  = parent->rectangle.width;
 		r2.height = parent->rectangle.height - r.height - conf.window_gap;
 		// r2.height = h;
@@ -835,9 +849,8 @@ master_layout(node_t *root, node_t *n)
 	uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
 	// uint16_t	 r_height	  = (uint16_t)(h - 2 * W_GAP - 27) / (nc - 1);
 	n->is_master			  = true;
-	// uint16_t r_height = (uint16_t)(h - (2 * W_GAP - 27)) / (nc - 1) - 2 *
-	// W_GAP;
-	// uint16_t height = (r2.height / (nc - 1)) - (W_GAP / 2) - 2;
+	// uint16_t r_height = (uint16_t)(h - (2 * W_GAP - 27)) / (nc - 1) - 2
+	// * W_GAP; uint16_t height = (r2.height / (nc - 1)) - (W_GAP / 2) - 2;
 
 	rectangle_t r1			  = {
 				   .x	   = conf.window_gap,
@@ -902,13 +915,13 @@ stack_layout(node_t *root)
 	const uint16_t w = wm->screen->width_in_pixels;
 	const uint16_t h = wm->screen->height_in_pixels;
 	if (wm->bar != NULL) {
-		r.x		= conf.window_gap - conf.border_width * 1.5;
+		r.x		 = conf.window_gap - conf.border_width * 1.5;
 		// r.x		 = 0;
-		r.y		= (int16_t)(wm->bar->rectangle.height + conf.window_gap);
-		r.width = (uint16_t)(w - 2 * conf.window_gap);
+		r.y		 = (int16_t)(wm->bar->rectangle.height + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap);
 		// r.width	 = w;
-		r.height =
-			(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
+		r.height = (uint16_t)(h - 2 * conf.window_gap -
+							  wm->bar->rectangle.height);
 	} else {
 		r.x		 = 0;
 		r.y		 = conf.window_gap;
@@ -1009,9 +1022,9 @@ delete_node_with_external_sibling(node_t *node)
 			grandparent->first_child->first_child  = NULL;
 			grandparent->first_child->second_child = NULL;
 		} else {
-			grandparent->second_child->node_type	= EXTERNAL_NODE;
-			grandparent->second_child->client		= external_node->client;
-			grandparent->second_child->first_child	= NULL;
+			grandparent->second_child->node_type   = EXTERNAL_NODE;
+			grandparent->second_child->client	   = external_node->client;
+			grandparent->second_child->first_child = NULL;
 			grandparent->second_child->second_child = NULL;
 		}
 	}
@@ -1291,10 +1304,10 @@ log_tree_nodes(node_t *node)
 	if (node != NULL) {
 		if (node->client != NULL) {
 			xcb_icccm_get_text_property_reply_t t_reply;
-			xcb_get_property_cookie_t			cn =
-				xcb_icccm_get_wm_name(wm->connection, node->client->window);
-			uint8_t wr =
-				xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+			xcb_get_property_cookie_t			cn = xcb_icccm_get_wm_name(
+				  wm->connection, node->client->window);
+			uint8_t wr = xcb_icccm_get_wm_name_reply(
+				wm->connection, cn, &t_reply, NULL);
 			char name[256];
 			if (wr == 1) {
 				snprintf(name, sizeof(name), "%s", t_reply.name);
@@ -1525,8 +1538,9 @@ horizontal_resize_wrapper(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
-	node_t		*n = find_node_by_window_id(root, w);
+	xcb_window_t w =
+		get_window_under_cursor(wm->connection, wm->root_window);
+	node_t *n = find_node_by_window_id(root, w);
 	if (n == NULL)
 		return -1;
 
@@ -1802,7 +1816,8 @@ unlink_node(node_t *node, desktop_t *d)
 int
 transfer_node_wrapper(arg_t *arg)
 {
-	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	xcb_window_t w =
+		get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window)
 		return -1;
 
@@ -1864,11 +1879,11 @@ transfer_node(node_t *node, desktop_t *d)
 		uint16_t	w = wm->screen->width_in_pixels;
 		uint16_t	h = wm->screen->height_in_pixels;
 		if (wm->bar != NULL) {
-			r.x		= conf.window_gap;
-			r.y		= (int16_t)(wm->bar->rectangle.height + conf.window_gap);
-			r.width = (uint16_t)(w - 2 * conf.window_gap);
-			r.height =
-				(uint16_t)(h - 2 * conf.window_gap - wm->bar->rectangle.height);
+			r.x = conf.window_gap;
+			r.y = (int16_t)(wm->bar->rectangle.height + conf.window_gap);
+			r.width	 = (uint16_t)(w - 2 * conf.window_gap);
+			r.height = (uint16_t)(h - 2 * conf.window_gap -
+								  wm->bar->rectangle.height);
 		} else {
 			r.x		 = conf.window_gap;
 			r.y		 = conf.window_gap;
@@ -1879,7 +1894,8 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree			   = node;
 		d->tree->rectangle = r;
 		d->tree->node_type = ROOT_NODE;
-	} else if (d->tree->first_child == NULL && d->tree->second_child == NULL) {
+	} else if (d->tree->first_child == NULL &&
+			   d->tree->second_child == NULL) {
 		client_t *c = d->tree->client;
 		//		d->tree->first_child			 =
 		// create_node(c);
@@ -1890,7 +1906,8 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree->second_child			 = node;
 		d->tree->second_child->node_type = EXTERNAL_NODE;
 		d->tree->client					 = NULL;
-		d->tree->first_child->parent = d->tree->second_child->parent = d->tree;
+		d->tree->first_child->parent	 = d->tree->second_child->parent =
+			d->tree;
 		// if (d->layout != STACK) resize_subtree(d->tree);
 	} else {
 		node_t *leaf = find_left_leaf(d->tree);
@@ -2020,23 +2037,27 @@ flip_node(node_t *node)
 					   ? VERTICAL_FLIP
 					   : HORIZONTAL_FLIP;
 	node_t *p	 = node->parent;
-	node_t *s	 = (p->first_child == node) ? p->second_child : p->first_child;
+	node_t *s =
+		(p->first_child == node) ? p->second_child : p->first_child;
 
 	if (s == NULL)
 		return;
 
-	node->rectangle.x	   = p->rectangle.x;
-	node->rectangle.y	   = p->rectangle.y;
-	node->rectangle.width  = (flip == VERTICAL_FLIP)
-								 ? ((p->rectangle.width - conf.window_gap) / 2)
-								 : p->rectangle.width;
-	node->rectangle.height = (flip == VERTICAL_FLIP)
-								 ? p->rectangle.height
-								 : (p->rectangle.height - conf.window_gap) / 2;
-	s->rectangle.x		   = (flip == VERTICAL_FLIP)
-								 ? ((int16_t)((p->rectangle.x + node->rectangle.width) +
-									  conf.window_gap))
-								 : p->rectangle.x;
+	node->rectangle.x = p->rectangle.x;
+	node->rectangle.y = p->rectangle.y;
+	node->rectangle.width =
+		(flip == VERTICAL_FLIP)
+			? ((p->rectangle.width - conf.window_gap) / 2)
+			: p->rectangle.width;
+	node->rectangle.height =
+		(flip == VERTICAL_FLIP)
+			? p->rectangle.height
+			: (p->rectangle.height - conf.window_gap) / 2;
+	s->rectangle.x =
+		(flip == VERTICAL_FLIP)
+			? ((int16_t)((p->rectangle.x + node->rectangle.width) +
+						 conf.window_gap))
+			: p->rectangle.x;
 	s->rectangle.y =
 		(flip == VERTICAL_FLIP)
 			? p->rectangle.y
@@ -2044,7 +2065,8 @@ flip_node(node_t *node)
 						 conf.window_gap));
 	s->rectangle.width =
 		(flip == VERTICAL_FLIP)
-			? ((p->rectangle.width - node->rectangle.width) - conf.window_gap)
+			? ((p->rectangle.width - node->rectangle.width) -
+			   conf.window_gap)
 			: p->rectangle.width;
 	s->rectangle.height =
 		(flip == VERTICAL_FLIP)
@@ -2102,8 +2124,8 @@ swap_node(node_t *n)
 	if (n->parent == NULL)
 		return -1;
 
-	node_t	   *s  = (n->parent->first_child == n) ? n->parent->second_child
-												   : n->parent->first_child;
+	node_t	   *s = (n->parent->first_child == n) ? n->parent->second_child
+												  : n->parent->first_child;
 	rectangle_t sr = s->rectangle;
 	rectangle_t nr = n->rectangle;
 	n->rectangle   = sr;

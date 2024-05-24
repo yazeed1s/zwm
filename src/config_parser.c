@@ -1,29 +1,30 @@
 /*
-	BSD 2-Clause License
-	Copyright (c) 2024, Yazeed Alharthi
-
-	Redistribution and use in source and binary forms, with or without
-	modification, are permitted provided that the following conditions are met:
-
-		1. Redistributions of source code must retain the above copyright
-		notice, this list of conditions and the following disclaimer.
-
-		2. Redistributions in binary form must reproduce the above copyright
-		notice, this list of conditions and the following disclaimer in the
-		documentation and/or other materials provided with the distribution.
-
-	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-	ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-	LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-	CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-	SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-	INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-	CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-	ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-	POSSIBILITY OF SUCH DAMAGE.
-*/
+ * BSD 2-Clause License
+ * Copyright (c) 2024, Yazeed Alharthi
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *	  1. Redistributions of source code must retain the above copyright
+ *	  notice, this list of conditions and the following disclaimer.
+ *
+ *	  2. Redistributions in binary form must reproduce the above copyright
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include "config_parser.h"
 #include "logger.h"
@@ -42,7 +43,7 @@
 #include <time.h>
 #include <xcb/xproto.h>
 
-#define MAX_LINE_LENGTH 100
+#define MAX_LINE_LENGTH (2 << 7)
 #define MAX_KEYBINDINGS 40
 #define CONF_PATH		".config/zwm/zwm.conf"
 #define ALT_MASK		XCB_MOD_MASK_1
@@ -176,21 +177,23 @@ print_key_array()
 		if (conf_keys[i]->arg != NULL) {
 			if (conf_keys[i]->arg->cmd != NULL) {
 				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
-					log_message(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
+					log_message(
+						DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
 				}
 			}
-			log_message(DEBUG,
-						"key %d = { \n mod = %s \n keysym = %s, func = %s, "
-						"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
-						i,
-						key_to_str(conf_keys[i]->mod),
-						key_to_str(conf_keys[i]->keysym),
-						func_to_str(conf_keys[i]->function_ptr),
-						conf_keys[i]->arg->idx,
-						conf_keys[i]->arg->d,
-						conf_keys[i]->arg->r,
-						conf_keys[i]->arg->t,
-						conf_keys[i]->arg->t);
+			log_message(
+				DEBUG,
+				"key %d = { \n mod = %s \n keysym = %s, func = %s, "
+				"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+				i,
+				key_to_str(conf_keys[i]->mod),
+				key_to_str(conf_keys[i]->keysym),
+				func_to_str(conf_keys[i]->function_ptr),
+				conf_keys[i]->arg->idx,
+				conf_keys[i]->arg->d,
+				conf_keys[i]->arg->r,
+				conf_keys[i]->arg->t,
+				conf_keys[i]->arg->t);
 		}
 	}
 }
@@ -198,37 +201,81 @@ print_key_array()
 int
 write_default_config(const char *filename, config_t *c)
 {
+	// clang-format off
 	const char *content =
-		"border_width = 2\n"
-		"active_border_color = 0x83a598\n"
-		"normal_border_color = 0x30302f\n"
-		"window_gap = 10\n"
-		"virtual_desktops = 5\n"
-		"key = {super + return -> run(\"alacritty\")}\n"
-		"key = {super + space -> run(\"dmenu_run\")}\n"
-		"key = {super + p -> run([\"rofi\",\"-show\", \"drun\"])}\n"
-		"key = {super + w -> func(kill)}\n"
-		"key = {super + 1 -> func(switch_desktop)}\n"
-		"key = {super + 2 -> func(switch_desktop)}\n"
-		"key = {super + 3 -> func(switch_desktop)}\n"
-		"key = {super + 4 -> func(switch_desktop)}\n"
-		"key = {super + 5 -> func(switch_desktop)}\n"
-		"key = {super + l -> func(grow)}\n"
-		"key = {super + h -> func(shrink)}\n"
-		"key = {super + f -> func(fullscreen)}\n"
-		"key = {super + s -> func(swap)}\n"
-		"key = {super|shift + 1 -> func(transfer_node)}\n"
-		"key = {super|shift + 2 -> func(transfer_node)}\n"
-		"key = {super|shift + 3 -> func(transfer_node)}\n"
-		"key = {super|shift + 4 -> func(transfer_node)}\n"
-		"key = {super|shift + 5 -> func(transfer_node)}\n"
-		"key = {super|shift + m -> func(master)}\n"
-		"key = {super|shift + s -> func(stack)}\n"
-		"key = {super|shift + d -> func(default)}\n"
-		"key = {super|shift + k -> func(traverse_up)}\n"
-		"key = {super|shift + j -> func(traverse_down)}\n"
-		"key = {super|shift + f -> func(flip)}\n";
-
+		 "; ----------- ZWM Configuration File -------------\n"
+        ";\n"
+        "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
+        "; It allows you to define window appearance, behavior, and key bindings for various actions.\n"
+        ";\n"
+        ";\n"
+        "; Available Variables:\n"
+        "; - border_width: Defines the width of the window borders in pixels.\n"
+        "; - active_border_color: Specifies the color of the border for the active (focused) window.\n"
+        "; - normal_border_color: Specifies the color of the border for inactive (unfocused) windows.\n"
+        "; - window_gap: Sets the gap between windows in pixels.\n"
+        "; - virtual_desktops: sets the number of virtual desktops.\n"
+        ";\n"
+        "\n"
+        "border_width = 2\n"
+        "active_border_color = 0x83a598\n"
+        "normal_border_color = 0x30302f\n"
+        "window_gap = 10\n"
+        "virtual_desktops = 5\n"
+        "\n"
+        "; Key Bindings:\n"
+        "; Define keyboard shortcuts to perform various actions. The format for defining key bindings is:\n"
+        "; key = {modifier + key -> action}\n"
+        "; If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as alt|shift.\n"
+        ";\n"
+        "; Available Actions:\n"
+        "; - run(...): Executes a specified process. \n"
+        ";   - Example: key = {super + return -> run(\"alacritty\")}\n"
+        ";   - To run a process with arguments, use a list:\n"
+        ";     Example: key = {super + p -> run([\"rofi\", \"-show\", \"drun\"])}\n"
+        ";\n"
+        "; - func(...): Calls a predefined function. The following functions are available:\n"
+        ";   - kill: Kills the focused window.\n"
+        ";   - switch_desktop: Switches to a specified virtual desktop.\n"
+        ";   - grow: Increases the size of the focused window.\n"
+        ";   - shrink: Decreases the size of the focused window.\n"
+        ";   - fullscreen: Toggles fullscreen mode for the focused window.\n"
+        ";   - swap: Swaps the focused window with its sibling.\n"
+        ";   - transfer_node: Moves the focused window to another virtual desktop.\n"
+        ";   - master: Toggles the master layout and sets the focused window as the master window.\n"
+        ";   - stack: Toggles the stacking layout and sets the focused window as the top window.\n"
+        ";   - default: Toggles the default layout.\n"
+        ";   - traverse_up: (In stack layout only) Moves focus to the window above.\n"
+        ";   - traverse_down: (In stack layout only) Moves focus to the window below.\n"
+        ";   - flip: Changes the window's orientation; if the window is primarily vertical, \n"
+        ";           it becomes horizontal, and vice versa.\n"
+        ";\n"
+        "\n"
+        "key = {super + return -> run(\"alacritty\")}\n"
+        "key = {super + space -> run(\"dmenu_run\")}\n"
+        "key = {super + p -> run([\"rofi\",\"-show\", \"drun\"])}\n"
+        "key = {super + w -> func(kill)}\n"
+        "key = {super + 1 -> func(switch_desktop)}\n"
+        "key = {super + 2 -> func(switch_desktop)}\n"
+        "key = {super + 3 -> func(switch_desktop)}\n"
+        "key = {super + 4 -> func(switch_desktop)}\n"
+        "key = {super + 5 -> func(switch_desktop)}\n"
+        "key = {super + l -> func(grow)}\n"
+        "key = {super + h -> func(shrink)}\n"
+        "key = {super + f -> func(fullscreen)}\n"
+        "key = {super + s -> func(swap)}\n"
+        "key = {super|shift + 1 -> func(transfer_node)}\n"
+        "key = {super|shift + 2 -> func(transfer_node)}\n"
+        "key = {super|shift + 3 -> func(transfer_node)}\n"
+        "key = {super|shift + 4 -> func(transfer_node)}\n"
+        "key = {super|shift + 5 -> func(transfer_node)}\n"
+        "key = {super|shift + m -> func(master)}\n"
+        "key = {super|shift + s -> func(stack)}\n"
+        "key = {super|shift + d -> func(default)}\n"
+        "key = {super|shift + k -> func(traverse_up)}\n"
+        "key = {super|shift + j -> func(traverse_down)}\n"
+        "key = {super|shift + f -> func(flip)}\n";
+	// clang-format on
 	char dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
@@ -250,11 +297,20 @@ write_default_config(const char *filename, config_t *c)
 		return -1;
 	}
 
+	size_t len	   = strlen(content);
+	size_t written = fwrite(content, 1, len, file);
+	if (written != len) {
+		fclose(file);
+		log_message(ERROR, "Error writing to file: %s\n", filename);
+		return -1;
+	}
+
 	c->active_border_color = 0x83a598;
 	c->normal_border_color = 0x30302f;
 	c->border_width		   = 2;
 	c->window_gap		   = 5;
-	fprintf(file, "%s", content);
+	c->virtual_desktops	   = 5;
+
 	fclose(file);
 	return 0;
 }
@@ -305,7 +361,8 @@ trim(char *str, trim_token_t t)
 		end--;
 	}
 
-	while (*start == start_token || (t == WHITE_SPACE && isspace(*start))) {
+	while (*start == start_token ||
+		   (t == WHITE_SPACE && isspace(*start))) {
 		start++;
 	}
 
@@ -416,8 +473,11 @@ parse_mod_key(char *mod)
 						mods[1]);
 			return -1;
 		}
-		log_message(
-			DEBUG, "mod (%s) splited into (%s), (%s)\n", mod, mods[0], mods[1]);
+		log_message(DEBUG,
+					"mod (%s) splited into (%s), (%s)\n",
+					mod,
+					mods[0],
+					mods[1]);
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
 		mask		   = mask1 | mask2;
@@ -443,6 +503,7 @@ parse_keysym(char *keysym)
 void
 err_cleanup(_key__t *k)
 {
+	// wtf is this
 	if (k) {
 		if (k->arg->cmd) {
 			free(k->arg->cmd);
@@ -450,8 +511,7 @@ err_cleanup(_key__t *k)
 		free(k->arg);
 		k->arg = NULL;
 		free(k);
-		k		  = NULL;
-		_entries_ = 0;
+		k = NULL;
 	}
 }
 
@@ -531,7 +591,7 @@ assign_function_args(char *func_param, _key__t *key)
 	}
 }
 
-void
+int
 construct_key(char *mod, char *keysym, char *func, _key__t *key)
 {
 	bool	 iterative_func = false;
@@ -545,21 +605,20 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	if ((int)_mod == -1) {
 		log_message(
 			ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
-		// err_cleanup(key);
-		// return;
+		return -1;
 	}
 
 	// deal with keysym
 	if (keysym == NULL) {
-		log_message(
-			INFO, "keysym is null, func must be switch or transfer %s\n", func);
+		log_message(INFO,
+					"keysym is null, func must be switch or transfer %s\n",
+					func);
 		iterative_func = true;
 	} else {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
 			log_message(ERROR, "failed to parse keysym for %s\n", keysym);
-			err_cleanup(key);
-			return;
+			return -1;
 		}
 	}
 
@@ -572,8 +631,7 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	char *func_param = extract_func_body(func);
 	if (func_param == NULL) {
 		log_message(ERROR, "failed to extract func body for %s\n", func);
-		err_cleanup(key);
-		return;
+		return -1;
 	}
 
 	trim(func_param, PARENTHESIS);
@@ -586,9 +644,8 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 				log_message(ERROR,
 							"failed to find function pointer for %s",
 							func_param);
-				err_cleanup(key);
 				free(func_param);
-				return;
+				return -1;
 			}
 			key->function_ptr = ptr;
 			key->keysym		  = -10;
@@ -600,11 +657,11 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	if (run_func) {
 		ptr = str_to_func("run");
 		if (ptr == NULL) {
-			log_message(
-				ERROR, "failed to find run func pointer for %s", func_param);
-			err_cleanup(key);
+			log_message(ERROR,
+						"failed to find run func pointer for %s",
+						func_param);
 			free(func_param);
-			return;
+			return -1;
 		}
 		build_run_func(func_param, key, _mod, _keysym, ptr);
 		goto cleanup;
@@ -614,9 +671,8 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	if (ptr == NULL) {
 		log_message(
 			ERROR, "failed to find function pointer for %s", func_param);
-		err_cleanup(key);
 		free(func_param);
-		return;
+		return -1;
 	}
 
 	key->mod		  = _mod;
@@ -626,15 +682,15 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 
 cleanup:
 	free(func_param);
+	return 0;
 }
 
-void
+int
 parse_keybinding(char *str, _key__t *key)
 {
 	if (strstr(str, "->") == NULL) {
 		log_message(ERROR, "invalide key format %s ", str);
-		err_cleanup(key);
-		return;
+		return -1;
 	}
 
 #ifdef _DEBUG__
@@ -693,7 +749,7 @@ parse_keybinding(char *str, _key__t *key)
 				keysym,
 				func);
 #endif
-	construct_key(mod, keysym, func, key);
+	return construct_key(mod, keysym, func, key);
 }
 
 _key__t *
@@ -752,9 +808,11 @@ parse_config(const char *filename, config_t *c)
 		if (strcmp(key, "border_width") == 0) {
 			c->border_width = atoi(value);
 		} else if (strcmp(key, "active_border_color") == 0) {
-			c->active_border_color = (unsigned int)strtoul(value, NULL, 16);
+			c->active_border_color =
+				(unsigned int)strtoul(value, NULL, 16);
 		} else if (strcmp(key, "normal_border_color") == 0) {
-			c->normal_border_color = (unsigned int)strtoul(value, NULL, 16);
+			c->normal_border_color =
+				(unsigned int)strtoul(value, NULL, 16);
 		} else if (strcmp(key, "window_gap") == 0) {
 			c->window_gap = atoi(value);
 		} else if (strcmp(key, "virtual_desktops") == 0) {
@@ -763,18 +821,25 @@ parse_config(const char *filename, config_t *c)
 			if (conf_keys == NULL) {
 				conf_keys = malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
 				if (conf_keys == NULL) {
-					fprintf(stderr,
-							"Failed to allocate memory for conf_keys array\n");
+					fprintf(
+						stderr,
+						"Failed to allocate memory for conf_keys array\n");
 					return 1;
 				}
 			}
 			_key__t *k = init_key();
-			parse_keybinding(value, k);
+			if (parse_keybinding(value, k) != 0) {
+				err_cleanup(k);
+				free_keys();
+				log_message(ERROR, "error while parsing keys");
+				goto out;
+			}
 			conf_keys[_entries_] = k;
 			_entries_++;
 		}
 	}
-	// print_key_array();
+// print_key_array();
+out:
 	fclose(file);
 	return 0;
 }
