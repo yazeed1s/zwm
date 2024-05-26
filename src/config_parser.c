@@ -46,10 +46,10 @@
 #define MAX_LINE_LENGTH (2 << 7)
 #define MAX_KEYBINDINGS 40
 #define CONF_PATH		".config/zwm/zwm.conf"
-#define ALT_MASK		XCB_MOD_MASK_1
-#define SUPER_MASK		XCB_MOD_MASK_4
-#define SHIFT_MASK		XCB_MOD_MASK_SHIFT
-#define CTRL_MASK		XCB_MOD_MASK_CONTROL
+#define ALT				XCB_MOD_MASK_1
+#define SUPER			XCB_MOD_MASK_4
+#define SHIFT			XCB_MOD_MASK_SHIFT
+#define CTRL			XCB_MOD_MASK_CONTROL
 
 typedef enum {
 	WHITE_SPACE,
@@ -85,28 +85,31 @@ static conf_mapper_t _cmapper_[] = {
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
- 	{"0", XK_0},{"1", XK_1},{"2", XK_2}, 
- 	{"3", XK_3},{"4", XK_4},{"5", XK_5}, 
- 	{"6", XK_6},{"7", XK_7},{"8", XK_8}, 
- 	{"9", XK_9},{"a", XK_a},{"b", XK_b}, 
- 	{"c", XK_c},{"d", XK_d},{"e", XK_e}, 
- 	{"f", XK_f},{"g", XK_g},{"h", XK_h}, 
- 	{"i", XK_i},{"j", XK_j},{"k", XK_k}, 
- 	{"l", XK_l},{"m", XK_m},{"n", XK_n}, 
- 	{"o", XK_o},{"p", XK_p},{"q", XK_q}, 
- 	{"r", XK_r},{"s", XK_s},{"t", XK_t}, 
- 	{"u", XK_u},{"v", XK_v},{"w", XK_w}, 
- 	{"x", XK_x},{"y", XK_y},{"z", XK_z}, 
-	{"space", 				  XK_space},
-	{"return", 	             XK_Return}, 
- 	{"super",               SUPER_MASK}, 
- 	{"alt",                   ALT_MASK}, 
- 	{"ctr",    				 CTRL_MASK}, 
- 	{"shift", 				SHIFT_MASK}, 
-    {"sup+sh", 	 SUPER_MASK|SHIFT_MASK}, 
- 	{"alt",     			  ALT_MASK}, 
- 	{"ctr",    			     CTRL_MASK}, 
- 	{"shift", 				SHIFT_MASK}, 
+ 	{"0", 0x0030}, {"1", 0x0031},
+	{"2", 0x0032}, {"3", 0x0033},
+	{"4", 0x0034}, {"5", 0x0035}, 
+ 	{"6", 0x0036}, {"7", 0x0037},
+	{"8", 0x0038}, {"9", 0x0039},
+	{"a", 0x0061}, {"b", 0x0062}, 
+	{"c", 0x0063}, {"d", 0x0064},
+	{"e", 0x0065}, {"f", 0x0066},
+	{"g", 0x0067}, {"h", 0x0068}, 
+ 	{"i", 0x0069}, {"j", 0x006a},
+	{"k", 0x006b}, {"l", 0x006c},
+	{"m", 0x006d}, {"n", 0x006e}, 
+	{"o", 0x006f}, {"p", 0x0070},
+	{"q", 0x0071}, {"r", 0x0072},
+	{"s", 0x0073}, {"t", 0x0074}, 
+	{"u", 0x0075}, {"v", 0x0076},
+	{"w", 0x0077}, {"x", 0x0078},
+	{"y", 0x0079}, {"z", 0x007a}, 
+	{"space", 	   	     0x0020},
+	{"return", 	         0xff0d}, 
+ 	{"super",             SUPER}, 
+ 	{"alt",                 ALT}, 
+ 	{"ctr",    		       CTRL}, 
+ 	{"shift", 		      SHIFT}, 
+    {"sup+sh",      SUPER|SHIFT}, 
 };
 // clang-format on
 
@@ -215,6 +218,8 @@ write_default_config(const char *filename, config_t *c)
         "; - normal_border_color: Specifies the color of the border for inactive (unfocused) windows.\n"
         "; - window_gap: Sets the gap between windows in pixels.\n"
         "; - virtual_desktops: sets the number of virtual desktops.\n"
+		"; - focus_follow_pointer: If false, the window is focused on click\n"
+		"; 			if true, the window is focused when the cursor enters it.\n"
         ";\n"
         "\n"
         "border_width = 2\n"
@@ -222,6 +227,7 @@ write_default_config(const char *filename, config_t *c)
         "normal_border_color = 0x30302f\n"
         "window_gap = 10\n"
         "virtual_desktops = 5\n"
+		"focus_follow_pointer = true\n"
         "\n"
         "; Key Bindings:\n"
         "; Define keyboard shortcuts to perform various actions. The format for defining key bindings is:\n"
@@ -305,11 +311,12 @@ write_default_config(const char *filename, config_t *c)
 		return -1;
 	}
 
-	c->active_border_color = 0x83a598;
-	c->normal_border_color = 0x30302f;
-	c->border_width		   = 2;
-	c->window_gap		   = 5;
-	c->virtual_desktops	   = 5;
+	c->active_border_color	= 0x83a598;
+	c->normal_border_color	= 0x30302f;
+	c->border_width			= 2;
+	c->window_gap			= 5;
+	c->virtual_desktops		= 5;
+	c->focus_follow_pointer = true;
 
 	fclose(file);
 	return 0;
@@ -817,6 +824,16 @@ parse_config(const char *filename, config_t *c)
 			c->window_gap = atoi(value);
 		} else if (strcmp(key, "virtual_desktops") == 0) {
 			c->virtual_desktops = atoi(value);
+		} else if (strcmp(key, "focus_follow_pointer") == 0) {
+			if (strcmp(value, "true") == 0) {
+				c->focus_follow_pointer = true;
+			} else if (strcmp(value, "false") == 0) {
+				c->focus_follow_pointer = false;
+			} else {
+				log_message(ERROR,
+							"Invalid value for focus_follow_pointer: %s\n",
+							value);
+			}
 		} else if (strcmp(key, "key") == 0) {
 			if (conf_keys == NULL) {
 				conf_keys = malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
