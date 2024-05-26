@@ -1,7 +1,7 @@
 ### zwm
 
 ## About ZWM
-zwm is a minimalistic and opinionated tiling window manager for X. It uses XCB instead of Xlib to communicate with the X server. The underlying data structure for managing windows is a customized BSP tree. zwm operates with a memory footprint of only ~2 MB.
+zwm is a minimalistic and opinionated tiling window manager for X11. It uses XCB instead of Xlib to communicate with the X server. The underlying data structure for managing windows is a customized BSP tree.
 
 ## Motivation
 The motivation behind zwm stems from a desire to create a window manager that is both lightweight and highly efficient, yet tailored to how I like to work. Sure, there are other great tiling window managers that perform well and offer robust features, but zwm was developed primarily as a learning exercise in creating a window manager from scratch. 
@@ -12,14 +12,111 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Performance
 
 ## Features
-- Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) standards.
-- Multi-layout (default, master, stack, grid)
-- Virtual desktops
-- Resize window/partion 
-- Flip window/parition
-- Swap window/partion
-- layout applies to the desktop rather than the whole wm 
-- ...
+- **Standards Compliance:** Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) 
+- **Multiple Layouts:** Comes with default, master, stack, and grid layouts.
+- **Virtual Desktops:** Offers multiple virtual desktops.
+- **Low memory footprint:** Runs within ~2MB of memory
+- **Window Management:** Resize, flip, and swap windows or partitions.
+- **Desktop-Specific Layouts:** Layouts apply to individual desktops.
+- **Customizablity:** Highly customizable settings.
+- **Keyboard-Driven:** Fully controlled via keyboard shortcuts.
+- **Status Bar Compatibility:**  Can integrate with any status bar.
+
+## The underlying data structure:
+ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
+- Each desktop has its own pointer to a bsp-tree
+- The tree is a partition of a monitor's rectangle into smaller rectangular regions.
+- Each leaf node holds exactly one window.
+- Each node in a bsp-tree either has zero or two children.
+- Each internal node is responsible for splitting a rectangle in half.
+
+#### The following should illustrate how bsp-tree is used to achive window managment:
+```
+    Window and Partition Structure in a BSP-tree:
+
+    The layout of windows in BSPWM follows a binary tree structure:
+    
+         I         ROOT (root is an INTERNAL NODE, unless it is a leaf by definition)
+       /   \
+      I     I      INTERNAL NODES (screen sections/partitions)
+     /     / \
+    E     E   E    EXTERNAL NODES (windows/leaves)
+
+    - Internal Nodes (I) represent screen sections where windows can be displayed.
+    - External Nodes (E) represent the actual windows within those sections.
+    - Windows (E nodes) share the width, height, and coordinates (x, y) of their   parent sections (I nodes).
+ 
+    Example Structure:
+
+         I
+       /   \
+      I     I
+     /     / \
+    E     E   I
+             / \
+            E   E
+
+    Partition Behavior:
+    - Internal nodes (I) can contain other partitions or be contained within other partitions.
+    - External nodes (E) are the leaves (actual windows).
+
+    Example of tree:
+    - 1, 2, 3 are leaves/windows (EXTERNAL_NODE).
+    - a, b are internal nodes (INTERNAL_NODE), or screen sections/partitions.
+
+            1                          a                          a
+                                      / \                        / \
+                       --->          1   2         --->         1   b
+                                                               / \
+                                                              2   3
+                                                                   
+
+    Visualization of Screen Layout:
+
+    +-----------------------+  +-----------------------+  +-----------------------+
+    |                       |  |           |           |  |           |           |
+    |                       |  |           |           |  |           |     2     |
+    |                       |  |           |           |  |           |           |
+    |           1           |  |     1     |     2     |  |     1     |-----------|
+    |           ^           |  |           |     ^     |  |           |           |
+    |                       |  |           |           |  |           |     3     |
+    |                       |  |           |           |  |           |     ^     |
+    +-----------------------+  +-----------------------+  +-----------------------+
+
+	Another Example:
+	- Numbers are the are leaves/windows (EXTERNAL_NODE).
+	- Letters are internal nodes (INTERNAL_NODE), or screen sections/partitions.
+
+	        a                          a                          a
+           / \                        / \                        / \
+          1   b         --->         c   b         --->         c   b
+             / \                    / \ / \                    / \ / \
+            2   3                  1  4 2  3                  d  4 2  3
+                                                             / \
+                                                            5   1
+                                                            
+
+	+-----------------------+  +-----------------------+  +-----------------------+
+	|           |           |  |           |           |  |     |     |           |
+	|           |     2     |  |     1     |     2     |  |  5  |  1  |     2     |
+	|           |           |  |           |           |  |     |     |           |
+	|     1     |-----------|  |-----------|-----------|  |-----------|-----------|
+	|           |           |  |           |           |  |           |           |
+	|           |     3     |  |     4     |     3     |  |     4     |     3     |
+	|           |           |  |           |           |  |           |           |
+	+-----------------------+  +-----------------------+  +-----------------------+
+
+```
+## Screenshots:
+<p align="left">
+  <img src="https://github.com/Yazeed1s/zwm/blob/main/docs/img/img1.png" width="1000">
+</p>
+<p align="left">
+  <img src="https://github.com/Yazeed1s/zwm/blob/main/docs/img/img2.png" width="1000">
+</p>
+<p align="left">
+  <img src="https://github.com/Yazeed1s/zwm/blob/main/docs/img/img3.png" width="1000">
+</p>
 
 ## Installation
 ### Build from source
