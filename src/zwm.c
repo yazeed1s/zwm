@@ -64,9 +64,10 @@
 	 XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT)
 #define CLIENT_EVENT_MASK                                                 \
 	(XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |       \
-	 XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |          \
-	 XCB_KEY_PRESS | XCB_KEY_RELEASE)
-#define ROOT_EVENT_MASK	   (SUBSTRUCTURE_REDIRECTION)
+	 XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW)
+#define ROOT_EVENT_MASK                                                   \
+	(SUBSTRUCTURE_REDIRECTION | XCB_EVENT_MASK_BUTTON_PRESS |             \
+	 XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW)
 
 #define LENGTH(x)		   (sizeof(x) / sizeof(*x))
 #define CLEANMASK(mask)	   (mask & ~(0 | XCB_MOD_MASK_LOCK))
@@ -78,12 +79,18 @@
 #define SUPER_MASK		   XCB_MOD_MASK_4
 #define SHIFT_MASK		   XCB_MOD_MASK_SHIFT
 #define CTRL_MASK		   XCB_MOD_MASK_CONTROL
+#define CLICK_TO_FOCUS	   XCB_BUTTON_INDEX_1
 
-wm_t	*wm	  = NULL;
-config_t conf = {0};
+wm_t				 *wm   = NULL;
+config_t			  conf = {0};
+uint16_t			  num_lock;
+uint16_t			  caps_lock;
+uint16_t			  scroll_lock;
+int8_t				  click_to_focus;
 
 // clang-format off
-static _key__t keys_[] = {
+// X11/keysymdef.h
+static const _key__t keys_[] = {
 	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL                            },
 	{SUPER_MASK,              XK_Return,
     exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          	     },
@@ -96,6 +103,10 @@ static _key__t keys_[] = {
 	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})             },
 	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})             },
 	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})             },
+	{SUPER_MASK,              XK_Left,   cycle_win_wrapper,         &((arg_t){.d = LEFT})            },
+	{SUPER_MASK,              XK_Right,  cycle_win_wrapper,         &((arg_t){.d = RIGHT})           },
+	{SUPER_MASK,              XK_Up,     cycle_win_wrapper,         &((arg_t){.d = UP})              },
+	{SUPER_MASK,              XK_Down,   cycle_win_wrapper,         &((arg_t){.d = DOWN})            },
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
 	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
@@ -112,7 +123,25 @@ static _key__t keys_[] = {
     {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})            },
     {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            				 },
 };
+
+#define XK_Pointer_Left                  0xfee0
+#define XK_Pointer_Right                 0xfee1
+#define XK_Pointer_Up                    0xfee2
+#define XK_Pointer_Down                  0xfee3
+#define XK_Pointer_UpLeft                0xfee4
+#define XK_Pointer_UpRight               0xfee5
+#define XK_Pointer_DownLeft              0xfee6
+#define XK_Pointer_DownRight             0xfee7
+#define XK_Pointer_Button_Dflt           0xfee8
+#define XK_Pointer_Button1               0xfee9
+#define XK_Pointer_Button2               0xfeea
+#define XK_Pointer_Button3               0xfeeb
+#define XK_Pointer_Button4               0xfeec
+#define XK_Pointer_Button5               0xfeed
 // clang-format on
+
+static const uint32_t buttons_[] = {
+	XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
 
 int
 len_of_digits(long n)
@@ -304,6 +333,51 @@ ewmh_update_desktop_names()
 		return -1;
 	}
 	return 0;
+}
+
+int16_t
+modfield_from_keysym(xcb_keysym_t keysym)
+{
+	uint16_t	   modfield = 0;
+	xcb_keycode_t *keycodes = NULL, *mod_keycodes = NULL;
+	xcb_get_modifier_mapping_reply_t *reply = NULL;
+	xcb_key_symbols_t *symbols = xcb_key_symbols_alloc(wm->connection);
+
+	if ((keycodes = xcb_key_symbols_get_keycode(symbols, keysym)) ==
+			NULL ||
+		(reply = xcb_get_modifier_mapping_reply(
+			 wm->connection,
+			 xcb_get_modifier_mapping(wm->connection),
+			 NULL)) == NULL ||
+		reply->keycodes_per_modifier < 1 ||
+		(mod_keycodes = xcb_get_modifier_mapping_keycodes(reply)) ==
+			NULL) {
+		goto end;
+	}
+
+	unsigned int num_mod =
+		xcb_get_modifier_mapping_keycodes_length(reply) /
+		reply->keycodes_per_modifier;
+	for (unsigned int i = 0; i < num_mod; i++) {
+		for (unsigned int j = 0; j < reply->keycodes_per_modifier; j++) {
+			xcb_keycode_t mk =
+				mod_keycodes[i * reply->keycodes_per_modifier + j];
+			if (mk == XCB_NO_SYMBOL) {
+				continue;
+			}
+			for (xcb_keycode_t *k = keycodes; *k != XCB_NO_SYMBOL; k++) {
+				if (*k == mk) {
+					modfield |= (1 << i);
+				}
+			}
+		}
+	}
+
+end:
+	xcb_key_symbols_free(symbols);
+	free(keycodes);
+	free(reply);
+	return modfield;
 }
 
 void
@@ -515,6 +589,36 @@ flip_node_wrapper()
 }
 
 int
+cycle_win_wrapper(arg_t *arg)
+{
+	direction_t d	 = arg->d;
+	// xcb_window_t w =
+	// 	get_window_under_cursor(wm->connection, wm->root_window);
+	node_t	   *root = wm->desktops[get_focused_desktop_idx()]->tree;
+	node_t	   *f	 = get_focused_node(root);
+	if (f == NULL) {
+		log_message(INFO, "cannot find focused window");
+		xcb_window_t w =
+			get_window_under_cursor(wm->connection, wm->root_window);
+		f = find_node_by_window_id(root, w);
+	}
+	node_t *next = cycle_win(f, d);
+	if (next == NULL) {
+		return 0;
+	}
+
+	log_message(INFO,
+				"found node %d name %s",
+				next->client->window,
+				win_name(next->client->window));
+	set_focus(next, true);
+	set_active_window_name(next->client->window);
+	update_grabbed_window(root, next);
+
+	return 0;
+}
+
+int
 traverse_stack_wrapper(arg_t *arg)
 {
 	direction_t	 d = arg->d;
@@ -686,6 +790,18 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	return c;
 }
 
+void
+init_pointer(void)
+{
+	num_lock	   = modfield_from_keysym(0xff7f);
+	caps_lock	   = modfield_from_keysym(0xffe5);
+	scroll_lock	   = modfield_from_keysym(0xff14);
+	click_to_focus = CLICK_TO_FOCUS;
+	if (caps_lock == XCB_NO_SYMBOL) {
+		caps_lock = XCB_MOD_MASK_LOCK;
+	}
+}
+
 desktop_t *
 init_desktop()
 {
@@ -851,6 +967,8 @@ init_wm()
 
 	if (!setup_ewmh())
 		return NULL;
+
+	// init_pointer();
 
 	return wm;
 }
@@ -1212,6 +1330,140 @@ get_keysym(xcb_keycode_t keycode, xcb_conn_t *conn)
 	xcb_key_symbols_free(keysyms);
 
 	return keysym;
+}
+
+void
+window_grab_button(xcb_window_t win, uint8_t button, uint16_t modifier)
+{
+#define __GRAB__(btn, mod)                                                \
+	xcb_grab_button(wm->connection,                                       \
+					false,                                                \
+					win,                                                  \
+					XCB_EVENT_MASK_BUTTON_PRESS,                          \
+					XCB_GRAB_MODE_SYNC,                                   \
+					XCB_GRAB_MODE_ASYNC,                                  \
+					XCB_NONE,                                             \
+					XCB_NONE,                                             \
+					btn,                                                  \
+					mod)
+	__GRAB__(button, modifier);
+	if (num_lock != XCB_NO_SYMBOL && caps_lock != XCB_NO_SYMBOL &&
+		scroll_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | num_lock | caps_lock | scroll_lock);
+	}
+	if (num_lock != XCB_NO_SYMBOL && caps_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | num_lock | caps_lock);
+	}
+	if (caps_lock != XCB_NO_SYMBOL && scroll_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | caps_lock | scroll_lock);
+	}
+	if (num_lock != XCB_NO_SYMBOL && scroll_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | num_lock | scroll_lock);
+	}
+	if (num_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | num_lock);
+	}
+	if (caps_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | caps_lock);
+	}
+	if (scroll_lock != XCB_NO_SYMBOL) {
+		__GRAB__(button, modifier | scroll_lock);
+	}
+#undef __GRAB__
+}
+
+void
+window_grab_buttons(xcb_window_t win)
+{
+	for (unsigned int i = 0; i < LENGTH(buttons_); i++) {
+		if (click_to_focus == (int8_t)XCB_BUTTON_INDEX_ANY ||
+			click_to_focus == (int8_t)buttons_[i]) {
+			window_grab_button(win, buttons_[i], XCB_NONE);
+		}
+	}
+}
+
+void
+window_ungrab_buttons(xcb_window_t win)
+{
+	xcb_void_cookie_t cookie = xcb_ungrab_button_checked(
+		wm->connection, XCB_BUTTON_INDEX_ANY, win, XCB_MOD_MASK_ANY);
+
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	if (err != NULL) {
+		log_message(
+			ERROR,
+			"Errror in ungrab buttons for window %d: error code %d",
+			win,
+			err->error_code);
+		free(err);
+		return;
+	}
+}
+
+void
+ungrab_buttons_for_all(node_t *n)
+{
+	if (n == NULL)
+		return;
+
+	bool flag = n->node_type != INTERNAL_NODE && n->client != NULL;
+
+	if (flag) {
+		xcb_ungrab_button(wm->connection,
+						  XCB_BUTTON_INDEX_ANY,
+						  n->client->window,
+						  XCB_MOD_MASK_ANY);
+	}
+
+	ungrab_buttons_for_all(n->first_child);
+	ungrab_buttons_for_all(n->second_child);
+}
+
+void
+grab_buttons(xcb_window_t win)
+{
+
+	xcb_void_cookie_t	 cookie;
+	xcb_generic_error_t *error;
+	// cookie =
+	// 	xcb_ungrab_button(conn, XCB_BUTTON_INDEX_ANY, win, XCB_GRAB_ANY);
+	// if (error) {
+	// 	log_message(
+	// 		ERROR, "Error ungrabbing button: %d\n", error->error_code);
+	// 	free(error);
+	// 	return -1;
+	// }
+
+	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
+	//  XCB_BUTTON_INDEX_1 = The left mouse button
+	//  XCB_BUTTON_INDEX_2 = The right mouse button
+	// 	XCB_BUTTON_INDEX_3 = The middle mouse button
+	// 	XCB_BUTTON_INDEX_4 =  Scroll wheel
+	// 	XCB_BUTTON_INDEX_5 = Scroll wheel
+	const size_t		 n = sizeof(buttons_) / sizeof(buttons_[0]);
+	for (size_t i = 0; i < n; ++i) {
+		cookie = xcb_grab_button_checked(wm->connection,
+										 false,
+										 win,
+										 XCB_EVENT_MASK_BUTTON_PRESS,
+										 XCB_GRAB_MODE_ASYNC,
+										 XCB_GRAB_MODE_ASYNC,
+										 wm->root_window,
+										 XCB_NONE,
+										 buttons_[i],
+										 XCB_MOD_MASK_ANY);
+		error  = xcb_request_check(wm->connection, cookie);
+		if (error) {
+			log_message(ERROR,
+						"Error grabbing right mouse button: %d\n",
+						error->error_code);
+			free(error);
+			return;
+		}
+	}
+
+	xcb_flush(wm->connection);
 }
 
 int
@@ -1743,6 +1995,11 @@ switch_desktop(const int nd)
 		return -1;
 	}
 
+	if (!conf.focus_follow_pointer) {
+		set_active_window_name(XCB_NONE);
+		// win_focus(XCB_NONE, false);
+	}
+
 	c = xcb_change_window_attributes_checked(
 		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
 	err = xcb_request_check(wm->connection, c);
@@ -2191,7 +2448,15 @@ handle_map_request(xcb_map_request_event_t *ev)
 		/* 	goto float_; */
 		/* } */
 		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+		if (client == 0x00) {
+			log_message(ERROR, "cannot allocate memory for client");
+			return -1;
+		}
 		client->state = TILED;
+		if (!conf.focus_follow_pointer) {
+			grab_buttons(client->window);
+		}
+		//  window_grab_buttons(client->window);
 		if (is_tree_empty(d->tree)) {
 			return handle_first_window(client, d);
 		}
@@ -2246,7 +2511,18 @@ handle_map_request(xcb_map_request_event_t *ev)
 		free(name);
 #endif
 		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+		if (client == 0x00) {
+			log_message(ERROR, "cannot allocate memory for client");
+			return -1;
+		}
 		client->state = FLOATING;
+		/* if (grab_buttons(wm->connection, client->window) != 0) { */
+		/* 	log_message(ERROR, "cannot garb client button (map"); */
+		/* } */
+		if (!conf.focus_follow_pointer) {
+			grab_buttons(client->window);
+		}
+		/* window_grab_buttons(client->window); */
 		return handle_floating_window(client, d);
 	}
 
@@ -2281,7 +2557,28 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		win = wm->desktops[curd]->top_w;
 	}
 
-	node_t	 *root	 = wm->desktops[curd]->tree;
+	node_t *root = wm->desktops[curd]->tree;
+
+	if (!conf.focus_follow_pointer) {
+		node_t	 *n = find_node_by_window_id(root, win);
+		client_t *client =
+			(n != NULL && n->client != NULL) ? n->client : NULL;
+
+		if (client == NULL) {
+			return 0;
+		}
+		if (has_floating_window(root)) {
+			restack(root);
+		}
+		if (n->client->state == FULLSCREEN) {
+			if (fulllscreen_focus(n->client->window)) {
+				log_message(ERROR, "cannot update win attributes");
+				return -1;
+			}
+		}
+		return 0;
+	}
+
 	node_t	 *n		 = find_node_by_window_id(root, win);
 	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
 
@@ -2322,6 +2619,13 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		restack(root);
 	}
 
+	update_focus(root, n);
+
+	/* if (grab_buttons(wm->connection, client->window) != 0) { */
+	/* 	log_message(ERROR, "ERROR while grabbin buttons for client"); */
+	/* 	return 0; */
+	/* } */
+
 #ifdef _DEBUG__
 	log_tree_nodes(root);
 #endif
@@ -2331,6 +2635,10 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 int
 handle_leave_notify(const xcb_leave_notify_event_t *ev)
 {
+	if (!conf.focus_follow_pointer) {
+		return 0;
+	}
+
 	xcb_window_t win = ev->event;
 
 	if (wm->bar != NULL && win == wm->bar->window) {
@@ -2673,6 +2981,113 @@ handle_destroy_notify(xcb_window_t win)
 }
 
 void
+update_grabbed_window(node_t *root, node_t *n)
+{
+	if (root == NULL)
+		return;
+
+	bool flag = root->node_type != INTERNAL_NODE && root->client != NULL;
+	if (flag && root != n) {
+		set_focus(root, false);
+		grab_buttons(root->client->window);
+	}
+
+	update_grabbed_window(root->first_child, n);
+	update_grabbed_window(root->second_child, n);
+}
+
+void
+handle_button_press_event(xcb_button_press_event_t *ev)
+{
+	if (conf.focus_follow_pointer) {
+		return;
+	}
+
+	log_message(DEBUG,
+				"RCIEVED BUTTON PRESS EVENT window %d, window name %s",
+				ev->event,
+				win_name(ev->event));
+	/* bool replay = false; */
+	/* for (unsigned int i = 0; i < LENGTH(buttons_); i++) { */
+	/* 	if (ev->detail != buttons_[i]) { */
+	/* 		continue; */
+	/* 	} */
+	/* 	if ((click_to_focus == (int8_t)XCB_BUTTON_INDEX_ANY || */
+	/* 		 click_to_focus == (int8_t)buttons_[i]) && */
+	/* 		(ev->state & ~(num_lock | scroll_lock | caps_lock)) == */
+	/* 			XCB_NONE) { */
+	/* 	} */
+	/* } */
+
+	xcb_window_t win = ev->event;
+
+	if (wm->bar != NULL && win == wm->bar->window) {
+		return;
+	}
+
+	if (!window_exists(wm->connection, win)) {
+		return;
+	}
+
+	const int curd = get_focused_desktop_idx();
+	if (curd == -1)
+		return;
+
+	if (wm->desktops[curd]->layout == STACK) {
+		win = wm->desktops[curd]->top_w;
+	}
+
+	node_t	 *root	 = wm->desktops[curd]->tree;
+	node_t	 *n		 = find_node_by_window_id(root, win);
+	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
+
+	if (client == NULL) {
+		return;
+	}
+
+	if (win == wm->root_window) {
+		return;
+	}
+
+	update_grabbed_window(root, n);
+	window_ungrab_buttons(client->window);
+
+	const int r = set_active_window_name(win);
+	if (r != 0) {
+		return;
+	}
+
+	if (n->client->state == FLOATING) {
+		restack(root);
+		if (win_focus(n->client->window, true) != 0) {
+			log_message(ERROR,
+						"cannot focus window %d (enter)",
+						n->client->window);
+			return;
+		}
+	} else if (n->client->state == FULLSCREEN) {
+		if (fulllscreen_focus(n->client->window)) {
+			log_message(ERROR, "cannot update win attributes");
+			return;
+		}
+	} else {
+		if (set_focus(n, true) != 0) {
+			log_message(ERROR, "cannot focus node (enter)");
+			return;
+		}
+	}
+
+	if (has_floating_window(root)) {
+		restack(root);
+	}
+
+	update_focus(root, n);
+	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
+
+	xcb_flush(wm->connection);
+}
+
+void
 log_active_desktop()
 {
 	for (int i = 0; i < wm->n_of_desktops; i++) {
@@ -2752,14 +3167,19 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (load_config(&conf) != 0) {
-		log_message(ERROR,
-					"error while loding config -> using default macros");
-		conf.active_border_color = ACTIVE_BORDER_COLOR;
-		conf.normal_border_color = NORMAL_BORDER_COLOR;
-		conf.border_width		 = BORDER_WIDTH;
-		conf.window_gap			 = W_GAP;
-	}
+	// if (load_config(&conf) != 0) {
+	// 	log_message(ERROR,
+	// 				"error while loding config -> using default macros");
+	// 	conf.active_border_color = ACTIVE_BORDER_COLOR;
+	// 	conf.normal_border_color = NORMAL_BORDER_COLOR;
+	// 	conf.border_width		 = BORDER_WIDTH;
+	// 	conf.window_gap			 = W_GAP;
+	// }
+	conf.active_border_color  = ACTIVE_BORDER_COLOR;
+	conf.normal_border_color  = NORMAL_BORDER_COLOR;
+	conf.border_width		  = BORDER_WIDTH;
+	conf.window_gap			  = W_GAP;
+	conf.focus_follow_pointer = !FOCUS_FOLLOW_POINTER;
 
 	if (argc >= 2) {
 		parse_args(argc, argv);
@@ -2871,9 +3291,9 @@ main(int argc, char **argv)
 			break;
 		}
 		case XCB_BUTTON_PRESS: {
-			__attribute__((unused))
 			xcb_button_press_event_t *button_press =
 				(xcb_button_press_event_t *)event;
+			handle_button_press_event(button_press);
 			break;
 		}
 		case XCB_BUTTON_RELEASE: {
@@ -2913,7 +3333,11 @@ main(int argc, char **argv)
 			if (0 != grab_keys(wm->connection, wm->root_window)) {
 				log_message(ERROR, "cannot grab keys");
 			}
-			break;
+			/* else if (0 != */
+			/* 		   grab_buttons(wm->connection, wm->root_window)) { */
+			/* 	log_message(ERROR, "cannot grab buttons"); */
+			/* } */
+			/* break; */
 		}
 		default: {
 			/* log_message(DEBUG, "event %d", event->response_type &

@@ -40,6 +40,7 @@ node_t   *find_master_node(node_t *root);
 node_t   *prev_node(node_t *current);
 node_t   *next_node(node_t *current);
 node_t   *find_tree_root(node_t *);
+node_t   *cycle_win(node_t *node, direction_t);
 void     unlink_node(node_t *node, desktop_t *d);
 void	 restack(node_t *root);
 void 	 apply_master_layout(node_t *parent);
