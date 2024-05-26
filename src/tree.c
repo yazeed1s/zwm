@@ -33,6 +33,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
@@ -1344,6 +1345,9 @@ hide_windows(node_t *cn)
 		if (set_focus(cn, false) != 0) {
 			return -1;
 		}
+		if (!conf.focus_follow_pointer) {
+			grab_buttons(cn->client->window);
+		}
 	}
 
 	hide_windows(cn->first_child);
@@ -2137,3 +2141,228 @@ swap_node(node_t *n)
 
 	return 0;
 }
+
+bool
+is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
+{
+	switch (d) {
+	case LEFT:
+		return rect2->x + rect2->width <= rect1->x &&
+			   rect1->y < rect2->y + rect2->height &&
+			   rect1->y + rect1->height > rect2->y;
+	case RIGHT:
+		return rect2->x >= rect1->x + rect1->width &&
+			   rect1->y < rect2->y + rect2->height &&
+			   rect1->y + rect1->height > rect2->y;
+	case UP:
+		return rect2->y + rect2->height <= rect1->y &&
+			   rect1->x < rect2->x + rect2->width &&
+			   rect1->x + rect1->width > rect2->x;
+	case DOWN:
+		return rect2->y >= rect1->y + rect1->height &&
+			   rect1->x < rect2->x + rect2->width &&
+			   rect1->x + rect1->width > rect2->x;
+	default: return false;
+	}
+}
+
+node_t *
+find_closest_neighbor(node_t *root, node_t *node, direction_t d)
+{
+	if (root == NULL)
+		return NULL;
+
+	node_t *closest			 = NULL;
+	int		closest_distance = INT16_MAX;
+
+	node_t *queue[50];
+	int		front = 0, rear = 0;
+	queue[rear++] = root;
+
+	while (front < rear) {
+		node_t *current = queue[front++];
+
+		if (current == node)
+			continue;
+		if (current->node_type == EXTERNAL_NODE &&
+			current->client != NULL &&
+			is_within_range(&node->rectangle, &current->rectangle, d)) {
+			int distance;
+			switch (d) {
+			case LEFT:
+				distance = node->rectangle.x - (current->rectangle.x +
+												current->rectangle.width);
+				break;
+			case RIGHT:
+				distance = current->rectangle.x -
+						   (node->rectangle.x + node->rectangle.width);
+				break;
+			case UP:
+				distance = node->rectangle.y - (current->rectangle.y +
+												current->rectangle.height);
+				break;
+			case DOWN:
+				distance = current->rectangle.y -
+						   (node->rectangle.y + node->rectangle.height);
+				break;
+			default: distance = INT16_MAX; break;
+			}
+			if (distance < closest_distance) {
+				closest_distance = distance;
+				closest			 = current;
+			}
+		}
+
+		if (current->first_child != NULL)
+			queue[rear++] = current->first_child;
+		if (current->second_child != NULL)
+			queue[rear++] = current->second_child;
+	}
+
+	return closest;
+}
+
+node_t *
+cycle_win(node_t *node, direction_t d)
+{
+	node_t *root = find_tree_root(node);
+	if (root == NULL) {
+		log_message(ERROR, "could not find root of tree");
+		return NULL;
+	}
+
+	node_t *neighbor = find_closest_neighbor(root, node, d);
+	if (neighbor == NULL) {
+		log_message(ERROR, "could not find neighbor node");
+		return NULL;
+	}
+
+	return neighbor;
+}
+
+bool
+is_closer_node(node_t	  *current,
+			   node_t	  *new_node,
+			   node_t	  *node,
+			   direction_t d)
+{
+	if (current == NULL)
+		return true;
+
+	switch (d) {
+	case LEFT:
+		return new_node->rectangle.x > current->rectangle.x &&
+			   new_node->rectangle.x < node->rectangle.x;
+	case RIGHT:
+		return new_node->rectangle.x < current->rectangle.x &&
+			   new_node->rectangle.x > node->rectangle.x;
+	case UP:
+		return new_node->rectangle.y > current->rectangle.y &&
+			   new_node->rectangle.y < node->rectangle.y;
+	case DOWN:
+		return new_node->rectangle.y < current->rectangle.y &&
+			   new_node->rectangle.y > node->rectangle.y;
+	default: return false;
+	}
+}
+
+node_t *
+find_neighbor(node_t *root, node_t *node, direction_t d)
+{
+	if (root == NULL || root == node)
+		return NULL;
+
+	node_t *best_node = NULL;
+
+	if (root->client != NULL) {
+		switch (d) {
+		case LEFT:
+			if (root->rectangle.x < node->rectangle.x &&
+				root->rectangle.x + root->rectangle.width <=
+					node->rectangle.x &&
+				(node->rectangle.y <
+					 root->rectangle.y + root->rectangle.height &&
+				 node->rectangle.y + node->rectangle.height >
+					 root->rectangle.y)) {
+				if (is_closer_node(best_node, root, node, d)) {
+					best_node = root;
+				}
+			}
+			break;
+		case RIGHT:
+			if (root->rectangle.x >
+					node->rectangle.x + node->rectangle.width &&
+				(node->rectangle.y <
+					 root->rectangle.y + root->rectangle.height &&
+				 node->rectangle.y + node->rectangle.height >
+					 root->rectangle.y)) {
+				if (is_closer_node(best_node, root, node, d)) {
+					best_node = root;
+				}
+			}
+			break;
+		case UP:
+			if (root->rectangle.y < node->rectangle.y &&
+				root->rectangle.y + root->rectangle.height <=
+					node->rectangle.y &&
+				(node->rectangle.x <
+					 root->rectangle.x + root->rectangle.width &&
+				 node->rectangle.x + node->rectangle.width >
+					 root->rectangle.x)) {
+				if (is_closer_node(best_node, root, node, d)) {
+					best_node = root;
+				}
+			}
+			break;
+		case DOWN:
+			if (root->rectangle.y >
+					node->rectangle.y + node->rectangle.height &&
+				(node->rectangle.x <
+					 root->rectangle.x + root->rectangle.width &&
+				 node->rectangle.x + node->rectangle.width >
+					 root->rectangle.x)) {
+				if (is_closer_node(best_node, root, node, d)) {
+					best_node = root;
+				}
+			}
+			break;
+		default: break;
+		}
+	}
+
+	if (root->first_child != NULL) {
+		node_t *child_result = find_neighbor(root->first_child, node, d);
+		if (child_result != NULL &&
+			is_closer_node(best_node, child_result, node, d)) {
+			best_node = child_result;
+		}
+	}
+
+	if (root->second_child != NULL) {
+		node_t *child_result = find_neighbor(root->second_child, node, d);
+		if (child_result != NULL &&
+			is_closer_node(best_node, child_result, node, d)) {
+			best_node = child_result;
+		}
+	}
+
+	return best_node;
+}
+
+// node_t *
+// cycle_win(node_t *node, direction_t d)
+// {
+// 	node_t *root = find_tree_root(node);
+// 	if (root == NULL) {
+// 		log_message(ERROR, "could not find root of tree");
+// 		return NULL;
+// 	}
+
+// 	node_t *neighbor = find_neighbor(root, node, d);
+// 	if (neighbor == NULL) {
+// 		log_message(ERROR, "could not find neighbor node");
+// 		return NULL;
+// 	}
+
+// 	return neighbor;
+// }
