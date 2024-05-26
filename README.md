@@ -87,7 +87,7 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 	- Numbers are the are leaves/windows (EXTERNAL_NODE).
 	- Letters are internal nodes (INTERNAL_NODE), or screen sections/partitions.
 
-	        a                          a                          a
+            a                          a                          a
            / \                        / \                        / \
           1   b         --->         c   b         --->         c   b
              / \                    / \ / \                    / \ / \
@@ -138,6 +138,7 @@ active_border_color = 0x83a598
 normal_border_color = 0x30302f
 window_gap = 10
 virtual_desktops = 5
+focus_follow_pointer = true
 ```
 Available Variables:
 - border_width: Defines the width of the window borders in pixels.
@@ -145,6 +146,7 @@ Available Variables:
 - normal_border_color: Specifies the color of the border for inactive (unfocused) windows.
 - window_gap: Sets the gap between windows in pixels.
 - virtual_desktops: sets the number of virtual desktops.
+- focus_follow_pointer: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
 
 ### 2- Config keys
 ```ini
@@ -205,20 +207,24 @@ More options will be added in the future as development progresses.
 | Key            | Description |
 | ---------------| ----------- |
 | `super + w`       | kill/close window |
-| `super + return`       | launches a terminal (alacritty)                            |
-| `super + space`       | launches dmenu |
-| `super + p `      | launches rofi |
-| `super + [desktop number 1..N]`            | switches the desktop |
+| `super + return`       | launche a terminal (alacritty)                            |
+| `super + space`       | launche dmenu |
+| `super + p `      | launche rofi |
+| `super + [desktop number 1..N]`            | switche the desktop |
 | `super + l`            | resize window (grow/expand) |
 | `super + h`            | resize window (shrink) |
-| `super + f`            | toggles fullscreen |
-| `super + shift + [desktop number 1..N]`          | transfers window to a diff desktop |
-| `super + shift + m`        | toggles master layout |
-| `super + shift + s`            | toggles stack layout |
-| `super + shift + d`            | toggles default layout |
+| `super + f`            | toggle fullscreen |
+| `super + shift + [desktop number 1..N]`          | transfer window to a diff desktop |
+| `super + shift + m`        | toggle master layout |
+| `super + shift + s`            | toggle stack layout |
+| `super + shift + d`            | toggle default layout |
 | `super + shift + j/k`            | traverse the stack |
-| `super + shift + f`            | flips the window/partion |
-| `super + s`            | swaps window's orientation |
+| `super + shift + f`            | flip the window/partion |
+| `super + s`            | swap window's orientation |
+| `super + ←`       | focus window on the left        |
+| `super + ↑`       | focus window above              |
+| `super + →`       | focus window on the right       |
+| `super + ↓`       | focus window below              |
 
 ## ewmh specific settings for polyabr
 ### To display the window name (CLASS_NAME):
