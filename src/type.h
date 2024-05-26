@@ -35,14 +35,15 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
-#define CAP					3
-#define W_GAP				10
-#define MAXLEN				(2 << 7)
-#define DLEN				(2 << 4)
-#define NULL_STR			"N/A"
-#define NORMAL_BORDER_COLOR 0x30302f
-#define ACTIVE_BORDER_COLOR 0x83a598
-#define BORDER_WIDTH		2
+#define CAP					 3
+#define W_GAP				 10
+#define MAXLEN				 (2 << 7)
+#define DLEN				 (2 << 4)
+#define NULL_STR			 "N/A"
+#define NORMAL_BORDER_COLOR	 0x30302f
+#define ACTIVE_BORDER_COLOR	 0x83a598
+#define BORDER_WIDTH		 2
+#define FOCUS_FOLLOW_POINTER true
 
 typedef xcb_connection_t xcb_conn_t;
 
@@ -242,6 +243,7 @@ typedef struct {
 	uint32_t active_border_color;
 	uint32_t normal_border_color;
 	int		 virtual_desktops;
+	bool	 focus_follow_pointer;
 	// _key__t *keys;
 	// size_t	 key_size;
 } config_t;
