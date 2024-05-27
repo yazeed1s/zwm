@@ -215,9 +215,9 @@ More options will be added in the future as development progresses.
 | Key            | Description |
 | ---------------| ----------- |
 | `super + w`       | kill/close window |
-| `super + return`       | launche a terminal (alacritty)                            |
-| `super + space`       | launche dmenu |
-| `super + p `      | launche rofi |
+| `super + return`       | launch a terminal (alacritty)                            |
+| `super + space`       | launch dmenu |
+| `super + p `      | launch rofi |
 | `super + [desktop number 1..N]`            | switche the desktop |
 | `super + l`            | resize window (grow/expand) |
 | `super + h`            | resize window (shrink) |
