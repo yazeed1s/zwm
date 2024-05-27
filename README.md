@@ -39,8 +39,8 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
          I         ROOT (root is an INTERNAL NODE, unless it is a leaf by definition)
        /   \
       I     I      INTERNAL NODES (screen sections/partitions)
-     /     / \
-    E     E   E    EXTERNAL NODES (windows/leaves)
+     / \   / \
+    E   E E   E    EXTERNAL NODES (windows/leaves)
 
     - Internal Nodes (I) represent screen sections where windows can be displayed.
     - External Nodes (E) represent the actual windows within those sections.
@@ -51,8 +51,8 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
          I
        /   \
       I     I
-     /     / \
-    E     E   I
+     / \   / \
+    E   E E   I
              / \
             E   E
 
@@ -78,9 +78,9 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
     |                       |  |           |           |  |           |     2     |
     |                       |  |           |           |  |           |           |
     |           1           |  |     1     |     2     |  |     1     |-----------|
-    |           ^           |  |           |     ^     |  |           |           |
+    |                       |  |           |           |  |           |           |
     |                       |  |           |           |  |           |     3     |
-    |                       |  |           |           |  |           |     ^     |
+    |                       |  |           |           |  |           |           |
     +-----------------------+  +-----------------------+  +-----------------------+
 
 	Another Example:
@@ -91,19 +91,19 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
            / \                        / \                        / \
           1   b         --->         c   b         --->         c   b
              / \                    / \ / \                    / \ / \
-            2   3                  1  4 2  3                  d  4 2  3
-                                                             / \
-                                                            5   1
+            2   3                  1  4 2  3                  1  d 2  3
+                                                             	/ \
+                                                               4   5
                                                             
 
 	+-----------------------+  +-----------------------+  +-----------------------+
-	|           |           |  |           |           |  |     |     |           |
-	|           |     2     |  |     1     |     2     |  |  5  |  1  |     2     |
-	|           |           |  |           |           |  |     |     |           |
+	|           |           |  |           |           |  |           |           |
+	|           |     2     |  |     1     |     2     |  |     1     |     2     |
+	|           |           |  |           |           |  |           |           |
 	|     1     |-----------|  |-----------|-----------|  |-----------|-----------|
-	|           |           |  |           |           |  |           |           |
-	|           |     3     |  |     4     |     3     |  |     4     |     3     |
-	|           |           |  |           |           |  |           |           |
+	|           |           |  |           |           |  |     |     |           |
+	|           |     3     |  |     4     |     3     |  |  4  |  5  |     3     |
+	|           |           |  |           |           |  |     |     |           |
 	+-----------------------+  +-----------------------+  +-----------------------+
 
 ```
@@ -163,6 +163,10 @@ key = {super + l -> func(grow)}
 key = {super + h -> func(shrink)}
 key = {super + f -> func(fullscreen)}
 key = {super + s -> func(swap)}
+key = {super + up -> func(cycle_window:up)}
+key = {super + right -> func(cycle_window:right)}
+key = {super + left -> func(cycle_window:left)}
+key = {super + down -> func(cycle_window:down)}
 key = {super|shift + 1 -> func(transfer_node)}
 key = {super|shift + 2 -> func(transfer_node)}
 key = {super|shift + 3 -> func(transfer_node)}
@@ -199,7 +203,10 @@ key = {super|shift + f -> func(flip)}
    - traverse_up: (In stack layout only) Moves focus to the window above.
    - traverse_down: (In stack layout only) Moves focus to the window below.
    - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
+   - cycle: Moves focus to the window in the specified direction
      
+- Note: the cycle function takes a direction `(UP|LEFT|RIGHT|DOWN)`;
+		the direction should be 'coloned' to the function like `cycle:up` or `cycle:down`
 
 More options will be added in the future as development progresses.
 
