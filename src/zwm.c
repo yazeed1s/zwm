@@ -613,7 +613,9 @@ cycle_win_wrapper(arg_t *arg)
 				win_name(next->client->window));
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
-	update_grabbed_window(root, next);
+	if (!conf.focus_follow_pointer) {
+		update_grabbed_window(root, next);
+	}
 
 	return 0;
 }
