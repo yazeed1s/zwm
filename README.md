@@ -64,13 +64,11 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
     - 1, 2, 3 are leaves/windows (EXTERNAL_NODE).
     - a, b are internal nodes (INTERNAL_NODE), or screen sections/partitions.
 
-            1                          a                          a
-                                      / \                        / \
-                       --->          1   2         --->         1   b
-                                                               / \
-                                                              2   3
-                                                                   
-
+            1                               a                          a
+                                           / \                        / \
+                            --->          1   2         --->         1   b
+                                                                        / \
+                                                                       2   3
     Visualization of Screen Layout:
 
     +-----------------------+  +-----------------------+  +-----------------------+
@@ -83,28 +81,27 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
     |                       |  |           |           |  |           |           |
     +-----------------------+  +-----------------------+  +-----------------------+
 
-	Another Example:
-	- Numbers are the are leaves/windows (EXTERNAL_NODE).
-	- Letters are internal nodes (INTERNAL_NODE), or screen sections/partitions.
+    Another Example:
+    - Numbers are the are leaves/windows (EXTERNAL_NODE).
+    - Letters are internal nodes (INTERNAL_NODE), or screen sections/partitions.
 
-            a                          a                          a
-           / \                        / \                        / \
-          1   b         --->         c   b         --->         c   b
-             / \                    / \ / \                    / \ / \
-            2   3                  1  4 2  3                  1  d 2  3
-                                                             	/ \
-                                                               4   5
-                                                            
+             a                             a                          a
+            / \                           / \                        / \
+           1   b            --->         c   b         --->         c   b
+              / \                       / \ / \                    / \ / \
+             2   3                     1  4 2  3                  1  d 2  3
+                                                             	    / \
+                                                                   4   5                                                            
 
-	+-----------------------+  +-----------------------+  +-----------------------+
-	|           |           |  |           |           |  |           |           |
-	|           |     2     |  |     1     |     2     |  |     1     |     2     |
-	|           |           |  |           |           |  |           |           |
-	|     1     |-----------|  |-----------|-----------|  |-----------|-----------|
-	|           |           |  |           |           |  |     |     |           |
-	|           |     3     |  |     4     |     3     |  |  4  |  5  |     3     |
-	|           |           |  |           |           |  |     |     |           |
-	+-----------------------+  +-----------------------+  +-----------------------+
+     +-----------------------+  +-----------------------+  +-----------------------+
+     |           |           |  |           |           |  |           |           |
+     |           |     2     |  |     1     |     2     |  |     1     |     2     |
+     |           |           |  |           |           |  |           |           |
+     |     1     |-----------|  |-----------|-----------|  |-----------|-----------|
+     |           |           |  |           |           |  |     |     |           |
+     |           |     3     |  |     4     |     3     |  |  4  |  5  |     3     |
+     |           |           |  |           |           |  |     |     |           |
+     +-----------------------+  +-----------------------+  +-----------------------+
 
 ```
 ## Screenshots:
