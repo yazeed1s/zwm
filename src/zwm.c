@@ -45,15 +45,6 @@
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xproto.h>
 
-#ifdef DEBUGGING
-#define DEBUG(x)	   fprintf(stderr, "%s\n", x);
-#define DEBUGP(x, ...) fprintf(stderr, x, ##__VA_ARGS__);
-#else
-#define DEBUG(x)
-#define DEBUGP(x, ...)
-#endif
-
-// handy xcb masks for common operations
 #define XCB_MOVE_RESIZE                                                   \
 	(XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |                          \
 	 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT)
@@ -122,22 +113,9 @@ static const _key__t keys_[] = {
 	{SUPER_MASK | SHIFT_MASK, XK_k,      traverse_stack_wrapper,    &((arg_t){.d = UP})              },
     {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})            },
     {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            				 },
+    {SUPER_MASK | SHIFT_MASK, XK_r,      reload_config_wrapper,   	NULL            				 },
 };
 
-#define XK_Pointer_Left                  0xfee0
-#define XK_Pointer_Right                 0xfee1
-#define XK_Pointer_Up                    0xfee2
-#define XK_Pointer_Down                  0xfee3
-#define XK_Pointer_UpLeft                0xfee4
-#define XK_Pointer_UpRight               0xfee5
-#define XK_Pointer_DownLeft              0xfee6
-#define XK_Pointer_DownRight             0xfee7
-#define XK_Pointer_Button_Dflt           0xfee8
-#define XK_Pointer_Button1               0xfee9
-#define XK_Pointer_Button2               0xfeea
-#define XK_Pointer_Button3               0xfeeb
-#define XK_Pointer_Button4               0xfeec
-#define XK_Pointer_Button5               0xfeed
 // clang-format on
 
 static const uint32_t buttons_[] = {
@@ -558,15 +536,105 @@ set_fullscreen(node_t *n, bool flag)
 					n->client->window,
 					wm->ewmh->_NET_WM_STATE,
 					wm->ewmh->_NET_WM_STATE_FULLSCREEN);
-	// xcb_void_cookie_t c = xcb_delete_property_checked(
-	// 	wm->connection, n->client->window,
-	// wm->ewmh->_NET_WM_STATE_FULLSCREEN); xcb_generic_error_t *err =
-	// xcb_request_check(wm->connection, c); if (err) { 	log_message(
-	// ERROR, "Error removing window property: %d\n", err->error_code);
-	// free(err); 	return -1;
+	// xcb_void_cookie_t c =
+	// 	xcb_delete_property_checked(wm->connection,
+	// 								n->client->window,
+	// 								wm->ewmh->_NET_WM_STATE_FULLSCREEN);
+	// xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+	// if (err) {
+	// 	log_message(ERROR,
+	// 				"Error removing window property: %d\n",
+	// 				err->error_code);
+	// 	free(err);
+	// 	return -1;
 	// }
 out:
 	xcb_flush(wm->connection);
+	return 0;
+}
+
+int
+change_colors(node_t *root)
+{
+	if (root == NULL)
+		return 0;
+
+	if (root->node_type != INTERNAL_NODE && root->client != NULL) {
+		if (win_focus(root->client->window, root->is_focused) != 0) {
+			return -1;
+		}
+	}
+
+	if (root->first_child != NULL)
+		change_colors(root->first_child);
+	if (root->second_child != NULL)
+		change_colors(root->second_child);
+
+	return 0;
+}
+
+int
+reload_config_wrapper()
+{
+	uint16_t previous_border_width		  = conf.border_width;
+	uint16_t previous_window_gap		  = conf.window_gap;
+	uint32_t previous_active_border_color = conf.active_border_color;
+	uint32_t previous_normal_border_color = conf.normal_border_color;
+	int		 previous_virtual_desktops	  = conf.virtual_desktops;
+
+	memset(&conf, 0, sizeof(config_t));
+
+	if (reload_config(&conf) != 0) {
+		log_message(
+			ERROR, "Error while reloading config -> using default macros");
+
+		conf.active_border_color  = ACTIVE_BORDER_COLOR;
+		conf.normal_border_color  = NORMAL_BORDER_COLOR;
+		conf.border_width		  = BORDER_WIDTH;
+		conf.window_gap			  = W_GAP;
+		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+		return 0;
+	}
+
+	bool color_changed =
+		(previous_normal_border_color != conf.normal_border_color) ||
+		(previous_active_border_color != conf.active_border_color);
+	bool layout_changed = (conf.window_gap != previous_window_gap) ||
+						  (conf.border_width != previous_border_width);
+
+	if (color_changed) {
+		for (int i = 0; i < wm->n_of_desktops; ++i) {
+			if (!is_tree_empty(wm->desktops[i]->tree)) {
+				if (change_colors(wm->desktops[i]->tree) != 0) {
+					log_message(
+						ERROR,
+						"error while reloading config for desktop %d",
+						wm->desktops[i]->id);
+				}
+			}
+		}
+	}
+
+	if (layout_changed) {
+		for (int i = 0; i < wm->n_of_desktops; ++i) {
+			if (!is_tree_empty(wm->desktops[i]->tree)) {
+				arrange_tree(wm->desktops[i]->tree,
+							 wm->desktops[i]->layout);
+			}
+		}
+	}
+
+	render_tree(wm->desktops[get_focused_desktop_idx()]->tree);
+
+	if (previous_virtual_desktops != conf.virtual_desktops) {
+		log_message(INFO,
+					"Reloading desktop changes is not implemented yet");
+		// TODO: do the changes required for handling virtual desktops
+		// reconfiguration
+	}
+
+	xcb_flush(wm->connection);
+
 	return 0;
 }
 
@@ -592,10 +660,9 @@ int
 cycle_win_wrapper(arg_t *arg)
 {
 	direction_t d	 = arg->d;
-	// xcb_window_t w =
-	// 	get_window_under_cursor(wm->connection, wm->root_window);
 	node_t	   *root = wm->desktops[get_focused_desktop_idx()]->tree;
 	node_t	   *f	 = get_focused_node(root);
+
 	if (f == NULL) {
 		log_message(INFO, "cannot find focused window");
 		xcb_window_t w =
@@ -611,6 +678,7 @@ cycle_win_wrapper(arg_t *arg)
 				"found node %d name %s",
 				next->client->window,
 				win_name(next->client->window));
+
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
 	if (!conf.focus_follow_pointer) {
@@ -692,11 +760,6 @@ ewmh_update_client_list()
 	if (active_clients == NULL) {
 		return;
 	}
-	// TODO: traverse trees and add window ids
-	//  to and array of type xcb_window_t
-	//  xcb_ewmh_set_client_list(...)
-	// Traverse all desktop trees and add window IDs to active_clients
-	// array
 	size_t index = 0;
 	for (int i = 0; i < wm->n_of_desktops; ++i) {
 		node_t *root = wm->desktops[i]->tree;
@@ -1053,6 +1116,7 @@ fulllscreen_focus(xcb_window_t win)
 	xcb_flush(wm->connection);
 	return 0;
 }
+
 int
 win_focus(xcb_window_t win, bool set_focus)
 {
@@ -2014,8 +2078,6 @@ switch_desktop(const int nd)
 		return -1;
 	}
 
-	xcb_flush(wm->connection);
-
 #ifdef _DEBUG__
 	log_message(INFO, "new desktop %d nodes--------------", nd + 1);
 	log_tree_nodes(wm->desktops[nd]->tree);
@@ -2026,6 +2088,8 @@ switch_desktop(const int nd)
 	if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, nd) != 0) {
 		return -1;
 	}
+
+	xcb_flush(wm->connection);
 
 	return 0;
 }
@@ -2299,6 +2363,10 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		n = find_left_leaf(d->tree);
 	}
 
+	if (n->client->state == FULLSCREEN) {
+		set_fullscreen(n, false);
+	}
+
 	if (n == NULL || n->client == NULL) {
 		log_message(ERROR, "cannot find node with window id %d", wi);
 		return -1;
@@ -2375,24 +2443,6 @@ handle_floating_window(client_t *client, desktop_t *d)
 int
 handle_map_request(xcb_map_request_event_t *ev)
 {
-	/*
-	 * https://youtrack.jetbrains.com/issue/IDEA-219971/Splash-Screen-has-an-unspecific-Window-Class
-	 * for slash windows, jetbrains' products have
-	 * _NET_WM_WINDOW_TYPE(ATOM) = _NET_WM_WINDOW_TYPE_NORMAL instead
-	 * of _NET_WM_WINDOW_TYPE(ATOM) = _NET_WM_WINDOW_TYPE_SPLASH.
-	 * ==> splash windows are tiled instead of being floated.
-	 *
-	 * check if win name == "splash" then float it regardless of
-	 * _NET_WM_WINDOW_TYPE(ATOM) type. this is a hacky solution till
-	 * jetbrains' devs fix the splash window type
-	 * */
-	// if (should_ingore_hints(win, "splash")) {
-	// 	map_floating(win);
-	// 	raise_window(wm->connection, win);
-	// 	xcb_flush(wm->connection);
-	// 	log_message(INFO, "win %d, is splash.. ignoring request", win);
-	// 	return 0;
-	// }
 	xcb_window_t win = ev->window;
 
 	if (is_transient(win)) {
@@ -2446,9 +2496,6 @@ handle_map_request(xcb_map_request_event_t *ev)
 	case -1:
 	case 0:
 	case 1: {
-		/* if (should_ingore_hints(win, "splash")) { */
-		/* 	goto float_; */
-		/* } */
 		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 		if (client == 0x00) {
 			log_message(ERROR, "cannot allocate memory for client");
@@ -2458,10 +2505,11 @@ handle_map_request(xcb_map_request_event_t *ev)
 		if (!conf.focus_follow_pointer) {
 			grab_buttons(client->window);
 		}
-		//  window_grab_buttons(client->window);
+
 		if (is_tree_empty(d->tree)) {
 			return handle_first_window(client, d);
 		}
+
 		return handle_subsequent_window(client, d);
 	}
 	case 2: {
@@ -2518,13 +2566,10 @@ handle_map_request(xcb_map_request_event_t *ev)
 			return -1;
 		}
 		client->state = FLOATING;
-		/* if (grab_buttons(wm->connection, client->window) != 0) { */
-		/* 	log_message(ERROR, "cannot garb client button (map"); */
-		/* } */
 		if (!conf.focus_follow_pointer) {
 			grab_buttons(client->window);
 		}
-		/* window_grab_buttons(client->window); */
+
 		return handle_floating_window(client, d);
 	}
 
@@ -2673,7 +2718,7 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 
 	xcb_get_property_cookie_t c =
 		xcb_ewmh_get_active_window(wm->ewmh, wm->screen_nbr);
-	// uint8_t w =
+
 	xcb_ewmh_get_active_window_reply(wm->ewmh, c, &active_window, NULL);
 	if (active_window != client->window) {
 		return 0;
@@ -3147,7 +3192,7 @@ free_desktops(desktop_t **d, int n)
 void
 parse_args(int argc, char **argv)
 {
-	// quick and dirty solution
+	// quick and dirty approach
 	char *c = NULL;
 	if (strcmp(argv[1], "-r") == 0 || strcmp(argv[1], "-run") == 0) {
 		if (argc >= 2) {
@@ -3192,9 +3237,6 @@ main(int argc, char **argv)
 		case XCB_MAP_REQUEST: {
 			xcb_map_request_event_t *map_request =
 				(xcb_map_request_event_t *)event;
-			/* log_message(DEBUG, "MAP_REQUEST FOR %d,",
-			 * map_request->window);
-			 */
 			if (handle_map_request(map_request) != 0) {
 				log_message(ERROR,
 							"Failed to handle MAP_REQUEST for window %d\n",
@@ -3210,7 +3252,6 @@ main(int argc, char **argv)
 							"Failed to handle XCB_UNMAP_NOTIFY for "
 							"window %d\n",
 							unmap_notify->window);
-				/* exit(EXIT_FAILURE); */
 			}
 			break;
 		}
@@ -3246,16 +3287,12 @@ main(int argc, char **argv)
 			__attribute__((unused))
 			xcb_configure_notify_event_t *config_notify =
 				(xcb_configure_notify_event_t *)event;
-			/* log_message(DEBUG, "XCB_CONFIGURE_NOTIFY %d\n",
-			 * config_notify->window); */
 			break;
 		}
 		case XCB_PROPERTY_NOTIFY: {
 			__attribute__((unused))
 			xcb_property_notify_event_t *property_notify =
 				(xcb_property_notify_event_t *)event;
-			/* log_message(DEBUG, "XCB_PROPERTY_NOTIFY %d\n",
-			 * property_notify->window); */
 			break;
 		}
 		case XCB_ENTER_NOTIFY: {
@@ -3266,7 +3303,6 @@ main(int argc, char **argv)
 							"Failed to handle XCB_ENTER_NOTIFY for "
 							"window %d\n",
 							enter_event->event);
-				/* exit(EXIT_FAILURE); */
 			}
 			break;
 		}
@@ -3278,7 +3314,6 @@ main(int argc, char **argv)
 							"Failed to handle XCB_LEAVE_NOTIFY for "
 							"window %d\n",
 							leave_event->event);
-				/* exit(EXIT_FAILURE); */
 			}
 			break;
 		}
@@ -3303,7 +3338,6 @@ main(int argc, char **argv)
 		case XCB_KEY_PRESS: {
 			xcb_key_press_event_t *key_press =
 				(xcb_key_press_event_t *)event;
-			// log_message(DEBUG, "XCB_KEY_PRESS");
 			handle_key_press(key_press);
 			break;
 		}
@@ -3315,7 +3349,6 @@ main(int argc, char **argv)
 		case XCB_FOCUS_IN: {
 			__attribute__((unused)) xcb_focus_in_event_t *focus_in_event =
 				(xcb_focus_in_event_t *)event;
-			// log_message(DEBUG, "XCB_FOCUS_IN");
 			break;
 		}
 		case XCB_FOCUS_OUT: {
@@ -3331,16 +3364,8 @@ main(int argc, char **argv)
 			if (0 != grab_keys(wm->connection, wm->root_window)) {
 				log_message(ERROR, "cannot grab keys");
 			}
-			/* else if (0 != */
-			/* 		   grab_buttons(wm->connection, wm->root_window)) { */
-			/* 	log_message(ERROR, "cannot grab buttons"); */
-			/* } */
-			/* break; */
 		}
 		default: {
-			/* log_message(DEBUG, "event %d", event->response_type &
-			 * ~0x80);
-			 */
 			break;
 		}
 		}

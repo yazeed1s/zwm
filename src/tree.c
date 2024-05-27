@@ -433,79 +433,6 @@ resize_subtree(node_t *parent)
 	}
 }
 
-// void
-// resize_subtree(node_t *parent)
-// {
-// 	if (parent == NULL) return;
-
-// 	node_t **stack		= malloc(10 * sizeof(node_t *));
-// 	int		 stack_size = 10;
-// 	int		 top		= -1;
-// 	stack[++top]		= parent;
-
-// 	while (top >= 0) {
-// 		node_t *current_node = stack[top--];
-
-// 		if (current_node == NULL) continue;
-
-// 		rectangle_t r, r2 = {0};
-
-// 		if (current_node->rectangle.width >=
-// current_node->rectangle.height) { 			r.x		 =
-// current_node->rectangle.x; 			r.y		 =
-// current_node->rectangle.y; 			r.width	 =
-// (current_node->rectangle.width - conf.window_gap) / 2; r.height =
-// current_node->rectangle.height;
-
-// 			r2.x	 = (int16_t)(current_node->rectangle.x + r.width +
-// 							 conf.window_gap);
-// 			r2.y	 = current_node->rectangle.y;
-// 			r2.width =
-// 				current_node->rectangle.width - r.width - conf.window_gap;
-// 			r2.height = current_node->rectangle.height;
-// 		} else {
-// 			r.x		 = current_node->rectangle.x;
-// 			r.y		 = current_node->rectangle.y;
-// 			r.width	 = current_node->rectangle.width;
-// 			r.height = (current_node->rectangle.height - conf.window_gap) /
-// 2;
-
-// 			r2.x	 = current_node->rectangle.x;
-// 			r2.y	 = (int16_t)(current_node->rectangle.y + r.height +
-// 							 conf.window_gap);
-// 			r2.width = current_node->rectangle.width;
-// 			r2.height =
-// 				current_node->rectangle.height - r.height -
-// conf.window_gap;
-// 		}
-
-// 		if (current_node->first_child != NULL) {
-// 			current_node->first_child->rectangle = r;
-// 			if (current_node->first_child->node_type == INTERNAL_NODE) {
-// 				stack[++top] = current_node->first_child;
-// 			}
-// 		}
-
-// 		if (current_node->second_child != NULL) {
-// 			current_node->second_child->rectangle = r2;
-// 			if (current_node->second_child->node_type == INTERNAL_NODE) {
-// 				stack[++top] = current_node->second_child;
-// 			}
-// 		}
-
-// 		if (top >= stack_size - 1) {
-// 			stack_size *= 2;
-// 			stack = realloc(stack, stack_size * sizeof(node_t *));
-// 			if (stack == NULL) {
-// 				fprintf(stderr, "Stack allocation failed\n");
-// 				return;
-// 			}
-// 		}
-// 	}
-
-// 	free(stack);
-// }
-
 node_t *
 find_master_node(node_t *root)
 {
@@ -874,10 +801,7 @@ master_layout(node_t *root, node_t *n)
 	uint64_t	 h			  = wm->screen->height_in_pixels;
 	uint16_t	 master_width = w * ratio;
 	uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
-	// uint16_t	 r_height	  = (uint16_t)(h - 2 * W_GAP - 27) / (nc - 1);
 	n->is_master			  = true;
-	// uint16_t r_height = (uint16_t)(h - (2 * W_GAP - 27)) / (nc - 1) - 2
-	// * W_GAP; uint16_t height = (r2.height / (nc - 1)) - (W_GAP / 2) - 2;
 
 	rectangle_t r1			  = {
 				   .x	   = conf.window_gap,
@@ -885,17 +809,17 @@ master_layout(node_t *root, node_t *n)
 				   .width  = (uint16_t)(master_width - 2 * conf.window_gap),
 				   .height = (uint16_t)(h - 2 * conf.window_gap - 27),
 	   };
+
 	rectangle_t r2 = {
 		.x		= (master_width),
 		.y		= (int16_t)(27 + conf.window_gap),
 		.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
 		.height = (uint16_t)(h - 2 * conf.window_gap - 27),
-		// .height = r_height,
 	};
+
 	n->rectangle	= r1;
 	root->rectangle = r2;
 	apply_master_layout(root);
-	// n->is_master = false;
 }
 
 void
@@ -1110,14 +1034,13 @@ delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 				internal_sibling->second_child->parent = d->tree;
 			}
 		}
-		/* resize_subtree(wm->root); */
-		// if (d->layout != STACK) resize_subtree(d->tree);
+
 		if (d->layout == DEFAULT) {
 			apply_default_layout(d->tree);
 		} else if (d->layout == STACK) {
 			apply_stack_layout(d->tree);
 		}
-		// resize_subtree(d->tree);
+
 	} else {
 		// if IN has a parent
 		/*            ...
@@ -1150,7 +1073,6 @@ delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 			node->parent->first_child = internal_sibling->second_child;
 			internal_sibling->second_child->parent = node->parent;
 		}
-		// if (d->layout != STACK) resize_subtree(node->parent);
 		resize_subtree(node->parent);
 		if (d->layout == DEFAULT) {
 			apply_default_layout(node->parent);
@@ -1221,8 +1143,6 @@ delete_node(node_t *node, desktop_t *d)
 		return;
 	}
 
-	// node_t *parent = node->parent;
-
 	// early check if only single node/client is mapped to the screen
 	if (node == d->tree) {
 		free(node->client);
@@ -1274,7 +1194,6 @@ delete_node(node_t *node, desktop_t *d)
 
 out:
 	d->n_count -= 1;
-	// resize_subtree(d->tree);
 	if (!is_tree_empty(d->tree)) {
 		arrange_tree(d->tree, d->layout);
 	}
@@ -1363,12 +1282,11 @@ hide_windows(node_t *cn)
 		if (hide_window(cn->client->window) != 0) {
 			return -1;
 		}
-		// if (win_focus(wm->connection, cn->client->window, false) != 0) {
-		// 	return -1;
-		// }
+
 		if (set_focus(cn, false) != 0) {
 			return -1;
 		}
+
 		if (!conf.focus_follow_pointer) {
 			grab_buttons(cn->client->window);
 		}
@@ -1380,50 +1298,6 @@ hide_windows(node_t *cn)
 	return 0;
 }
 
-// int
-// hide_windows(node_t *cn)
-// {
-// 	if (cn == NULL) return 0;
-// 	node_t **stack		= malloc(10 * sizeof(node_t *));
-// 	int		 stack_size = 10;
-// 	int		 top		= -1;
-// 	stack[++top]		= cn;
-
-// 	while (top >= 0) {
-// 		node_t *current_node = stack[top--];
-// 		if (current_node == NULL) continue;
-// 		if (current_node->node_type != INTERNAL_NODE &&
-// 			current_node->client != NULL) {
-// 			if (hide_window(current_node->client->window) != 0) {
-// 				free(stack);
-// 				return -1;
-// 			}
-// 			if (set_focus(current_node, false) != 0) {
-// 				free(stack);
-// 				return -1;
-// 			}
-// 		}
-// 		// push children onto the stack
-// 		if (current_node->second_child != NULL) {
-// 			stack[++top] = current_node->second_child;
-// 		}
-// 		if (current_node->first_child != NULL) {
-// 			stack[++top] = current_node->first_child;
-// 		}
-// 		// resize if needed
-// 		if (top >= stack_size - 1) {
-// 			stack_size *= 2;
-// 			stack = realloc(stack, stack_size * sizeof(node_t *));
-// 			if (stack == NULL) {
-// 				fprintf(stderr, "Stack allocation failed\n");
-// 				return -1;
-// 			}
-// 		}
-// 	}
-// 	free(stack);
-// 	return 0;
-// }
-
 int
 show_windows(node_t *cn)
 {
@@ -1434,9 +1308,6 @@ show_windows(node_t *cn)
 		if (show_window(cn->client->window) != 0) {
 			return -1;
 		}
-		// if (set_focus(cn, false) != 0) {
-		// 	return -1;
-		// }
 	}
 
 	show_windows(cn->first_child);
@@ -1444,47 +1315,6 @@ show_windows(node_t *cn)
 
 	return 0;
 }
-
-// int
-// show_windows(node_t *cn)
-// {
-// 	if (cn == NULL) return 0;
-
-// 	node_t **stack		= malloc(10 * sizeof(node_t *));
-// 	int		 stack_size = 10;
-// 	int		 top		= -1;
-// 	stack[++top]		= cn;
-
-// 	while (top >= 0) {
-// 		node_t *current_node = stack[top--];
-// 		if (current_node == NULL) continue;
-// 		if (current_node->node_type != INTERNAL_NODE &&
-// 			current_node->client != NULL) {
-// 			if (show_window(current_node->client->window) != 0) {
-// 				free(stack);
-// 				return -1;
-// 			}
-// 		}
-// 		// push the children onto the stack
-// 		if (current_node->second_child != NULL) {
-// 			stack[++top] = current_node->second_child;
-// 		}
-// 		if (current_node->first_child != NULL) {
-// 			stack[++top] = current_node->first_child;
-// 		}
-// 		// resize if needed
-// 		if (top >= stack_size - 1) {
-// 			stack_size *= 2;
-// 			stack = realloc(stack, stack_size * sizeof(node_t *));
-// 			if (stack == NULL) {
-// 				fprintf(stderr, "Stack allocation failed\n");
-// 				return -1;
-// 			}
-// 		}
-// 	}
-// 	free(stack);
-// 	return 0;
-// }
 
 bool
 client_exist(node_t *cn, xcb_window_t win)
@@ -1630,7 +1460,6 @@ horizontal_resize(node_t *n, resize_t t)
 				s->rectangle.width -= px;
 				grow_direction == RIGHT ? (s->rectangle.x += px)
 										: (n->rectangle.x -= px);
-				// return;
 			} else {
 				// shrink
 				n->rectangle.width -= px;
@@ -1638,7 +1467,6 @@ horizontal_resize(node_t *n, resize_t t)
 				(shrink_direction == LEFT) ? (s->rectangle.x -= px)
 										   : (n->rectangle.x += px);
 			}
-			// return;
 		} else {
 			// sibling is internal
 			s = get_internal_sibling(n);
@@ -1652,7 +1480,6 @@ horizontal_resize(node_t *n, resize_t t)
 				grow_direction == RIGHT ? (s->rectangle.x += px)
 										: (n->rectangle.x -= px);
 				resize_subtree(s);
-				// return;
 			} else {
 				n->rectangle.width -= px;
 				s->rectangle.width += px;
@@ -1660,9 +1487,7 @@ horizontal_resize(node_t *n, resize_t t)
 										   : (n->rectangle.x += px);
 				resize_subtree(s);
 			}
-			// return;
 		}
-		// return;
 	}
 	/*
 	 * case 2: node's parent is not the root (it is INTERNAL_NODE).
@@ -1696,11 +1521,9 @@ horizontal_resize(node_t *n, resize_t t)
 			if (root->second_child != NULL &&
 				root->second_child->node_type == EXTERNAL_NODE) {
 				resize_subtree(root->first_child);
-				// return;
 			} else {
 				resize_subtree(root->first_child);
 				resize_subtree(root->second_child);
-				// return;
 			}
 		} else {
 			if (root->second_child == NULL ||
@@ -1717,11 +1540,9 @@ horizontal_resize(node_t *n, resize_t t)
 			if (root->first_child != NULL &&
 				root->first_child->node_type == EXTERNAL_NODE) {
 				resize_subtree(root->second_child);
-				// return;
 			} else {
 				resize_subtree(root->first_child);
 				resize_subtree(root->second_child);
-				// return;
 			}
 		}
 	}
@@ -1807,7 +1628,6 @@ unlink_node(node_t *node, desktop_t *d)
 				d->tree->first_child	= n->second_child;
 				n->second_child->parent = d->tree;
 			}
-			// resize_subtree(d->tree);
 		} else {
 			if (is_sibling_internal(node)) {
 				n = get_internal_sibling(node);
@@ -1818,7 +1638,6 @@ unlink_node(node_t *node, desktop_t *d)
 			if (n == NULL)
 				return;
 
-			// n->parent = NULL;
 			if (node->parent->first_child == node) {
 				node->parent->first_child  = n->first_child;
 				n->first_child->parent	   = node->parent;
@@ -1830,7 +1649,6 @@ unlink_node(node_t *node, desktop_t *d)
 				node->parent->first_child  = n->second_child;
 				n->second_child->parent	   = node->parent;
 			}
-			// resize_subtree(node->parent);
 		}
 		n->parent		= NULL;
 		n->first_child	= NULL;
@@ -1925,8 +1743,6 @@ transfer_node(node_t *node, desktop_t *d)
 	} else if (d->tree->first_child == NULL &&
 			   d->tree->second_child == NULL) {
 		client_t *c = d->tree->client;
-		//		d->tree->first_child			 =
-		// create_node(c);
 		if ((d->tree->first_child = create_node(c)) == NULL) {
 			return;
 		}
@@ -1936,7 +1752,6 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree->client					 = NULL;
 		d->tree->first_child->parent	 = d->tree->second_child->parent =
 			d->tree;
-		// if (d->layout != STACK) resize_subtree(d->tree);
 	} else {
 		node_t *leaf = find_left_leaf(d->tree);
 		if (leaf == NULL) {
@@ -1959,7 +1774,6 @@ transfer_node(node_t *node, desktop_t *d)
 		}
 		leaf->second_child->parent	  = leaf;
 		leaf->second_child->node_type = EXTERNAL_NODE;
-		// if (d->layout != STACK) resize_subtree(leaf);
 	}
 	arrange_tree(d->tree, d->layout);
 }
@@ -2372,21 +2186,3 @@ find_neighbor(node_t *root, node_t *node, direction_t d)
 
 	return best_node;
 }
-
-// node_t *
-// cycle_win(node_t *node, direction_t d)
-// {
-// 	node_t *root = find_tree_root(node);
-// 	if (root == NULL) {
-// 		log_message(ERROR, "could not find root of tree");
-// 		return NULL;
-// 	}
-
-// 	node_t *neighbor = find_neighbor(root, node, d);
-// 	if (neighbor == NULL) {
-// 		log_message(ERROR, "could not find neighbor node");
-// 		return NULL;
-// 	}
-
-// 	return neighbor;
-// }

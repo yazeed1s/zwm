@@ -75,14 +75,12 @@ static conf_mapper_t _cmapper_[] = {
  	{"fullscreen", 	   set_fullscreen_wrapper}, 
  	{"swap", 				swap_node_wrapper}, 
  	{"transfer_node", 	transfer_node_wrapper}, 
- 	{"master", 				   layout_handler}, 
- 	{"default", 			   layout_handler}, 
- 	{"grid", 				   layout_handler}, 
- 	{"stack", 			       layout_handler}, 
+ 	{"layout", 				   layout_handler}, 
  	{"traverse_up",    traverse_stack_wrapper}, 
  	{"traverse_down",  traverse_stack_wrapper}, 
 	{"flip", 	            flip_node_wrapper},
-	{"cycle_window", 	     cycle_win_wrapper}
+	{"cycle_window", 	    cycle_win_wrapper},
+	{"reload_config",   reload_config_wrapper},
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -261,9 +259,7 @@ write_default_config(const char *filename, config_t *c)
         ";   - flip: Changes the window's orientation; if the window is primarily vertical, \n"
         ";           it becomes horizontal, and vice versa.\n"
 		";   - cycle_window: Moves focus to the window in the specified direction\n"
-        ";\n"
-		"; Note: the cycle_window function takes a direction (UP|LEFT|RIGHT|DOWN);\n"
-		";       the direction should be 'coloned' to the function like cycle_window:up or cycle_window:down\n"
+		";   - reload_config: hot-reload after changing the config\n"
         ";\n"
 		"\n"
         "key = {super + return -> run(\"alacritty\")}\n"
@@ -288,12 +284,15 @@ write_default_config(const char *filename, config_t *c)
         "key = {super|shift + 3 -> func(transfer_node)}\n"
         "key = {super|shift + 4 -> func(transfer_node)}\n"
         "key = {super|shift + 5 -> func(transfer_node)}\n"
-        "key = {super|shift + m -> func(master)}\n"
-        "key = {super|shift + s -> func(stack)}\n"
-        "key = {super|shift + d -> func(default)}\n"
+        "key = {super|shift + m -> func(layout:master)}\n"
+        "key = {super|shift + s -> func(layout:stack)}\n"
+        "key = {super|shift + d -> func(layout:default)}\n"
         "key = {super|shift + k -> func(traverse_up)}\n"
         "key = {super|shift + j -> func(traverse_down)}\n"
-        "key = {super|shift + f -> func(flip)}\n";
+        "key = {super|shift + f -> func(flip)}\n"
+		"key = {super|shift + r -> func(reload_config)}\n"
+		"\n";
+
 	// clang-format on
 	char dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
@@ -668,9 +667,9 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 		if (count != 2) {
 			log_message(INFO, "recieved wrong count %d, wanted 2", count);
 		} else {
-			char *f	  = strdup(s[0]);
-			char *dir = strdup(s[1]);
-			ptr		  = str_to_func(f);
+			char *f = strdup(s[0]);
+			char *a = strdup(s[1]);
+			ptr		= str_to_func(f);
 			if (ptr == NULL) {
 				log_message(
 					ERROR, "failed to find function pointer for %s", f);
@@ -681,14 +680,26 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 			key->mod		  = _mod;
 			key->keysym		  = _keysym;
 			key->function_ptr = ptr;
-			if (strcmp(dir, "up") == 0) {
-				key->arg->d = UP;
-			} else if (strcmp(dir, "right") == 0) {
-				key->arg->d = RIGHT;
-			} else if (strcmp(dir, "left") == 0) {
-				key->arg->d = LEFT;
-			} else if (strcmp(dir, "down") == 0) {
-				key->arg->d = DOWN;
+			if (strcmp(f, "cycle_window") == 0) {
+				if (strcmp(a, "up") == 0) {
+					key->arg->d = UP;
+				} else if (strcmp(a, "right") == 0) {
+					key->arg->d = RIGHT;
+				} else if (strcmp(a, "left") == 0) {
+					key->arg->d = LEFT;
+				} else if (strcmp(a, "down") == 0) {
+					key->arg->d = DOWN;
+				}
+			} else if (strcmp(f, "layout")) {
+				if (strcmp(a, "master") == 0) {
+					key->arg->t = MASTER;
+				} else if (strcmp(a, "default") == 0) {
+					key->arg->t = DEFAULT;
+				} else if (strcmp(a, "grid") == 0) {
+					key->arg->t = GRID;
+				} else if (strcmp(a, "stack") == 0) {
+					key->arg->t = STACK;
+				}
 			}
 			free(s);
 			goto cleanup;
@@ -837,7 +848,7 @@ init_key()
 }
 
 int
-parse_config(const char *filename, config_t *c)
+parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
@@ -864,6 +875,11 @@ parse_config(const char *filename, config_t *c)
 		if (key == NULL || value == NULL) {
 			continue;
 		}
+		
+		if (reload && strcmp(key, "key") == 0) {
+			continue;
+		}
+
 		if (strcmp(key, "border_width") == 0) {
 			c->border_width = atoi(value);
 		} else if (strcmp(key, "active_border_color") == 0) {
@@ -890,9 +906,9 @@ parse_config(const char *filename, config_t *c)
 			if (conf_keys == NULL) {
 				conf_keys = malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
 				if (conf_keys == NULL) {
-					fprintf(
-						stderr,
-						"Failed to allocate memory for conf_keys array\n");
+					fprintf(stderr,
+							"Failed to allocate memory for conf_keys "
+							"array\n");
 					return 1;
 				}
 			}
@@ -916,14 +932,27 @@ out:
 void
 free_keys()
 {
-	for (int i = 0; i < _entries_; ++i) {
-		free(conf_keys[i]->arg->cmd);
-		conf_keys[i]->arg->cmd = NULL;
-		free(conf_keys[i]->arg);
-		conf_keys[i]->arg = NULL;
-		free(conf_keys[i]);
-		conf_keys[i] = NULL;
+	if (conf_keys) {
+		for (int i = 0; i < _entries_; ++i) {
+			free(conf_keys[i]->arg->cmd);
+			conf_keys[i]->arg->cmd = NULL;
+			free(conf_keys[i]->arg);
+			conf_keys[i]->arg = NULL;
+			free(conf_keys[i]);
+			conf_keys[i] = NULL;
+		}
+		free(conf_keys);
+		conf_keys = NULL;
+		_entries_ = -1;
 	}
+}
+
+int
+reload_config(config_t *c)
+{
+
+	const char *filename = CONF_PATH;
+	return parse_config(filename, c, true);
 }
 
 int
@@ -931,5 +960,5 @@ load_config(config_t *c)
 {
 	const char *filename = CONF_PATH;
 	return !file_exists(filename) ? write_default_config(filename, c)
-								  : parse_config(filename, c);
+								  : parse_config(filename, c, false);
 }

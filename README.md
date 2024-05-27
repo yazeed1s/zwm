@@ -12,15 +12,16 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Performance
 
 ## Features
-- **Standards Compliance:** Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) 
-- **Multiple Layouts:** Comes with default, master, stack, and grid layouts.
-- **Virtual Desktops:** Offers multiple virtual desktops.
-- **Low memory footprint:** Runs within ~2MB of memory
-- **Window Management:** Resize, flip, and swap windows or partitions.
-- **Desktop-Specific Layouts:** Layouts apply to individual desktops.
-- **Customizablity:** Highly customizable settings.
-- **Keyboard-Driven:** Fully controlled via keyboard shortcuts.
-- **Status Bar Compatibility:**  Can integrate with any status bar.
+- Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) 
+- Multiple Layouts (default, master, stack, grid).
+- Multiple virtual desktops.
+- Low memory footprint, runs within ~2MB of memory
+- Resize, flip, and swap windows or partitions.
+- Layouts apply to individual desktops.
+- Customizable settings.
+- Keyboard-Driven, fully controlled via keyboard shortcuts.
+- Can be integrated with any status bar.
+- Hot reload
 
 ## The underlying data structure:
 ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
@@ -175,7 +176,9 @@ key = {super|shift + d -> func(default)}
 key = {super|shift + k -> func(traverse_up)}
 key = {super|shift + j -> func(traverse_down)}
 key = {super|shift + f -> func(flip)}
+key = {super|shift + r -> func(reload_config)}
 ```
+
 ### Key Bindings:
 - The format for defining key bindings is: `key = {modifier + key -> action}`
 - If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
@@ -201,6 +204,7 @@ key = {super|shift + f -> func(flip)}
    - traverse_down: (In stack layout only) Moves focus to the window below.
    - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
    - cycle_window: Moves focus to the window in the specified direction
+   - reload_config: hot reload
      
 - Note: the cycle_window function takes a direction `(UP|LEFT|RIGHT|DOWN)`;
 		the direction should be 'coloned' to the function like `cycle_window:up` or `cycle_window:down`
@@ -224,6 +228,7 @@ More options will be added in the future as development progresses.
 | `super + shift + d`            | toggle default layout |
 | `super + shift + j/k`            | traverse the stack |
 | `super + shift + f`            | flip the window/partion |
+| `super + shift + r`            | hot-reload |
 | `super + s`            | swap window's orientation |
 | `super + ←`       | focus window on the left        |
 | `super + ↑`       | focus window above              |
@@ -266,4 +271,4 @@ label-separator 			= " "
 For further custmization please refer to polybar's wiki.
 
 ## Contributing
-If you would like to add a feature or to fix a bug please feel free to send a PR.
+If you would like to add a feature or to fix a bug please feel free to submit a PR.

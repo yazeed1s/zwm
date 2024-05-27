@@ -51,6 +51,7 @@ void	 flip_node(node_t *node);
 void	 master_layout(node_t *parent, node_t *);
 void	 stack_layout(node_t *parent);
 void	 default_layout(node_t *parent);
+void     arrange_tree(node_t *tree, layout_t l);
 int	   	 render_tree(node_t *current_node);
 int		 get_tree_level(node_t *current_node);
 int		 hide_windows(node_t *tree);

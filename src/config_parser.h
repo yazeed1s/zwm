@@ -35,5 +35,6 @@ extern int		 _entries_;
 // clang-format off
 int  load_config(config_t *c);
 void free_keys();
+int  reload_config(config_t *c);
 // clang-format on
 #endif // ZWM_CONFIG_PARSER_H
