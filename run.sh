@@ -3,4 +3,4 @@
 make all
 # killall xinit
 # startx ./_dev/c_dev/zwm/.xinitrc
-startx ./.xinitrc -- /usr/bin/Xephyr -screen 1600x1150 -reset
+startx ./.xinitrc -- /usr/bin/Xephyr -screen 1600x1150 -reset -core
