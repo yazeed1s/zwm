@@ -203,10 +203,10 @@ key = {super|shift + f -> func(flip)}
    - traverse_up: (In stack layout only) Moves focus to the window above.
    - traverse_down: (In stack layout only) Moves focus to the window below.
    - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
-   - cycle: Moves focus to the window in the specified direction
+   - cycle_window: Moves focus to the window in the specified direction
      
-- Note: the cycle function takes a direction `(UP|LEFT|RIGHT|DOWN)`;
-		the direction should be 'coloned' to the function like `cycle:up` or `cycle:down`
+- Note: the cycle_window function takes a direction `(UP|LEFT|RIGHT|DOWN)`;
+		the direction should be 'coloned' to the function like `cycle_window:up` or `cycle_window:down`
 
 More options will be added in the future as development progresses.
 
