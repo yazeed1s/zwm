@@ -81,7 +81,8 @@ static conf_mapper_t _cmapper_[] = {
  	{"stack", 			       layout_handler}, 
  	{"traverse_up",    traverse_stack_wrapper}, 
  	{"traverse_down",  traverse_stack_wrapper}, 
-	{"flip", 	            flip_node_wrapper}
+	{"flip", 	            flip_node_wrapper},
+	{"cycle_window", 	     cycle_win_wrapper}
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -104,7 +105,11 @@ static key_mapper_t	 _kmapper_[] = {
 	{"w", 0x0077}, {"x", 0x0078},
 	{"y", 0x0079}, {"z", 0x007a}, 
 	{"space", 	   	     0x0020},
-	{"return", 	         0xff0d}, 
+	{"return", 	         0xff0d},
+	{"left", 	   	     0xff51},
+	{"up", 	   	         0xff52},
+	{"right", 	         0xff53}, 
+	{"down", 	         0xff54}, 
  	{"super",             SUPER}, 
  	{"alt",                 ALT}, 
  	{"ctr",    		       CTRL}, 
@@ -255,8 +260,12 @@ write_default_config(const char *filename, config_t *c)
         ";   - traverse_down: (In stack layout only) Moves focus to the window below.\n"
         ";   - flip: Changes the window's orientation; if the window is primarily vertical, \n"
         ";           it becomes horizontal, and vice versa.\n"
+		";   - cycle_window: Moves focus to the window in the specified direction\n"
         ";\n"
-        "\n"
+		"; Note: the cycle_window function takes a direction (UP|LEFT|RIGHT|DOWN);\n"
+		";       the direction should be 'coloned' to the function like cycle_window:up or cycle_window:down\n"
+        ";\n"
+		"\n"
         "key = {super + return -> run(\"alacritty\")}\n"
         "key = {super + space -> run(\"dmenu_run\")}\n"
         "key = {super + p -> run([\"rofi\",\"-show\", \"drun\"])}\n"
@@ -270,6 +279,10 @@ write_default_config(const char *filename, config_t *c)
         "key = {super + h -> func(shrink)}\n"
         "key = {super + f -> func(fullscreen)}\n"
         "key = {super + s -> func(swap)}\n"
+		"key = {super + up -> func(cycle_window:up)}\n"
+		"key = {super + right -> func(cycle_window:right)}\n"
+		"key = {super + left -> func(cycle_window:left)}\n"
+		"key = {super + down -> func(cycle_window:down)}\n"
         "key = {super|shift + 1 -> func(transfer_node)}\n"
         "key = {super|shift + 2 -> func(transfer_node)}\n"
         "key = {super|shift + 3 -> func(transfer_node)}\n"
@@ -314,7 +327,7 @@ write_default_config(const char *filename, config_t *c)
 	c->active_border_color	= 0x83a598;
 	c->normal_border_color	= 0x30302f;
 	c->border_width			= 2;
-	c->window_gap			= 5;
+	c->window_gap			= 10;
 	c->virtual_desktops		= 5;
 	c->focus_follow_pointer = true;
 
@@ -642,6 +655,45 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	}
 
 	trim(func_param, PARENTHESIS);
+	if (strchr(func_param, ':')) {
+		log_message(INFO, "func_param %s contains colon", func_param);
+		int	   count = 0;
+		char **s	 = split_string(func_param, ':', &count);
+		if (s == NULL) {
+			log_message(
+				ERROR, "failed to split string for %s\n", func_param);
+			free(func_param);
+			return -1;
+		}
+		if (count != 2) {
+			log_message(INFO, "recieved wrong count %d, wanted 2", count);
+		} else {
+			char *f	  = strdup(s[0]);
+			char *dir = strdup(s[1]);
+			ptr		  = str_to_func(f);
+			if (ptr == NULL) {
+				log_message(
+					ERROR, "failed to find function pointer for %s", f);
+				free(func_param);
+				free(s);
+				return -1;
+			}
+			key->mod		  = _mod;
+			key->keysym		  = _keysym;
+			key->function_ptr = ptr;
+			if (strcmp(dir, "up") == 0) {
+				key->arg->d = UP;
+			} else if (strcmp(dir, "right") == 0) {
+				key->arg->d = RIGHT;
+			} else if (strcmp(dir, "left") == 0) {
+				key->arg->d = LEFT;
+			} else if (strcmp(dir, "down") == 0) {
+				key->arg->d = DOWN;
+			}
+			free(s);
+			goto cleanup;
+		}
+	}
 
 	if (keysym == NULL || iterative_func) {
 		if (strcmp(func_param, "switch_desktop") == 0 ||

@@ -2252,16 +2252,16 @@ handle_first_window(client_t *client, desktop_t *d)
 	const uint16_t h = wm->screen->height_in_pixels;
 
 	if (wm->bar != NULL) {
-		r.x		 = conf.window_gap - conf.border_width * 1.5;
-		r.y		 = (int16_t)(wm->bar->rectangle.height + conf.window_gap);
-		r.width	 = (uint16_t)(w - 2 * conf.window_gap);
-		r.height = (uint16_t)(h - 2 * conf.window_gap -
-							  wm->bar->rectangle.height);
+		r.x		 = conf.window_gap;
+		r.y		 = wm->bar->rectangle.height + conf.window_gap;
+		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
+		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
+				   2 * conf.border_width;
 	} else {
-		r.x		 = conf.window_gap - conf.border_width * 1.5;
-		r.y		 = conf.window_gap - conf.border_width * 1.5;
-		r.width	 = w - conf.window_gap * 2;
-		r.height = h - conf.window_gap * 2;
+		r.x		 = conf.window_gap;
+		r.y		 = conf.window_gap;
+		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
+		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
 	}
 
 	if (client == NULL) {
@@ -3167,19 +3167,15 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	// if (load_config(&conf) != 0) {
-	// 	log_message(ERROR,
-	// 				"error while loding config -> using default macros");
-	// 	conf.active_border_color = ACTIVE_BORDER_COLOR;
-	// 	conf.normal_border_color = NORMAL_BORDER_COLOR;
-	// 	conf.border_width		 = BORDER_WIDTH;
-	// 	conf.window_gap			 = W_GAP;
-	// }
-	conf.active_border_color  = ACTIVE_BORDER_COLOR;
-	conf.normal_border_color  = NORMAL_BORDER_COLOR;
-	conf.border_width		  = BORDER_WIDTH;
-	conf.window_gap			  = W_GAP;
-	conf.focus_follow_pointer = !FOCUS_FOLLOW_POINTER;
+	if (load_config(&conf) != 0) {
+		log_message(ERROR,
+					"error while loding config -> using default macros");
+		conf.active_border_color  = ACTIVE_BORDER_COLOR;
+		conf.normal_border_color  = NORMAL_BORDER_COLOR;
+		conf.border_width		  = BORDER_WIDTH;
+		conf.window_gap			  = W_GAP;
+		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+	}
 
 	if (argc >= 2) {
 		parse_args(argc, argv);
