@@ -266,11 +266,18 @@ void
 insert_node(node_t *node, node_t *new_node, layout_t layout)
 {
 #ifdef _DEBUG__
+	char *n	 = win_name(node->client->window);
+	char *nn = win_name(new_node->client->window);
 	log_message(DEBUG,
-				"Node to split %d, node to insert %d",
+				"Node to split %d:%s, node to insert %d:%S",
 				node->client->window,
-				new_node->client->window);
+				n,
+				new_node->client->window,
+				nn);`
+	free(n);
+	free(nn);
 #endif
+	
 	if (node == NULL) {
 		log_message(ERROR, "node is null");
 		return;

@@ -478,25 +478,25 @@ extract_func_body(const char *str)
 uint32_t
 parse_mod_key(char *mod)
 {
+#ifdef _DEBUG__
 	log_message(DEBUG, "recieved mod key = (%s)", mod);
+#endif
 	uint32_t _mod = str_to_key(mod);
 	uint32_t mask = -1;
 	if ((int)_mod == -1) {
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
 		if (mods == NULL) {
-			log_message(ERROR,
-						"failed to split string %s into %s and %s\n",
-						mod,
-						mods[0],
-						mods[1]);
+			log_message(ERROR, "failed to split string %s\n", mod);
 			return -1;
 		}
+#ifdef _DEBUG__
 		log_message(DEBUG,
 					"mod (%s) splited into (%s), (%s)\n",
 					mod,
 					mods[0],
 					mods[1]);
+#endif
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
 		mask		   = mask1 | mask2;
@@ -866,7 +866,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 		if (key == NULL || value == NULL) {
 			continue;
 		}
-		
+
 		if (reload && strcmp(key, "key") == 0) {
 			continue;
 		}

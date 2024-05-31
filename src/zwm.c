@@ -673,16 +673,15 @@ cycle_win_wrapper(arg_t *arg)
 	if (next == NULL) {
 		return 0;
 	}
-
-	log_message(INFO,
-				"found node %d name %s",
-				next->client->window,
-				win_name(next->client->window));
-
+#ifdef _DEBUG__
+	char *s = win_name(next->client->window);
+	log_message(DEBUG, "found node %d name %s", next->client->window, s);
+	free(s);
+#endif
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
 	update_focus(root, next);
-	
+
 	return 0;
 }
 
@@ -2337,9 +2336,7 @@ handle_first_window(client_t *client, desktop_t *d)
 	d->tree->client	   = client;
 	d->tree->rectangle = r;
 	d->n_count += 1;
-#ifdef _DEBUG__
-	log_tree_nodes(d->tree);
-#endif
+
 	ewmh_update_client_list();
 	return tile(d->tree);
 }
@@ -2444,12 +2441,7 @@ handle_map_request(xcb_map_request_event_t *ev)
 	xcb_window_t win = ev->window;
 
 	if (is_transient(win)) {
-		// map_floating(win);
-		// raise_window(wm->connection, win);
-		// xcb_flush(wm->connection);
-#ifdef _DEBUG__
 		log_message(INFO, "win %d, is transient.. ignoring request", win);
-#endif
 		// goto float_;
 		// return 0;
 	}
@@ -2580,10 +2572,14 @@ int
 handle_enter_notify(const xcb_enter_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
-	log_message(DEBUG,
-				"recieved enter notify for %d, name %s ",
-				win,
-				win_name(win));
+
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	log_message(
+		DEBUG, "recieved enter notify for %d, name %s ", win, name);
+	free(name);
+#endif
+
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
 		ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) {
 		return 0;
@@ -2673,6 +2669,13 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 	}
 
 	xcb_window_t win = ev->event;
+
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	log_message(
+		DEBUG, "recieved leave notify for %d, name %s ", win, name);
+	free(name);
+#endif
 
 	if (wm->bar != NULL && win == wm->bar->window) {
 		return 0;
@@ -2768,53 +2771,74 @@ handle_state(node_t		 *n,
 			 xcb_atom_t	  state_,
 			 unsigned int action)
 {
+	char *name = win_name(n->client->window);
+
 	if (state == wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
 		state_ == wm->ewmh->_NET_WM_STATE_FULLSCREEN) {
 		log_message(INFO,
-					"_NET_WM_STATE_FULLSCREEN received for win %d",
-					n->client->window);
+					"_NET_WM_STATE_FULLSCREEN received for win %d:%s",
+					n->client->window,
+					name);
 		if (action == XCB_EWMH_WM_STATE_ADD) {
+			free(name);
 			return set_fullscreen(n, true);
 		} else if (action == XCB_EWMH_WM_STATE_REMOVE) {
 			/* if (n->client->state == FULLSCREEN) { */
+			free(name);
 			return set_fullscreen(n, false);
 			/* } */
 		} else if (action == XCB_EWMH_WM_STATE_TOGGLE) {
 			uint32_t mode = (n->client->state == FULLSCREEN)
 								? XCB_EWMH_WM_STATE_REMOVE
 								: XCB_EWMH_WM_STATE_ADD;
+			free(name);
 			return set_fullscreen(n, mode == XCB_EWMH_WM_STATE_ADD);
 		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
 		log_message(INFO,
-					"_NET_WM_STATE_BELOW received for win %d",
-					win_name(n->client->window));
+					"_NET_WM_STATE_BELOW received for win %d:%s",
+					n->client->window,
+					name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
 		log_message(INFO,
-					"_NET_WM_STATE_ABOVE received for win %d",
-					win_name(n->client->window));
-
+					"_NET_WM_STATE_ABOVE received for win %d:%s",
+					n->client->window,
+					name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
 		log_message(INFO,
-					"_NET_WM_STATE_HIDDEN received for win %d",
-					n->client->window);
+					"_NET_WM_STATE_HIDDEN received for win %d:%s",
+					n->client->window,
 
+					name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_STICKY) {
 		log_message(INFO,
-					"_NET_WM_STATE_STICKY received for win %d",
-					n->client->window);
-
+					"_NET_WM_STATE_STICKY received for win %d:%s",
+					n->client->window,
+					name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-		log_message(INFO,
-					"_NET_WM_STATE_DEMANDS_ATTENTION received for win %d",
-					n->client->window);
+		log_message(
+			INFO,
+			"_NET_WM_STATE_DEMANDS_ATTENTION received for win %d:%s",
+			n->client->window,
+			name);
 	}
+	free(name);
 	return 0;
 }
 
 int
 handle_client_message(xcb_client_message_event_t *client_message)
 {
+
+#ifdef _DEBUG__
+	char *name = win_name(client_message->window);
+	log_message(DEBUG,
+				"recieved client message for %d, name %s ",
+				client_message->window,
+				name);
+	free(name);
+#endif
+
 	if (client_message->format != 32) {
 		return 0;
 	}
@@ -2849,17 +2873,14 @@ handle_client_message(xcb_client_message_event_t *client_message)
 		log_message(
 			INFO, "window want to be closed %d", client_message->window);
 	} else if (client_message->type == wm->ewmh->_NET_WM_STATE) {
-		log_message(INFO,
-					"wm_state for %d name",
-					client_message->window,
-					win_name(client_message->window));
+		char *s = win_name(client_message->window);
+		log_message(
+			INFO, "wm_state for %d name", client_message->window, s);
+		free(s);
 		handle_state(n,
 					 client_message->data.data32[1],
 					 client_message->data.data32[2],
 					 client_message->data.data32[0]);
-		/* 	handle_state( */
-		/* 		n, client_message->data.data32[2],
-		 * client_message->data.data32[0]); */
 	} else if (client_message->type == wm->ewmh->_NET_ACTIVE_WINDOW) {
 
 	} else if (client_message->type ==
@@ -2890,7 +2911,9 @@ handle_unmap_notify(xcb_window_t win)
 
 	if (!client_exist(root, win)) {
 #ifdef _DEBUG__
-		log_message(DEBUG, "cannot find win %d", win);
+		char *name = win_name(win);
+		log_message(DEBUG, "cannot find win %d, name %s", win, name);
+		free(name);
 #endif
 		return 0;
 	}
@@ -3004,7 +3027,9 @@ handle_destroy_notify(xcb_window_t win)
 
 	if (!client_exist(root, win)) {
 #ifdef _DEBUG__
-		log_message(DEBUG, "cannot find win %d", win);
+		char *name = win_name(win);
+		log_message(DEBUG, "cannot find win %d, name %s", win, name);
+		free(name);
 #endif
 		return 0;
 	}
@@ -3039,11 +3064,14 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 	if (conf.focus_follow_pointer) {
 		return;
 	}
-
+#ifdef _DEBUG__
+	char *name = win_name(ev->event);
 	log_message(DEBUG,
 				"RCIEVED BUTTON PRESS EVENT window %d, window name %s",
 				ev->event,
-				win_name(ev->event));
+				name);
+	free(name);
+#endif
 	/* bool replay = false; */
 	/* for (unsigned int i = 0; i < LENGTH(buttons_); i++) { */
 	/* 	if (ev->detail != buttons_[i]) { */
@@ -3205,16 +3233,20 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (load_config(&conf) != 0) {
-		log_message(ERROR,
-					"error while loding config -> using default macros");
-		conf.active_border_color  = ACTIVE_BORDER_COLOR;
-		conf.normal_border_color  = NORMAL_BORDER_COLOR;
-		conf.border_width		  = BORDER_WIDTH;
-		conf.window_gap			  = W_GAP;
-		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
-	}
-
+	// if (load_config(&conf) != 0) {
+	// 	log_message(ERROR,
+	// 				"error while loding config -> using default macros");
+	// 	conf.active_border_color  = ACTIVE_BORDER_COLOR;
+	// 	conf.normal_border_color  = NORMAL_BORDER_COLOR;
+	// 	conf.border_width		  = BORDER_WIDTH;
+	// 	conf.window_gap			  = W_GAP;
+	// 	conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+	// }
+	conf.active_border_color  = ACTIVE_BORDER_COLOR;
+	conf.normal_border_color  = NORMAL_BORDER_COLOR;
+	conf.border_width		  = BORDER_WIDTH;
+	conf.window_gap			  = W_GAP;
+	conf.focus_follow_pointer = !FOCUS_FOLLOW_POINTER;
 	if (argc >= 2) {
 		parse_args(argc, argv);
 	}
