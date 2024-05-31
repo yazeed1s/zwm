@@ -810,15 +810,6 @@ parse_keybinding(char *str, _key__t *key)
 			trim(func, WHITE_SPACE);
 		}
 	}
-#ifdef _DEBUG__
-	log_message(DEBUG,
-				"key val to parse = (%s)\n mod = (%s) \n keysym = (%s) \n "
-				"func = (%s)",
-				str,
-				mod,
-				keysym,
-				func);
-#endif
 	return construct_key(mod, keysym, func, key);
 }
 

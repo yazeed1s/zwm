@@ -1581,16 +1581,32 @@ unlink_node(node_t *node, desktop_t *d)
 		return;
 	}
 
+	/* node to unlink = N, internal node = I, external node = E
+	 *         I
+	 *    	 /   \
+	 *     N||E   N||E
+	 *
+	 * logic:
+	 * just unlink N and replace E with I and give it full I's rectangle
+	 */
 	if (is_sibling_external(node)) {
 		node_t *e = get_external_sibling(node);
 		if (e == NULL) {
 			return;
 		}
+		// if I has no parent
 		if (node->parent->node_type == ROOT_NODE) {
 			node->parent->client	   = e->client;
 			node->parent->first_child  = NULL;
 			node->parent->second_child = NULL;
 		} else {
+			/* if I has a prent
+			 *         I
+			 *    	 /   \
+			 *   	E    [I]
+			 *    	 	/   \
+			 *   	   N     E
+			 */
 			node_t *g = node->parent->parent;
 			if (g->first_child == node->parent) {
 				g->first_child->node_type	 = EXTERNAL_NODE;
@@ -1609,8 +1625,31 @@ unlink_node(node_t *node, desktop_t *d)
 		e			 = NULL;
 		node->parent = NULL;
 		return;
-	} else if (is_sibling_internal(node)) {
+	}
+	/*
+	 * Node to be unlinked: N
+	 * Parent of N (internal node): IN
+	 * External nodes: E1 and E2
+	 * Parent of E1 and E2 (internal node): IE
+	 *
+	 *            IN
+	 *           /  \
+	 *          N    IE
+	 *              /  \
+	 *            E1    E2
+	 *
+	 * Logic:
+	 * - If N is in the left subtree, unlink N, delete IN and replace IN
+	 * with IE.
+	 * - If N is in the right subtree, unlink N delete IN and replace IN
+	 * with IE.
+	 *
+	 * Essentially, both IN and N are deleted. IE takes the place of IN,
+	 * and the layout of IE's children (E1 and E2) is adjusted accordingly.
+	 */
+	if (is_sibling_internal(node)) {
 		node_t *n = NULL;
+		// if IN has no parent
 		if (node->parent->node_type == ROOT_NODE) {
 			n = get_internal_sibling(node);
 			if (n == NULL) {
@@ -1629,6 +1668,15 @@ unlink_node(node_t *node, desktop_t *d)
 				n->second_child->parent = d->tree;
 			}
 		} else {
+			// if IN has a parent
+			/*            ...
+			 *              \
+			 *              IN
+			 *       	  /   \
+			 *           N     IE
+			 *                 / \
+			 *               E1   E2
+			 */
 			if (is_sibling_internal(node)) {
 				n = get_internal_sibling(node);
 			} else {
@@ -1929,7 +1977,9 @@ update_focus(node_t *root, node_t *n)
 
 	bool flag = root->node_type != INTERNAL_NODE && root->client != NULL;
 	if (flag && root != n) {
-		root->is_focused = false;
+		set_focus(root, false);
+		if (!conf.focus_follow_pointer)
+			grab_buttons(root->client->window);
 	} else if (flag && root == n) {
 		root->is_focused = true;
 	}

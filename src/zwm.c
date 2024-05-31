@@ -681,10 +681,8 @@ cycle_win_wrapper(arg_t *arg)
 
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
-	if (!conf.focus_follow_pointer) {
-		update_grabbed_window(root, next);
-	}
-
+	update_focus(root, next);
+	
 	return 0;
 }
 
@@ -1540,7 +1538,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	if (conf_keys != NULL && _entries_ != 0) {
-		log_message(INFO, "----grabing conf keys------\n");
+		// log_message(INFO, "----grabing conf keys------\n");
 		for (int i = 0; i < _entries_; i++) {
 			xcb_keycode_t *key = get_keycode(conf_keys[i]->keysym, conn);
 			if (key == NULL)
@@ -2582,7 +2580,10 @@ int
 handle_enter_notify(const xcb_enter_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
-
+	log_message(DEBUG,
+				"recieved enter notify for %d, name %s ",
+				win,
+				win_name(win));
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
 		ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) {
 		return 0;
@@ -2604,16 +2605,20 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		win = wm->desktops[curd]->top_w;
 	}
 
-	node_t *root = wm->desktops[curd]->tree;
+	node_t	 *root	 = wm->desktops[curd]->tree;
+
+	node_t	 *n		 = find_node_by_window_id(root, win);
+	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
+
+	if (client == NULL || n == NULL) {
+		return 0;
+	}
+
+	if (win == wm->root_window || n->is_focused) {
+		return 0;
+	}
 
 	if (!conf.focus_follow_pointer) {
-		node_t	 *n = find_node_by_window_id(root, win);
-		client_t *client =
-			(n != NULL && n->client != NULL) ? n->client : NULL;
-
-		if (client == NULL) {
-			return 0;
-		}
 		if (has_floating_window(root)) {
 			restack(root);
 		}
@@ -2623,17 +2628,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 				return -1;
 			}
 		}
-		return 0;
-	}
-
-	node_t	 *n		 = find_node_by_window_id(root, win);
-	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
-
-	if (client == NULL) {
-		return 0;
-	}
-
-	if (win == wm->root_window) {
 		return 0;
 	}
 
@@ -2668,14 +2662,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	update_focus(root, n);
 
-	/* if (grab_buttons(wm->connection, client->window) != 0) { */
-	/* 	log_message(ERROR, "ERROR while grabbin buttons for client"); */
-	/* 	return 0; */
-	/* } */
-
-#ifdef _DEBUG__
-	log_tree_nodes(root);
-#endif
 	return 0;
 }
 
@@ -2740,7 +2726,7 @@ handle_key_press(xcb_key_press_event_t *key_press)
 	uint16_t	 cleaned_state = (key_press->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t k = get_keysym(key_press->detail, wm->connection);
 	if (conf_keys != NULL && _entries_ != 0) {
-		log_message(INFO, "----using conf keys------\n");
+		// log_message(INFO, "----using conf keys------\n");
 		for (int i = 0; i < _entries_; i++) {
 			if (cleaned_state ==
 				(conf_keys[i]->mod & ~(XCB_MOD_MASK_LOCK))) {
@@ -2802,11 +2788,11 @@ handle_state(node_t		 *n,
 	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
 		log_message(INFO,
 					"_NET_WM_STATE_BELOW received for win %d",
-					n->client->window);
+					win_name(n->client->window));
 	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
 		log_message(INFO,
 					"_NET_WM_STATE_ABOVE received for win %d",
-					n->client->window);
+					win_name(n->client->window));
 
 	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
 		log_message(INFO,
@@ -2863,6 +2849,10 @@ handle_client_message(xcb_client_message_event_t *client_message)
 		log_message(
 			INFO, "window want to be closed %d", client_message->window);
 	} else if (client_message->type == wm->ewmh->_NET_WM_STATE) {
+		log_message(INFO,
+					"wm_state for %d name",
+					client_message->window,
+					win_name(client_message->window));
 		handle_state(n,
 					 client_message->data.data32[1],
 					 client_message->data.data32[2],
@@ -3096,7 +3086,8 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 		return;
 	}
 
-	update_grabbed_window(root, n);
+	// update_grabbed_window(root, n);
+	update_focus(root, n);
 	window_ungrab_buttons(client->window);
 
 	const int r = set_active_window_name(win);
@@ -3307,14 +3298,14 @@ main(int argc, char **argv)
 			break;
 		}
 		case XCB_LEAVE_NOTIFY: {
-			xcb_leave_notify_event_t *leave_event =
+			__attribute__((unused)) xcb_leave_notify_event_t *leave_event =
 				(xcb_leave_notify_event_t *)event;
-			if (handle_leave_notify(leave_event) != 0) {
-				log_message(ERROR,
-							"Failed to handle XCB_LEAVE_NOTIFY for "
-							"window %d\n",
-							leave_event->event);
-			}
+			// if (handle_leave_notify(leave_event) != 0) {
+			// 	log_message(ERROR,
+			// 				"Failed to handle XCB_LEAVE_NOTIFY for "
+			// 				"window %d\n",
+			// 				leave_event->event);
+			// }
 			break;
 		}
 		case XCB_MOTION_NOTIFY: {
