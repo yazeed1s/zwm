@@ -320,7 +320,8 @@ modfield_from_keysym(xcb_keysym_t keysym)
 	xcb_keycode_t *keycodes = NULL, *mod_keycodes = NULL;
 	xcb_get_modifier_mapping_reply_t *reply = NULL;
 	xcb_key_symbols_t *symbols = xcb_key_symbols_alloc(wm->connection);
-
+	if (wm->root_window) {
+	}
 	if ((keycodes = xcb_key_symbols_get_keycode(symbols, keysym)) ==
 			NULL ||
 		(reply = xcb_get_modifier_mapping_reply(
@@ -400,6 +401,50 @@ release_grab:
 	if (reply)
 		free(reply);
 	xcb_ungrab_server(con);
+}
+
+// Stack win1 above win2
+void
+window_above(xcb_window_t win1, xcb_window_t win2)
+{
+	if (win2 == XCB_NONE) {
+		return;
+	}
+	uint16_t mask =
+		XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
+	uint32_t		  values[] = {win2, XCB_STACK_MODE_ABOVE};
+	xcb_void_cookie_t cookie =
+		xcb_configure_window_checked(wm->connection, win1, mask, values);
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	if (err != NULL) {
+		log_message(ERROR,
+					"Errror in stacking window %d: error code %d",
+					win2,
+					err->error_code);
+		free(err);
+	}
+}
+
+// Stack win1 below win2
+void
+window_below(xcb_window_t win1, xcb_window_t win2)
+{
+	if (win2 == XCB_NONE) {
+		return;
+	}
+	uint16_t mask =
+		XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
+	uint32_t		  values[] = {win2, XCB_STACK_MODE_BELOW};
+	xcb_void_cookie_t cookie =
+		xcb_configure_window_checked(wm->connection, win1, mask, values);
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	if (err != NULL) {
+		log_message(ERROR,
+					"Errror in stacking window %d: error code %d",
+					win2,
+					err->error_code);
+		free(err);
+	}
 }
 
 void
@@ -817,8 +862,8 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	if (c == 0x00)
 		return NULL;
 
-	c->id					   = win;
-	c->is_managed			   = false;
+	// c->id					   = win;
+	// c->is_managed			   = false;
 	c->window				   = win;
 	c->type					   = wtype;
 	c->border_width			   = (uint32_t)-1;
@@ -2652,9 +2697,9 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		}
 	}
 
-	if (has_floating_window(root)) {
-		restack(root);
-	}
+	// if (has_floating_window(root)) {
+	// 	restack(root);
+	// }
 
 	update_focus(root, n);
 
@@ -3143,9 +3188,9 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 		}
 	}
 
-	if (has_floating_window(root)) {
-		restack(root);
-	}
+	// if (has_floating_window(root)) {
+	// 	restack(root);
+	// }
 
 	update_focus(root, n);
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);

@@ -59,7 +59,7 @@ create_node(client_t *c)
 		return NULL;
 
 	node->client	   = c;
-	node->id		   = 1;
+	// node->id		   = 1;
 	node->parent	   = NULL;
 	node->first_child  = NULL;
 	node->second_child = NULL;
@@ -77,7 +77,7 @@ init_root()
 		return NULL;
 
 	node->client	   = NULL;
-	node->id		   = 1;
+	// node->id		   = 1;
 	node->parent	   = NULL;
 	node->first_child  = NULL;
 	node->second_child = NULL;
@@ -273,11 +273,11 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 				node->client->window,
 				n,
 				new_node->client->window,
-				nn);`
-	free(n);
+				nn);
+	` free(n);
 	free(nn);
 #endif
-	
+
 	if (node == NULL) {
 		log_message(ERROR, "node is null");
 		return;
@@ -480,6 +480,22 @@ find_floating_node(node_t *root)
 	return NULL;
 }
 
+bool
+is_sibling_floating(node_t *node)
+{
+	if (node == NULL || node->parent == NULL) {
+		return false;
+	}
+
+	node_t		 *parent  = node->parent;
+	const node_t *sibling = (parent->first_child == node)
+								? parent->second_child
+								: parent->first_child;
+
+	return (sibling != NULL && sibling->client != NULL &&
+			sibling->client->state == FLOATING);
+}
+
 void
 restack(node_t *root)
 {
@@ -487,11 +503,24 @@ restack(node_t *root)
 		return;
 
 	if (root->client != NULL) {
-		if (root->client->state == FLOATING ||
-			root->client->state == FULLSCREEN) {
+		if (root->client->state == FLOATING) {
+			// if (is_sibling_floating(root)) {
+			// 	node_t *s = get_external_sibling(root);
+			// 	if (s != NULL) {
+			// 		log_message(DEBUG, "SIBLING is found");
+			// 		window_below(s->client->window, root->client->window);
+			// 		return;
+			// 	} else {
+			// 		log_message(ERROR, "cannot find floating sibling");
+			// 	}
+			// } else {
+			// 	raise_window(root->client->window);
+			// }
+			raise_window(root->client->window);
+		} else if (root->client->state == FULLSCREEN) {
 			raise_window(root->client->window);
 		} else {
-			lower_window(root->client->window);
+			// lower_window(root->client->window);
 		}
 	}
 

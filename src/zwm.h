@@ -50,6 +50,8 @@ void                      free_clients();
 void 					  raise_window(xcb_window_t win);
 void 		              lower_window(xcb_window_t win);
 void                      grab_buttons(xcb_window_t win);
+void 					  window_above(xcb_window_t, xcb_window_t);
+void 				      window_below(xcb_window_t, xcb_window_t);
 void				      update_grabbed_window(node_t *root, node_t *n);
 void 					  ungrab_keys(xcb_conn_t *conn, xcb_window_t win);
 int16_t                   get_cursor_axis(xcb_conn_t *conn, xcb_window_t window);

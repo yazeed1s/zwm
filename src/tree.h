@@ -79,6 +79,7 @@ void	 delete_node(node_t *node, desktop_t *d);
 void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);
 node_t   *find_left_leaf(node_t *root);
 node_t 	 *get_focused_node(node_t *n);
+node_t   *get_external_sibling(const node_t *node);
 void	 delete_floating_node(node_t *node, desktop_t *d);
 void	 insert_floating_node(node_t *node, desktop_t *d);
 void	 log_tree_nodes(node_t *node);

@@ -104,13 +104,13 @@ typedef enum {
 } layout_t;
 
 typedef struct {
-	uint32_t	 id;
 	uint32_t	 border_width;
 	xcb_window_t window;
 	xcb_atom_t	 type;
-	bool		 is_managed;
 	state_t		 state;
-	posxy_t		 position_info;
+	/* uint32_t	 id; */
+	/* bool		 is_managed; */
+	/* posxy_t		 position_info; */
 } client_t;
 
 typedef enum {
@@ -170,16 +170,16 @@ typedef enum {
 
 typedef struct node_t node_t;
 struct node_t {
-	node_t		*parent;
-	node_t		*first_child;
-	node_t		*second_child;
-	uint32_t	 id;
-	client_t	*client;
-	node_type_t	 node_type;
-	split_type_t split_type;
-	rectangle_t	 rectangle;
-	bool		 is_focused;
-	bool		 is_master;
+	node_t	   *parent;
+	node_t	   *first_child;
+	node_t	   *second_child;
+	client_t   *client;
+	node_type_t node_type;
+	rectangle_t rectangle;
+	bool		is_focused;
+	bool		is_master;
+	/* uint32_t	id; */
+	/* split_type_t split_type; */
 };
 
 typedef struct {
