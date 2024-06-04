@@ -27,7 +27,7 @@
  */
 
 #include "config_parser.h"
-#include "logger.h"
+#include "helper.h"
 #include "tree.h"
 #include "type.h"
 #include "zwm.h"
@@ -81,6 +81,7 @@ static conf_mapper_t _cmapper_[] = {
 	{"flip", 	            flip_node_wrapper},
 	{"cycle_window", 	    cycle_win_wrapper},
 	{"reload_config",   reload_config_wrapper},
+	{"cycle_desktop",   cycle_desktop_wrapper}
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -183,23 +184,21 @@ print_key_array()
 		if (conf_keys[i]->arg != NULL) {
 			if (conf_keys[i]->arg->cmd != NULL) {
 				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
-					log_message(
-						DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
+					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
 				}
 			}
-			log_message(
-				DEBUG,
-				"key %d = { \n mod = %s \n keysym = %s, func = %s, "
-				"\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
-				i,
-				key_to_str(conf_keys[i]->mod),
-				key_to_str(conf_keys[i]->keysym),
-				func_to_str(conf_keys[i]->function_ptr),
-				conf_keys[i]->arg->idx,
-				conf_keys[i]->arg->d,
-				conf_keys[i]->arg->r,
-				conf_keys[i]->arg->t,
-				conf_keys[i]->arg->t);
+			_LOG_(DEBUG,
+				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
+				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+				  i,
+				  key_to_str(conf_keys[i]->mod),
+				  key_to_str(conf_keys[i]->keysym),
+				  func_to_str(conf_keys[i]->function_ptr),
+				  conf_keys[i]->arg->idx,
+				  conf_keys[i]->arg->d,
+				  conf_keys[i]->arg->r,
+				  conf_keys[i]->arg->t,
+				  conf_keys[i]->arg->t);
 		}
 	}
 }
@@ -229,7 +228,7 @@ write_default_config(const char *filename, config_t *c)
         "active_border_color = 0x83a598\n"
         "normal_border_color = 0x30302f\n"
         "window_gap = 10\n"
-        "virtual_desktops = 5\n"
+        "virtual_desktops = 7\n"
 		"focus_follow_pointer = true\n"
         "\n"
         "; Key Bindings:\n"
@@ -271,6 +270,8 @@ write_default_config(const char *filename, config_t *c)
         "key = {super + 3 -> func(switch_desktop)}\n"
         "key = {super + 4 -> func(switch_desktop)}\n"
         "key = {super + 5 -> func(switch_desktop)}\n"
+        "key = {super + 6 -> func(switch_desktop)}\n"
+        "key = {super + 7 -> func(switch_desktop)}\n"
         "key = {super + l -> func(grow)}\n"
         "key = {super + h -> func(shrink)}\n"
         "key = {super + f -> func(fullscreen)}\n"
@@ -279,11 +280,15 @@ write_default_config(const char *filename, config_t *c)
 		"key = {super + right -> func(cycle_window:right)}\n"
 		"key = {super + left -> func(cycle_window:left)}\n"
 		"key = {super + down -> func(cycle_window:down)}\n"
+        "key = {super|shift + left -> func(cycle_desktop:left)}\n"
+        "key = {super|shift + right -> func(cycle_desktop:right)}\n"
         "key = {super|shift + 1 -> func(transfer_node)}\n"
         "key = {super|shift + 2 -> func(transfer_node)}\n"
         "key = {super|shift + 3 -> func(transfer_node)}\n"
         "key = {super|shift + 4 -> func(transfer_node)}\n"
         "key = {super|shift + 5 -> func(transfer_node)}\n"
+		"key = {super|shift + 6 -> func(transfer_node)}\n"
+		"key = {super|shift + 7 -> func(transfer_node)}\n"
         "key = {super|shift + m -> func(layout:master)}\n"
         "key = {super|shift + s -> func(layout:stack)}\n"
         "key = {super|shift + d -> func(layout:default)}\n"
@@ -302,8 +307,7 @@ write_default_config(const char *filename, config_t *c)
 		struct stat st;
 		if (stat(dir_path, &st) == -1) {
 			if (mkdir(dir_path, 0777) == -1) {
-				log_message(
-					ERROR, "Failed to create directory: %s\n", dir_path);
+				_LOG_(ERROR, "Failed to create directory: %s\n", dir_path);
 				return -1;
 			}
 		}
@@ -311,7 +315,7 @@ write_default_config(const char *filename, config_t *c)
 
 	FILE *file = fopen(filename, "w");
 	if (file == NULL) {
-		log_message(ERROR, "Failed to create config file: %s\n", filename);
+		_LOG_(ERROR, "Failed to create config file: %s\n", filename);
 		return -1;
 	}
 
@@ -319,7 +323,7 @@ write_default_config(const char *filename, config_t *c)
 	size_t written = fwrite(content, 1, len, file);
 	if (written != len) {
 		fclose(file);
-		log_message(ERROR, "Error writing to file: %s\n", filename);
+		_LOG_(ERROR, "Error writing to file: %s\n", filename);
 		return -1;
 	}
 
@@ -327,7 +331,7 @@ write_default_config(const char *filename, config_t *c)
 	c->normal_border_color	= 0x30302f;
 	c->border_width			= 2;
 	c->window_gap			= 10;
-	c->virtual_desktops		= 5;
+	c->virtual_desktops		= 7;
 	c->focus_follow_pointer = true;
 
 	fclose(file);
@@ -479,7 +483,7 @@ uint32_t
 parse_mod_key(char *mod)
 {
 #ifdef _DEBUG__
-	log_message(DEBUG, "recieved mod key = (%s)", mod);
+	_LOG_(DEBUG, "recieved mod key = (%s)", mod);
 #endif
 	uint32_t _mod = str_to_key(mod);
 	uint32_t mask = -1;
@@ -487,15 +491,15 @@ parse_mod_key(char *mod)
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
 		if (mods == NULL) {
-			log_message(ERROR, "failed to split string %s\n", mod);
+			_LOG_(ERROR, "failed to split string %s\n", mod);
 			return -1;
 		}
 #ifdef _DEBUG__
-		log_message(DEBUG,
-					"mod (%s) splited into (%s), (%s)\n",
-					mod,
-					mods[0],
-					mods[1]);
+		_LOG_(DEBUG,
+			  "mod (%s) splited into (%s), (%s)\n",
+			  mod,
+			  mods[0],
+			  mods[1]);
 #endif
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
@@ -512,7 +516,7 @@ parse_keysym(char *keysym)
 {
 	uint32_t keysym_ = str_to_key(keysym);
 	if ((int)keysym_ == -1) {
-		log_message(ERROR, "failed to find keysym %s\n", keysym);
+		_LOG_(ERROR, "failed to find keysym %s\n", keysym);
 		return -1;
 	}
 
@@ -550,7 +554,7 @@ build_run_func(char	   *func_param,
 		int	   count = 0;
 		char **args	 = split_string(func_param, ',', &count);
 		if (args == NULL) {
-			log_message(ERROR, "failed to split string %s", func_param);
+			_LOG_(ERROR, "failed to split string %s", func_param);
 			return;
 		}
 		char **arr = (char **)malloc(count * sizeof(char *));
@@ -559,7 +563,7 @@ build_run_func(char	   *func_param,
 			trim(arr[i], WHITE_SPACE);
 			trim(arr[i], QUOTATION);
 #ifdef _DEBUG__
-			log_message(DEBUG, "extracted arg - %s", arr[i]);
+			_LOG_(DEBUG, "extracted arg - %s", arr[i]);
 #endif
 		}
 		free(args);
@@ -573,7 +577,7 @@ build_run_func(char	   *func_param,
 		key->arg->cmd  = arr;
 		key->arg->argc = 1;
 #ifdef _DEBUG__
-		log_message(DEBUG, "already extracted arg - %s", func_param);
+		_LOG_(DEBUG, "already extracted arg - %s", func_param);
 #endif
 	}
 }
@@ -622,21 +626,21 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	// deal with mod
 	_mod					= parse_mod_key(mod);
 	if ((int)_mod == -1) {
-		log_message(
+		_LOG_(
 			ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
 		return -1;
 	}
 
 	// deal with keysym
 	if (keysym == NULL) {
-		log_message(INFO,
-					"keysym is null, func must be switch or transfer %s\n",
-					func);
+		_LOG_(INFO,
+			  "keysym is null, func must be switch or transfer %s\n",
+			  func);
 		iterative_func = true;
 	} else {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
-			log_message(ERROR, "failed to parse keysym for %s\n", keysym);
+			_LOG_(ERROR, "failed to parse keysym for %s\n", keysym);
 			return -1;
 		}
 	}
@@ -644,35 +648,33 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	// deal with func
 	if (strncmp(func, "run", 3) == 0) {
 		run_func = true;
-		log_message(INFO, "found run func %s, ...\n", func);
+		_LOG_(INFO, "found run func %s, ...\n", func);
 	}
 
 	char *func_param = extract_func_body(func);
 	if (func_param == NULL) {
-		log_message(ERROR, "failed to extract func body for %s\n", func);
+		_LOG_(ERROR, "failed to extract func body for %s\n", func);
 		return -1;
 	}
 
 	trim(func_param, PARENTHESIS);
 	if (strchr(func_param, ':')) {
-		log_message(INFO, "func_param %s contains colon", func_param);
+		_LOG_(INFO, "func_param %s contains colon", func_param);
 		int	   count = 0;
 		char **s	 = split_string(func_param, ':', &count);
 		if (s == NULL) {
-			log_message(
-				ERROR, "failed to split string for %s\n", func_param);
+			_LOG_(ERROR, "failed to split string for %s\n", func_param);
 			free(func_param);
 			return -1;
 		}
 		if (count != 2) {
-			log_message(INFO, "recieved wrong count %d, wanted 2", count);
+			_LOG_(INFO, "recieved wrong count %d, wanted 2", count);
 		} else {
 			char *f = strdup(s[0]);
 			char *a = strdup(s[1]);
 			ptr		= str_to_func(f);
 			if (ptr == NULL) {
-				log_message(
-					ERROR, "failed to find function pointer for %s", f);
+				_LOG_(ERROR, "failed to find function pointer for %s", f);
 				free(func_param);
 				free(s);
 				return -1;
@@ -700,6 +702,12 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 				} else if (strcmp(a, "stack") == 0) {
 					key->arg->t = STACK;
 				}
+			} else if (strcmp(f, "cycle_desktop")) {
+				if (strcmp(a, "left") == 0) {
+					key->arg->d = LEFT;
+				} else if (strcmp(a, "right") == 0) {
+					key->arg->d = RIGHT;
+				}
 			}
 			free(s);
 			goto cleanup;
@@ -711,9 +719,9 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 			strcmp(func_param, "transfer_node") == 0) {
 			ptr = str_to_func(func_param);
 			if (ptr == NULL) {
-				log_message(ERROR,
-							"failed to find function pointer for %s",
-							func_param);
+				_LOG_(ERROR,
+					  "failed to find function pointer for %s",
+					  func_param);
 				free(func_param);
 				return -1;
 			}
@@ -727,9 +735,9 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	if (run_func) {
 		ptr = str_to_func("run");
 		if (ptr == NULL) {
-			log_message(ERROR,
-						"failed to find run func pointer for %s",
-						func_param);
+			_LOG_(ERROR,
+				  "failed to find run func pointer for %s",
+				  func_param);
 			free(func_param);
 			return -1;
 		}
@@ -739,8 +747,7 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 
 	ptr = str_to_func(func_param);
 	if (ptr == NULL) {
-		log_message(
-			ERROR, "failed to find function pointer for %s", func_param);
+		_LOG_(ERROR, "failed to find function pointer for %s", func_param);
 		free(func_param);
 		return -1;
 	}
@@ -759,14 +766,14 @@ int
 parse_keybinding(char *str, _key__t *key)
 {
 	if (strstr(str, "->") == NULL) {
-		log_message(ERROR, "invalide key format %s ", str);
+		_LOG_(ERROR, "invalide key format %s ", str);
 		return -1;
 	}
 
 #ifdef _DEBUG__
-	log_message(DEBUG, "value before trim = %s ", str);
+	_LOG_(DEBUG, "value before trim = %s ", str);
 	trim(str, CURLY_BRACKET);
-	log_message(DEBUG, "value after trim = %s ", str);
+	_LOG_(DEBUG, "value after trim = %s ", str);
 #endif
 	trim(str, CURLY_BRACKET);
 	// bool  keysym_exists = strchr(str, '+') != NULL;
@@ -820,7 +827,7 @@ init_key()
 	arg_t	*a	 = (arg_t *)malloc(sizeof(arg_t));
 
 	if (a == NULL || key == NULL) {
-		log_message(ERROR, "failed to malloc _key__t");
+		_LOG_(ERROR, "failed to malloc _key__t");
 		return NULL;
 	}
 
@@ -843,7 +850,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
-		log_message(ERROR, "Error: Could not open file '%s'\n", filename);
+		_LOG_(ERROR, "Error: Could not open file '%s'\n", filename);
 		return -1;
 	}
 
@@ -857,11 +864,11 @@ parse_config(const char *filename, config_t *c, bool reload)
 		trim(key, WHITE_SPACE);
 		trim(value, WHITE_SPACE);
 #ifdef _DEBUG__
-		log_message(DEBUG,
-					"config line = (%s) key = (%s) value = (%s)\n",
-					line,
-					key,
-					value);
+		_LOG_(DEBUG,
+			  "config line = (%s) key = (%s) value = (%s)\n",
+			  line,
+			  key,
+			  value);
 #endif
 		if (key == NULL || value == NULL) {
 			continue;
@@ -889,9 +896,9 @@ parse_config(const char *filename, config_t *c, bool reload)
 			} else if (strcmp(value, "false") == 0) {
 				c->focus_follow_pointer = false;
 			} else {
-				log_message(ERROR,
-							"Invalid value for focus_follow_pointer: %s\n",
-							value);
+				_LOG_(ERROR,
+					  "Invalid value for focus_follow_pointer: %s\n",
+					  value);
 			}
 		} else if (strcmp(key, "key") == 0) {
 			if (conf_keys == NULL) {
@@ -907,7 +914,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 			if (parse_keybinding(value, k) != 0) {
 				err_cleanup(k);
 				free_keys();
-				log_message(ERROR, "error while parsing keys");
+				_LOG_(ERROR, "error while parsing keys");
 				goto out;
 			}
 			conf_keys[_entries_] = k;

@@ -25,49 +25,32 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef ZWM_HELPER_H
+#define ZWM_HELPER_H
 
-#include "type.h"
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <xcb/xcb.h>
+#include "logger.h"
 
-#define YEAR_OFFSET 1900
+#define LEN(x)			 (sizeof(x) / sizeof(*x))
+#define CLEANMASK(mask)	 (mask & ~(0 | XCB_MOD_MASK_LOCK))
+#define IS_TILED(c)		 (c->state == TILED)
+#define IS_FLOATING(c)	 (c->state == FLOATING)
+#define IS_FULLSCREEN(c) (c->state == FULLSCREEN)
 
-void
-log_message(log_level_t level, const char *format, ...)
-{
-	struct tm *ptr;
-	time_t	   t;
-	va_list	   args;
-	char	   buf[100];
-	memset(buf, 0, sizeof(buf));
-	t	= time(NULL);
-	ptr = localtime(&t);
-	strftime(buf, 100, "%F/%I:%M:%S %p", ptr);
-	FILE *log_file = fopen("zwm.log", "a");
-	va_start(args, format);
-	if (log_file == NULL) {
-		fprintf(stderr, "Failed to open log file for writing\n");
-		va_end(args);
-		return;
-	}
-	fprintf(log_file, "%s ", buf);
-	switch (level) {
-	case ERROR: fprintf(log_file, "[ERROR] "); break;
-	case INFO: fprintf(log_file, "[INFO] "); break;
-	case DEBUG: fprintf(log_file, "[DEBUG] "); break;
-	default: break;
-	}
-	vfprintf(log_file, format, args);
-	fprintf(log_file, "\n");
-	fclose(log_file);
-	va_end(args);
-}
+#define _LOG_(level, format, ...)                                         \
+	do {                                                                  \
+		log_message(level,                                                \
+					"[%s:%s():%d] " format,                               \
+					__FILE__,                                             \
+					__func__,                                             \
+					__LINE__,                                             \
+					##__VA_ARGS__);                                       \
+	} while (0)
 
-void
-log_window_id(xcb_window_t window, const char *message)
-{
-	log_message(DEBUG, "%s: Window ID: %u", message, window);
-}
+#define MAX(a, b)                                                         \
+	({                                                                    \
+		__typeof__(a) _a = (a);                                           \
+		__typeof__(b) _b = (b);                                           \
+		_a > _b ? _a : _b;                                                \
+	})
+
+#endif // ZWM_HELPER_H

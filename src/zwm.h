@@ -74,6 +74,7 @@ int                       set_window_state(xcb_window_t win, xcb_icccm_wm_state_
 int                       show_window(xcb_window_t win);
 int 				      switch_desktop_wrapper(arg_t *arg);
 int 				      switch_desktop(const int nd);
+int 					  cycle_desktop_wrapper(arg_t *arg);
 int 					  close_or_kill_wrapper();
 int 					  close_or_kill(xcb_window_t win);
 int 					  horizontal_resize_wrapper(arg_t *arg);

@@ -37,16 +37,9 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
-#include "logger.h"
+#include "helper.h"
 #include "type.h"
 #include "zwm.h"
-
-#define MAX(a, b)                                                         \
-	({                                                                    \
-		__typeof__(a) _a = (a);                                           \
-		__typeof__(b) _b = (b);                                           \
-		_a > _b ? _a : _b;                                                \
-	})
 
 node_t *
 create_node(client_t *c)
@@ -96,7 +89,7 @@ render_tree(node_t *node)
 
 	node_t **stack = malloc(10 * sizeof(node_t *));
 	if (stack == NULL) {
-		log_message(ERROR, "Stack allocation failed\n");
+		_LOG_(ERROR, "Stack allocation failed\n");
 		return -1;
 	}
 
@@ -115,9 +108,9 @@ render_tree(node_t *node)
 			bool flag = current_node->client->state == FULLSCREEN;
 			if (!flag) {
 				if (tile(current_node) != 0) {
-					log_message(ERROR,
-								"error tiling window %d",
-								current_node->client->window);
+					_LOG_(ERROR,
+						  "error tiling window %d",
+						  current_node->client->window);
 					free(stack);
 					return -1;
 				}
@@ -130,7 +123,7 @@ render_tree(node_t *node)
 				node_t **new_stack =
 					realloc(stack, stack_size * sizeof(node_t *));
 				if (new_stack == NULL) {
-					log_message(ERROR, "Stack reallocation failed\n");
+					_LOG_(ERROR, "Stack reallocation failed\n");
 					free(stack);
 					return -1;
 				}
@@ -145,7 +138,7 @@ render_tree(node_t *node)
 				node_t **new_stack =
 					realloc(stack, stack_size * sizeof(node_t *));
 				if (new_stack == NULL) {
-					log_message(ERROR, "Stack reallocation failed\n");
+					_LOG_(ERROR, "Stack reallocation failed\n");
 					free(stack);
 					return -1;
 				}
@@ -268,23 +261,23 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 #ifdef _DEBUG__
 	char *n	 = win_name(node->client->window);
 	char *nn = win_name(new_node->client->window);
-	log_message(DEBUG,
-				"Node to split %d:%s, node to insert %d:%S",
-				node->client->window,
-				n,
-				new_node->client->window,
-				nn);
+	_LOG_(DEBUG,
+		  "Node to split %d:%s, node to insert %d:%S",
+		  node->client->window,
+		  n,
+		  new_node->client->window,
+		  nn);
 	` free(n);
 	free(nn);
 #endif
 
 	if (node == NULL) {
-		log_message(ERROR, "node is null");
+		_LOG_(ERROR, "node is null");
 		return;
 	}
 
 	if (node->client == NULL) {
-		log_message(ERROR, "client is null in node");
+		_LOG_(ERROR, "client is null in node");
 		return;
 	}
 
@@ -507,11 +500,11 @@ restack(node_t *root)
 			// if (is_sibling_floating(root)) {
 			// 	node_t *s = get_external_sibling(root);
 			// 	if (s != NULL) {
-			// 		log_message(DEBUG, "SIBLING is found");
+			// 		_LOG_(DEBUG, "SIBLING is found");
 			// 		window_below(s->client->window, root->client->window);
 			// 		return;
 			// 	} else {
-			// 		log_message(ERROR, "cannot find floating sibling");
+			// 		_LOG_(ERROR, "cannot find floating sibling");
 			// 	}
 			// } else {
 			// 	raise_window(root->client->window);
@@ -981,7 +974,7 @@ delete_node_with_external_sibling(node_t *node)
 	external_node = get_external_sibling(node);
 
 	if (external_node == NULL) {
-		log_message(ERROR, "external node is null");
+		_LOG_(ERROR, "external node is null");
 		return -1;
 	}
 
@@ -1049,7 +1042,7 @@ delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 		}
 
 		if (internal_sibling == NULL) {
-			log_message(ERROR, "internal node is null");
+			_LOG_(ERROR, "internal node is null");
 			return -1;
 		}
 
@@ -1090,11 +1083,11 @@ delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 		if (is_sibling_internal(node)) {
 			internal_sibling = get_internal_sibling(node);
 		} else {
-			log_message(ERROR, "internal node is null");
+			_LOG_(ERROR, "internal node is null");
 			return -1;
 		}
 		if (internal_sibling == NULL) {
-			log_message(ERROR, "internal node is null");
+			_LOG_(ERROR, "internal node is null");
 			return -1;
 		}
 		internal_sibling->parent = NULL;
@@ -1130,13 +1123,13 @@ void
 delete_floating_node(node_t *node, desktop_t *d)
 {
 	if (node == NULL || node->client == NULL || d == NULL) {
-		log_message(ERROR, "node to be deleted is null");
+		_LOG_(ERROR, "node to be deleted is null");
 		return;
 	}
 
 	assert(node->client->state == FLOATING);
 #ifdef _DEBUG__
-	log_message(DEBUG, "DELETE floating window %d", node->client->window);
+	_LOG_(DEBUG, "DELETE floating window %d", node->client->window);
 #endif
 	node_t *p = node->parent;
 	if (p->first_child == node) {
@@ -1152,7 +1145,7 @@ delete_floating_node(node_t *node, desktop_t *d)
 	assert(p->first_child == NULL);
 	assert(p->second_child == NULL);
 #ifdef _DEBUG__
-	log_message(DEBUG, "DELETE floating window success");
+	_LOG_(DEBUG, "DELETE floating window success");
 #endif
 	d->n_count -= 1;
 }
@@ -1163,19 +1156,19 @@ void
 delete_node(node_t *node, desktop_t *d)
 {
 	if (node == NULL || node->client == NULL || d->tree == NULL) {
-		log_message(ERROR, "node to be deleted is null");
+		_LOG_(ERROR, "node to be deleted is null");
 		return;
 	}
 
 	if (node->node_type == INTERNAL_NODE) {
-		log_message(ERROR,
-					"node to be deleted is not an external node type: %d",
-					node->node_type);
+		_LOG_(ERROR,
+			  "node to be deleted is not an external node type: %d",
+			  node->node_type);
 		return;
 	}
 
 	if (is_parent_null(node) && node != d->tree) {
-		log_message(ERROR, "parent of node is null");
+		_LOG_(ERROR, "parent of node is null");
 		return;
 	}
 
@@ -1198,7 +1191,7 @@ delete_node(node_t *node, desktop_t *d)
 	// if (is_sibling_external(node)) {
 	// 	xcb_window_t w = node->client->window;
 	// 	if (delete_node_with_external_sibling(node) != 0) {
-	// 		log_message(ERROR, "cannot delete node with id: %d", w);
+	// 		_LOG_(ERROR, "cannot delete node with id: %d", w);
 	// 		return;
 	// 	}
 	// 	goto out;
@@ -1216,7 +1209,7 @@ delete_node(node_t *node, desktop_t *d)
 	// if (is_sibling_internal(node)) {
 	// 	xcb_window_t w = node->client->window;
 	// 	if (delete_node_with_internal_sibling(node, d) != 0) {
-	// 		log_message(ERROR, "cannot delete node with id: %d", w);
+	// 		_LOG_(ERROR, "cannot delete node with id: %d", w);
 	// 		return;
 	// 	}
 	// 	goto out;
@@ -1293,15 +1286,15 @@ log_tree_nodes(node_t *node)
 				snprintf(name, sizeof(name), "%s", t_reply.name);
 				xcb_icccm_get_text_property_reply_wipe(&t_reply);
 			}
-			log_message(DEBUG,
-						"Node Type: %d, Client Window ID: %u, name: %s, "
-						"is_focused %s",
-						node->node_type,
-						node->client->window,
-						name,
-						node->is_focused ? "true" : "false");
+			_LOG_(DEBUG,
+				  "Node Type: %d, Client Window ID: %u, name: %s, "
+				  "is_focused %s",
+				  node->node_type,
+				  node->client->window,
+				  name,
+				  node->is_focused ? "true" : "false");
 		} else {
-			log_message(DEBUG, "Node Type: %d", node->node_type);
+			_LOG_(DEBUG, "Node Type: %d", node->node_type);
 		}
 		log_tree_nodes(node->first_child);
 		log_tree_nodes(node->second_child);
@@ -1461,7 +1454,7 @@ horizontal_resize(node_t *n, resize_t t)
 		shrink_direction = RIGHT;
 	}
 
-	log_message(INFO, "dir == %d", grow_direction);
+	_LOG_(INFO, "dir == %d", grow_direction);
 
 	if (n->parent == NULL || n->node_type == ROOT_NODE) {
 		return;
@@ -1507,7 +1500,7 @@ horizontal_resize(node_t *n, resize_t t)
 			// sibling is internal
 			s = get_internal_sibling(n);
 			if (s == NULL) {
-				log_message(ERROR, "internal sibling is null");
+				_LOG_(ERROR, "internal sibling is null");
 				return;
 			}
 			if (t == GROW) {
@@ -1689,7 +1682,7 @@ unlink_node(node_t *node, desktop_t *d)
 		if (node->parent->node_type == ROOT_NODE) {
 			n = get_internal_sibling(node);
 			if (n == NULL) {
-				log_message(ERROR, "internal node is null");
+				_LOG_(ERROR, "internal node is null");
 				return;
 			}
 			if (d->tree == node->parent) {
@@ -1716,7 +1709,7 @@ unlink_node(node_t *node, desktop_t *d)
 			if (is_sibling_internal(node)) {
 				n = get_internal_sibling(node);
 			} else {
-				log_message(ERROR, "internal node is null");
+				_LOG_(ERROR, "internal node is null");
 				return;
 			}
 			if (n == NULL)
@@ -1766,7 +1759,7 @@ transfer_node_wrapper(arg_t *arg)
 	desktop_t *nd = wm->desktops[i];
 	desktop_t *od = wm->desktops[d];
 #ifdef _DEBUG__
-	log_message(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
+	_LOG_(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
 #endif
 	if (hide_window(node->client->window) != 0) {
 		return -1;
@@ -2016,10 +2009,11 @@ update_focus(node_t *root, node_t *n)
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
 			grab_buttons(root->client->window);
-	} else if (flag && root == n) {
-		root->is_focused = true;
+		root->is_focused = false;
 	}
-
+	// } else if (flag && root == n) {
+	// 	root->is_focused = true;
+	// }
 	update_focus(root->first_child, n);
 	update_focus(root->second_child, n);
 }
@@ -2151,13 +2145,13 @@ cycle_win(node_t *node, direction_t d)
 {
 	node_t *root = find_tree_root(node);
 	if (root == NULL) {
-		log_message(ERROR, "could not find root of tree");
+		_LOG_(ERROR, "could not find root of tree");
 		return NULL;
 	}
 
 	node_t *neighbor = find_closest_neighbor(root, node, d);
 	if (neighbor == NULL) {
-		log_message(ERROR, "could not find neighbor node");
+		_LOG_(ERROR, "could not find neighbor node");
 		return NULL;
 	}
 
