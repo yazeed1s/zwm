@@ -157,7 +157,7 @@ exec = ["polybar", "-c", ".config/polybar/config.ini"]
 ```
 
 ### 3- Key bindings
-- The format for defining key bindings is: `bind = {modifier + key -> action}`
+- The format for defining key bindings is: `bind = modifier + key -> action`
 - If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
 - Note: Some functions require additional arguments to specify details of the action. 
 - These arguments are provided using a colon syntax, where the function and its argument are separated by a colon.
