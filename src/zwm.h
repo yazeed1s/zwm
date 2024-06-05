@@ -36,6 +36,7 @@
 // clang-format off
 extern config_t 		  conf;
 extern wm_t 			  *wm;
+extern xcb_window_t 	  focused_win;
 xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *c);
 xcb_atom_t                get_atom(char *atom_name, xcb_conn_t *con);
 client_t                 *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *cn);
@@ -92,4 +93,5 @@ int                       configure_window(xcb_conn_t *, xcb_window_t, uint16_t,
 int                       set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t );
 int                       handle_xcb_error(xcb_conn_t *, xcb_void_cookie_t, const char *);
 int 					  swap_node_wrapper();
+char 					  *win_name(xcb_window_t win);
 #endif // ZWM_ZWM_H

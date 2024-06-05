@@ -120,8 +120,7 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 ### Build from source
 ```
 git clone https://github.com/Yazeed1s/zwm.git
-cd zwm && make all
-sudo make install
+cd zwm && sudo make install
 ```
 ## Configuration
 A config file will be generated when you first start `zwm`. The file can be found in the following location:
@@ -135,8 +134,8 @@ border_width = 2
 active_border_color = 0x83a598
 normal_border_color = 0x30302f
 window_gap = 10
-virtual_desktops = 5
-focus_follow_pointer = true
+virtual_desktops = 7
+focus_follow_pointer = false
 ```
 Available Variables:
 - border_width: Defines the width of the window borders in pixels.
@@ -146,69 +145,88 @@ Available Variables:
 - virtual_desktops: sets the number of virtual desktops.
 - focus_follow_pointer: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
 
-### 2- Config keys
+### 2- Commands to run on startup
+Use the `exec` directive to specify programs that should be started when ZWM is launched.
+- For a single command: 
 ```ini
-key = {super + return -> run("alacritty")}
-key = {super + space -> run("dmenu_run")}
-key = {super + p -> run(["rofi","-show", "drun"])}
-key = {super + w -> func(kill)}
-key = {super + 1 -> func(switch_desktop)}
-key = {super + 2 -> func(switch_desktop)}
-key = {super + 3 -> func(switch_desktop)}
-key = {super + 4 -> func(switch_desktop)}
-key = {super + 5 -> func(switch_desktop)}
-key = {super + l -> func(grow)}
-key = {super + h -> func(shrink)}
-key = {super + f -> func(fullscreen)}
-key = {super + s -> func(swap)}
-key = {super + up -> func(cycle_window:up)}
-key = {super + right -> func(cycle_window:right)}
-key = {super + left -> func(cycle_window:left)}
-key = {super + down -> func(cycle_window:down)}
-key = {super|shift + 1 -> func(transfer_node)}
-key = {super|shift + 2 -> func(transfer_node)}
-key = {super|shift + 3 -> func(transfer_node)}
-key = {super|shift + 4 -> func(transfer_node)}
-key = {super|shift + 5 -> func(transfer_node)}
-key = {super|shift + m -> func(master)}
-key = {super|shift + s -> func(stack)}
-key = {super|shift + d -> func(default)}
-key = {super|shift + k -> func(traverse_up)}
-key = {super|shift + j -> func(traverse_down)}
-key = {super|shift + f -> func(flip)}
-key = {super|shift + r -> func(reload_config)}
+exec = "polybar"
+```
+- To specify additional arguments as a list:
+```ini
+exec = ["polybar", "-c", ".config/polybar/config.ini"]
 ```
 
-### Key Bindings:
-- The format for defining key bindings is: `key = {modifier + key -> action}`
+### 3- Key bindings
+- The format for defining key bindings is: `bind = {modifier + key -> action}`
 - If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
-
+- Note: Some functions require additional arguments to specify details of the action. 
+- These arguments are provided using a colon syntax, where the function and its argument are separated by a colon.
+- Example: `func(switch_desktop:1)` means "switch to desktop 1".
+- Example: `func(resize:grow)` means "grow the size of the window".
+- Example: `func(layout:master)` means "toggle master layout".
+#### Available modifires:
+- super: The "Windows" key.
+- alt: The "Alt" key.
+- shift: The "Shift" key.
+- ctrl: The "Control" key.
 #### Available Actions:
 - run(...): Executes a specified process.
-   - Example: `key = {super + return -> run("alacritty")}`
+   - Example: `bind = super + return -> run("alacritty")`
    - To run a process with arguments, use a list:
-     Example: `key = {super + p -> run(["rofi", "-show", "drun"])}`
+     Example: `bind = super + p -> run(["rofi", "-show", "drun"])`
 
 - func(...): Calls a predefined function. The following functions are available:
-   - kill: Kills the focused window.
-   - switch_desktop: Switches to a specified virtual desktop.
-   - grow: Increases the size of the focused window.
-   - shrink: Decreases the size of the focused window.
-   - fullscreen: Toggles fullscreen mode for the focused window.
-   - swap: Swaps the focused window with its sibling.
-   - transfer_node: Moves the focused window to another virtual desktop.
-   - master: Toggles the master layout and sets the focused window as the master window.
-   - stack: Toggles the stacking layout and sets the focused window as the top window.
-   - default: Toggles the default layout.
-   - traverse_up: (In stack layout only) Moves focus to the window above.
-   - traverse_down: (In stack layout only) Moves focus to the window below.
-   - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
-   - cycle_window: Moves focus to the window in the specified direction
-   - reload_config: hot reload
-     
-- Note: the cycle_window function takes a direction `(UP|LEFT|RIGHT|DOWN)`;
-		the direction should be 'coloned' to the function like `cycle_window:up` or `cycle_window:down`
+	- kill: Kills the focused window.
+	- switch_desktop: Switches to a specified virtual desktop.
+	- fullscreen: Toggles fullscreen mode for the focused window.
+	- swap: Swaps the focused window with its sibling.
+	- transfer_node: Moves the focused window to another virtual desktop.
+	- layout: Toggles the specified layout (master, deafult, stack).
+	- traverse: (In stack layout only) Moves focus to the window above or below.
+	- flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
+	- cycle_window: Moves focus to the window in the specified direction (up, down, left, right).
+	- cycle_desktop: Cycles through the virtual desktops (left, right).
+	- resize: Adjusts the size of the focused window (grow, shrink).
+	- reload_config: Reloads the configuration file without restarting ZWM.
 
+- Default keys
+```ini
+bind = super + return -> run("alacritty")
+bind = super + space -> run("dmenu_run")
+bind = super + p -> run(["rofi","-show", "drun"])
+bind = super + w -> func(kill)
+bind = super + 1 -> func(switch_desktop:1)
+bind = super + 2 -> func(switch_desktop:2)
+bind = super + 3 -> func(switch_desktop:3)
+bind = super + 4 -> func(switch_desktop:4)
+bind = super + 5 -> func(switch_desktop:5)
+bind = super + 6 -> func(switch_desktop:6)
+bind = super + 7 -> func(switch_desktop:7)
+bind = super + l -> func(resize:grow)
+bind = super + h -> func(resize:shrink)
+bind = super + f -> func(fullscreen)
+bind = super + s -> func(swap)
+bind = super + up -> func(cycle_window:up)
+bind = super + right -> func(cycle_window:right)
+bind = super + left -> func(cycle_window:left)
+bind = super + down -> func(cycle_window:down)
+bind = super|shift + left -> func(cycle_desktop:left)
+bind = super|shift + right -> func(cycle_desktop:right)
+bind = super|shift + 1 -> func(transfer_node:1)
+bind = super|shift + 2 -> func(transfer_node:2)
+bind = super|shift + 3 -> func(transfer_node:3)
+bind = super|shift + 4 -> func(transfer_node:4)
+bind = super|shift + 5 -> func(transfer_node:5)
+bind = super|shift + 6 -> func(transfer_node:6)
+bind = super|shift + 7 -> func(transfer_node:7)
+bind = super|shift + m -> func(layout:master)
+bind = super|shift + s -> func(layout:stack)
+bind = super|shift + d -> func(layout:default)
+bind = super|shift + k -> func(traverse:up)
+bind = super|shift + j -> func(traverse:down)
+bind = super|shift + f -> func(flip)
+bind = super|shift + r -> func(reload_config)
+```
 More options will be added in the future as development progresses.
 
 ## Default Keybindings
@@ -218,11 +236,11 @@ More options will be added in the future as development progresses.
 | `super + return`       | launch a terminal (alacritty)                            |
 | `super + space`       | launch dmenu |
 | `super + p `      | launch rofi |
-| `super + [desktop number 1..N]`            | switche the desktop |
+| `super + [1..N]`            | switche the desktop |
 | `super + l`            | resize window (grow/expand) |
 | `super + h`            | resize window (shrink) |
 | `super + f`            | toggle fullscreen |
-| `super + shift + [desktop number 1..N]`          | transfer window to a diff desktop |
+| `super + shift + [1..N]`          | transfer window to a diff desktop |
 | `super + shift + m`        | toggle master layout |
 | `super + shift + s`            | toggle stack layout |
 | `super + shift + d`            | toggle default layout |
@@ -234,6 +252,8 @@ More options will be added in the future as development progresses.
 | `super + ↑`       | focus window above              |
 | `super + →`       | focus window on the right       |
 | `super + ↓`       | focus window below              |
+| `super + shift + →`       | cycle desktop right             |
+| `super + shift + ←`       | cycle desktop left             |
 
 ## ewmh specific settings for polyabr
 ### To display the window name (CLASS_NAME):

@@ -25,7 +25,6 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 #include "config_parser.h"
 #include "helper.h"
 #include "tree.h"
@@ -40,7 +39,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 #include <xcb/xproto.h>
 
 #define MAX_LINE_LENGTH (2 << 7)
@@ -59,25 +60,20 @@ typedef enum {
 	QUOTATION
 } trim_token_t;
 
-bool	  transfer_node_is_filled  = false;
-bool	  switch_desktop_is_filled = false;
-
-_key__t **conf_keys				   = NULL;
-int		  _entries_				   = 0;
+_key__t **conf_keys = NULL;
+int		  _entries_ = 0;
 
 // clang-format off
 static conf_mapper_t _cmapper_[] = { 
  	{"run", 					 exec_process}, 
  	{"kill", 		    close_or_kill_wrapper}, 
  	{"switch_desktop", switch_desktop_wrapper}, 
- 	{"grow", 		horizontal_resize_wrapper}, 
- 	{"shrink", 		horizontal_resize_wrapper}, 
+ 	{"resize", 		horizontal_resize_wrapper}, 
  	{"fullscreen", 	   set_fullscreen_wrapper}, 
  	{"swap", 				swap_node_wrapper}, 
  	{"transfer_node", 	transfer_node_wrapper}, 
  	{"layout", 				   layout_handler}, 
- 	{"traverse_up",    traverse_stack_wrapper}, 
- 	{"traverse_down",  traverse_stack_wrapper}, 
+ 	{"traverse",       traverse_stack_wrapper}, 
 	{"flip", 	            flip_node_wrapper},
 	{"cycle_window", 	    cycle_win_wrapper},
 	{"reload_config",   reload_config_wrapper},
@@ -111,7 +107,7 @@ static key_mapper_t	 _kmapper_[] = {
 	{"down", 	         0xff54}, 
  	{"super",             SUPER}, 
  	{"alt",                 ALT}, 
- 	{"ctr",    		       CTRL}, 
+ 	{"ctrl",    		   CTRL}, 
  	{"shift", 		      SHIFT}, 
     {"sup+sh",      SUPER|SHIFT}, 
 };
@@ -207,96 +203,138 @@ int
 write_default_config(const char *filename, config_t *c)
 {
 	// clang-format off
-	const char *content =
-		 "; ----------- ZWM Configuration File -------------\n"
-        ";\n"
-        "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
-        "; It allows you to define window appearance, behavior, and key bindings for various actions.\n"
-        ";\n"
-        ";\n"
-        "; Available Variables:\n"
-        "; - border_width: Defines the width of the window borders in pixels.\n"
-        "; - active_border_color: Specifies the color of the border for the active (focused) window.\n"
-        "; - normal_border_color: Specifies the color of the border for inactive (unfocused) windows.\n"
-        "; - window_gap: Sets the gap between windows in pixels.\n"
-        "; - virtual_desktops: sets the number of virtual desktops.\n"
-		"; - focus_follow_pointer: If false, the window is focused on click\n"
-		"; 			if true, the window is focused when the cursor enters it.\n"
-        ";\n"
-        "\n"
-        "border_width = 2\n"
-        "active_border_color = 0x83a598\n"
-        "normal_border_color = 0x30302f\n"
-        "window_gap = 10\n"
-        "virtual_desktops = 7\n"
-		"focus_follow_pointer = true\n"
-        "\n"
-        "; Key Bindings:\n"
-        "; Define keyboard shortcuts to perform various actions. The format for defining key bindings is:\n"
-        "; key = {modifier + key -> action}\n"
-        "; If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as alt|shift.\n"
-        ";\n"
-        "; Available Actions:\n"
-        "; - run(...): Executes a specified process. \n"
-        ";   - Example: key = {super + return -> run(\"alacritty\")}\n"
-        ";   - To run a process with arguments, use a list:\n"
-        ";     Example: key = {super + p -> run([\"rofi\", \"-show\", \"drun\"])}\n"
-        ";\n"
-        "; - func(...): Calls a predefined function. The following functions are available:\n"
-        ";   - kill: Kills the focused window.\n"
-        ";   - switch_desktop: Switches to a specified virtual desktop.\n"
-        ";   - grow: Increases the size of the focused window.\n"
-        ";   - shrink: Decreases the size of the focused window.\n"
-        ";   - fullscreen: Toggles fullscreen mode for the focused window.\n"
-        ";   - swap: Swaps the focused window with its sibling.\n"
-        ";   - transfer_node: Moves the focused window to another virtual desktop.\n"
-        ";   - master: Toggles the master layout and sets the focused window as the master window.\n"
-        ";   - stack: Toggles the stacking layout and sets the focused window as the top window.\n"
-        ";   - default: Toggles the default layout.\n"
-        ";   - traverse_up: (In stack layout only) Moves focus to the window above.\n"
-        ";   - traverse_down: (In stack layout only) Moves focus to the window below.\n"
-        ";   - flip: Changes the window's orientation; if the window is primarily vertical, \n"
-        ";           it becomes horizontal, and vice versa.\n"
-		";   - cycle_window: Moves focus to the window in the specified direction\n"
-		";   - reload_config: hot-reload after changing the config\n"
-        ";\n"
-		"\n"
-        "key = {super + return -> run(\"alacritty\")}\n"
-        "key = {super + space -> run(\"dmenu_run\")}\n"
-        "key = {super + p -> run([\"rofi\",\"-show\", \"drun\"])}\n"
-        "key = {super + w -> func(kill)}\n"
-        "key = {super + 1 -> func(switch_desktop)}\n"
-        "key = {super + 2 -> func(switch_desktop)}\n"
-        "key = {super + 3 -> func(switch_desktop)}\n"
-        "key = {super + 4 -> func(switch_desktop)}\n"
-        "key = {super + 5 -> func(switch_desktop)}\n"
-        "key = {super + 6 -> func(switch_desktop)}\n"
-        "key = {super + 7 -> func(switch_desktop)}\n"
-        "key = {super + l -> func(grow)}\n"
-        "key = {super + h -> func(shrink)}\n"
-        "key = {super + f -> func(fullscreen)}\n"
-        "key = {super + s -> func(swap)}\n"
-		"key = {super + up -> func(cycle_window:up)}\n"
-		"key = {super + right -> func(cycle_window:right)}\n"
-		"key = {super + left -> func(cycle_window:left)}\n"
-		"key = {super + down -> func(cycle_window:down)}\n"
-        "key = {super|shift + left -> func(cycle_desktop:left)}\n"
-        "key = {super|shift + right -> func(cycle_desktop:right)}\n"
-        "key = {super|shift + 1 -> func(transfer_node)}\n"
-        "key = {super|shift + 2 -> func(transfer_node)}\n"
-        "key = {super|shift + 3 -> func(transfer_node)}\n"
-        "key = {super|shift + 4 -> func(transfer_node)}\n"
-        "key = {super|shift + 5 -> func(transfer_node)}\n"
-		"key = {super|shift + 6 -> func(transfer_node)}\n"
-		"key = {super|shift + 7 -> func(transfer_node)}\n"
-        "key = {super|shift + m -> func(layout:master)}\n"
-        "key = {super|shift + s -> func(layout:stack)}\n"
-        "key = {super|shift + d -> func(layout:default)}\n"
-        "key = {super|shift + k -> func(traverse_up)}\n"
-        "key = {super|shift + j -> func(traverse_down)}\n"
-        "key = {super|shift + f -> func(flip)}\n"
-		"key = {super|shift + r -> func(reload_config)}\n"
-		"\n";
+const char *content =
+    "; ----------- ZWM Configuration File -------------\n"
+    ";\n"
+    "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
+    "; It allows you to define window appearance, behavior, and key bindings for various actions.\n"
+    "\n"
+    "; Command to run on startup\n"
+    "; Use the exec directive to specify programs that should be started when ZWM is launched.\n"
+    "; For single command: use -> exec = \"command\"\n"
+    "; You can also specify additional arguments as a list.\n"
+    "exec = [\"polybar\", \"-c\", \".config/polybar/config.ini\"]\n"
+    "\n"
+    "; Available Variables:\n"
+    "; These variables control the appearance and behavior of the window manager.\n"
+    ";\n"
+    "; - border_width: defines the width of the window borders in pixels.\n"
+    "border_width = 2\n"
+    "; - active_border_color: specifies the color of the border for the active (focused) window.\n"
+    "active_border_color = 0x83a598\n"
+    "; - normal_border_color: specifies the color of the border for inactive (unfocused) windows.\n"
+    "normal_border_color = 0x30302f\n"
+    "; - window_gap: sets the gap between windows in pixels.\n"
+    "window_gap = 10\n"
+    "; - virtual_desktops: sets the number of virtual desktops available.\n"
+    "virtual_desktops = 7\n"
+    "; - focus_follow_pointer: If false, the window is focused on click.\n"
+    ";                        If true, the window is focused when the cursor enters it.\n"
+    "focus_follow_pointer = true\n"
+    "\n"
+    "; Key Bindings:\n"
+    "; Define keyboard shortcuts to perform various actions.\n"
+    "; The syntax for defining key bindings is:\n"
+    "; bind = modifier + key -> action/function\n"
+    "; If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as alt|shift.\n"
+    "; Colon Syntax:\n"
+    "; Some functions require additional arguments to specify details of the action.\n"
+    "; These arguments are provided using a colon syntax, where the function and its argument\n"
+    "; are separated by a colon.\n"
+    "; Example: func(switch_desktop:1) means \"switch to desktop 1\".\n"
+    "; Example: func(resize:grow) means \"grow the size of the window\".\n"
+    "; Example: func(layout:master) means \"toggle master layout\".\n"
+    "\n"
+    "; Available Modifiers:\n"
+    "; - super: The \"Windows\" key or \"Command\" key on a Mac.\n"
+    "; - alt: The \"Alt\" key.\n"
+    "; - shift: The \"Shift\" key.\n"
+    "; - ctr: The \"Control\" key.\n"
+    ";\n"
+    "; Available Actions:\n"
+    "; These actions specify what happens when a key binding is triggered.\n"
+    "; - run(...): Executes a specified process.\n"
+    ";   - Example: bind = super + return -> run(\"alacritty\")\n"
+    ";   - To run a process with arguments, use a list:\n"
+    ";     Example: bind = super + p -> run([\"rofi\", \"-show\", \"drun\"])\n"
+    ";\n"
+    "; - func(...): Calls a predefined function. The following functions are available:\n"
+    ";   - kill: Kills the focused window.\n"
+    ";   - switch_desktop: Switches to a specified virtual desktop.\n"
+    ";   - fullscreen: Toggles fullscreen mode for the focused window.\n"
+    ";   - swap: Swaps the focused window with its sibling.\n"
+    ";   - transfer_node: Moves the focused window to another virtual desktop.\n"
+    ";   - layout: Toggles the specified layout (master, default, stack).\n"
+    ";   - traverse: (In stack layout only) Moves focus to the window above or below.\n"
+    ";   - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.\n"
+    ";   - cycle_window: Moves focus to the window in the specified direction (up, down, left, right).\n"
+    ";   - cycle_desktop: Cycles through the virtual desktops (left, right).\n"
+    ";   - resize: Adjusts the size of the focused window (grow, shrink).\n"
+    ";   - reload_config: Reloads the configuration file without restarting ZWM.\n"
+    "\n"
+    "; Define key bindings\n"
+    "\n"
+    "; run processes on some keys\n"
+    "bind = super + return -> run(\"alacritty\")\n"
+    "bind = super + space -> run(\"dmenu_run\")\n"
+    "bind = super + p -> run([\"rofi\", \"-show\", \"drun\"])\n"
+    "\n"
+    "; kill the focused window\n"
+    "bind = super + w -> func(kill)\n"
+    "\n"
+    "; switch to specific virtual desktops\n"
+    "bind = super + 1 -> func(switch_desktop:1)\n"
+    "bind = super + 2 -> func(switch_desktop:2)\n"
+    "bind = super + 3 -> func(switch_desktop:3)\n"
+    "bind = super + 4 -> func(switch_desktop:4)\n"
+    "bind = super + 5 -> func(switch_desktop:5)\n"
+    "bind = super + 6 -> func(switch_desktop:6)\n"
+    "bind = super + 7 -> func(switch_desktop:7)\n"
+    "\n"
+    "; resize the focused window\n"
+    "bind = super + l -> func(resize:grow)\n"
+    "bind = super + h -> func(resize:shrink)\n"
+    "\n"
+    "; toggle fullscreen mode\n"
+    "bind = super + f -> func(fullscreen)\n"
+    "\n"
+    "; swap the focused window with its sibling\n"
+    "bind = super + s -> func(swap)\n"
+    "\n"
+    "; cycle focus between windows\n"
+    "bind = super + up -> func(cycle_window:up)\n"
+    "bind = super + right -> func(cycle_window:right)\n"
+    "bind = super + left -> func(cycle_window:left)\n"
+    "bind = super + down -> func(cycle_window:down)\n"
+    "\n"
+    "; cycle through virtual desktops\n"
+    "bind = super|shift + left -> func(cycle_desktop:left)\n"
+    "bind = super|shift + right -> func(cycle_desktop:right)\n"
+    "\n"
+    "; transfer the focused window to another virtual desktop\n"
+    "bind = super|shift + 1 -> func(transfer_node:1)\n"
+    "bind = super|shift + 2 -> func(transfer_node:2)\n"
+    "bind = super|shift + 3 -> func(transfer_node:3)\n"
+    "bind = super|shift + 4 -> func(transfer_node:4)\n"
+    "bind = super|shift + 5 -> func(transfer_node:5)\n"
+    "bind = super|shift + 6 -> func(transfer_node:6)\n"
+    "bind = super|shift + 7 -> func(transfer_node:7)\n"
+    "\n"
+    "; change the layout\n"
+    "bind = super|shift + m -> func(layout:master)\n"
+    "bind = super|shift + s -> func(layout:stack)\n"
+    "bind = super|shift + d -> func(layout:default)\n"
+    "\n"
+    "; traverse the stack layout\n"
+    "bind = super|shift + k -> func(traverse:up)\n"
+    "bind = super|shift + j -> func(traverse:down)\n"
+    "\n"
+    "; flip the orientation of the window\n"
+    "bind = super|shift + f -> func(flip)\n"
+    "\n"
+    "; reload the configuration file\n"
+    "bind = super|shift + r -> func(reload_config)\n"
+    "\n";
 
 	// clang-format on
 	char dir_path[strlen(filename) + 1];
@@ -408,12 +446,12 @@ split_string(const char *str, char delimiter, int *count)
 
 	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
 	if (tokens == NULL) {
-		perror("Failed to allocate memory");
+		_LOG_(ERROR, "failed to allocate memory");
 		exit(EXIT_FAILURE);
 	}
 	char *str_copy = strdup(str);
 	if (str_copy == NULL) {
-		perror("Failed to duplicate string");
+		_LOG_(ERROR, "failed to duplicate string");
 		exit(EXIT_FAILURE);
 	}
 
@@ -422,7 +460,7 @@ split_string(const char *str, char delimiter, int *count)
 	while (token != NULL) {
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
-			perror("Failed to duplicate token");
+			_LOG_(ERROR, "failed to duplicate token");
 			exit(EXIT_FAILURE);
 		}
 		i++;
@@ -434,11 +472,11 @@ split_string(const char *str, char delimiter, int *count)
 }
 
 void
-free_tokens(char **tokens)
+free_tokens(char **tokens, int count)
 {
-	// for (int i = 0; i < count; i++) {
-	// 	free(tokens[i]);
-	// }
+	for (int i = 0; i < count; i++) {
+		free(tokens[i]);
+	}
 	free(tokens);
 }
 
@@ -470,7 +508,7 @@ extract_func_body(const char *str)
 	size_t length = end - start + 1;
 	char  *result = (char *)malloc(length + 1);
 	if (!result) {
-		perror("Failed to allocate memory");
+		_LOG_(ERROR, "failed to allocate memory");
 		exit(EXIT_FAILURE);
 	}
 
@@ -494,17 +532,17 @@ parse_mod_key(char *mod)
 			_LOG_(ERROR, "failed to split string %s\n", mod);
 			return -1;
 		}
-#ifdef _DEBUG__
-		_LOG_(DEBUG,
-			  "mod (%s) splited into (%s), (%s)\n",
-			  mod,
-			  mods[0],
-			  mods[1]);
-#endif
+		// #ifdef _DEBUG__
+		// 		_LOG_(DEBUG,
+		// 			  "mod (%s) splited into (%s), (%s)\n",
+		// 			  mod,
+		// 			  mods[0],
+		// 			  mods[1]);
+		// #endif
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
 		mask		   = mask1 | mask2;
-		free_tokens(mods);
+		free_tokens(mods, count);
 	} else {
 		mask = _mod;
 	}
@@ -526,9 +564,12 @@ parse_keysym(char *keysym)
 void
 err_cleanup(_key__t *k)
 {
-	// wtf is this
 	if (k) {
 		if (k->arg->cmd) {
+			for (int i = 0; i < k->arg->argc; i++) {
+				free(k->arg->cmd[i]);
+				k->arg->cmd[i] = NULL;
+			}
 			free(k->arg->cmd);
 		}
 		free(k->arg);
@@ -542,14 +583,12 @@ void
 build_run_func(char	   *func_param,
 			   _key__t *key,
 			   uint32_t mod,
-			   uint32_t keysym,
-			   int (*ptr)(arg_t *))
+			   uint32_t keysym)
 {
-	key->mod		  = mod;
-	key->keysym		  = (xcb_keysym_t)keysym;
-	key->function_ptr = ptr;
+	key->mod	= mod;
+	key->keysym = (xcb_keysym_t)keysym;
 
-	if (strchr(func_param, ']')) {
+	if (strchr(func_param, ']') == 0) {
 		trim(func_param, SQUARE_BRACKET);
 		int	   count = 0;
 		char **args	 = split_string(func_param, ',', &count);
@@ -562,9 +601,6 @@ build_run_func(char	   *func_param,
 			arr[i] = strdup(args[i]);
 			trim(arr[i], WHITE_SPACE);
 			trim(arr[i], QUOTATION);
-#ifdef _DEBUG__
-			_LOG_(DEBUG, "extracted arg - %s", arr[i]);
-#endif
 		}
 		free(args);
 		key->arg->cmd  = arr;
@@ -572,80 +608,100 @@ build_run_func(char	   *func_param,
 	} else {
 		trim(func_param, WHITE_SPACE);
 		trim(func_param, QUOTATION);
-		char **arr	   = (char **)malloc(1 * sizeof(char *));
-		arr[0]		   = strdup(func_param);
+		char **arr = (char **)malloc(1 * sizeof(char *));
+		arr[0]	   = strdup(func_param);
+		if (arr[0] == NULL) {
+			_LOG_(ERROR, "failed to duplicate token");
+			return;
+		}
 		key->arg->cmd  = arr;
 		key->arg->argc = 1;
-#ifdef _DEBUG__
-		_LOG_(DEBUG, "already extracted arg - %s", func_param);
-#endif
 	}
 }
 
 void
-assign_function_args(char *func_param, _key__t *key)
+set_key_args(_key__t *key, char *func, char *arg)
 {
-	if (strcmp(func_param, "grow") == 0) {
-		key->arg->r = GROW;
-	} else if (strcmp(func_param, "shrink") == 0) {
-		key->arg->r = SHRINK;
-	} else if (strcmp(func_param, "master") == 0) {
-		key->arg->t = MASTER;
-	} else if (strcmp(func_param, "default") == 0) {
-		key->arg->t = DEFAULT;
-	} else if (strcmp(func_param, "grid") == 0) {
-		key->arg->t = GRID;
-	} else if (strcmp(func_param, "stack") == 0) {
-		key->arg->t = STACK;
-	} else if (strcmp(func_param, "traverse_up") == 0) {
-		key->arg->d = UP;
-	} else if (strcmp(func_param, "traverse_down") == 0) {
-		key->arg->d = DOWN;
-	} else if (strcmp(func_param, "switch_desktop") == 0) {
+	if (strcmp(func, "cycle_window") == 0) {
+		if (strcmp(arg, "up") == 0) {
+			key->arg->d = UP;
+		} else if (strcmp(arg, "right") == 0) {
+			key->arg->d = RIGHT;
+		} else if (strcmp(arg, "left") == 0) {
+			key->arg->d = LEFT;
+		} else if (strcmp(arg, "down") == 0) {
+			key->arg->d = DOWN;
+		}
+	} else if (strcmp(func, "layout") == 0) {
+		if (strcmp(arg, "master") == 0) {
+			key->arg->t = MASTER;
+		} else if (strcmp(arg, "default") == 0) {
+			key->arg->t = DEFAULT;
+		} else if (strcmp(arg, "grid") == 0) {
+			key->arg->t = GRID;
+		} else if (strcmp(arg, "stack") == 0) {
+			key->arg->t = STACK;
+		}
+	} else if (strcmp(func, "cycle_desktop") == 0) {
+		if (strcmp(arg, "left") == 0) {
+			key->arg->d = LEFT;
+		} else if (strcmp(arg, "right") == 0) {
+			key->arg->d = RIGHT;
+		}
+	} else if (strcmp(func, "resize") == 0) {
+		if (strcmp(arg, "grow") == 0) {
+			key->arg->r = GROW;
+		} else if (strcmp(arg, "shrink") == 0) {
+			key->arg->r = SHRINK;
+		}
+	} else if (strcmp(func, "switch_desktop") == 0) {
 		char *_num = key_to_str(key->keysym);
 		int	  idx  = atoi(_num);
 		idx--;
 		key->arg->idx = idx;
-	} else if (strcmp(func_param, "transfer_node") == 0) {
+	} else if (strcmp(func, "transfer_node") == 0) {
 		char *_num = key_to_str(key->keysym);
 		int	  idx  = atoi(_num);
 		idx--;
 		key->arg->idx = idx;
+	} else if (strcmp(func, "traverse") == 0) {
+		if (strcmp(arg, "up") == 0) {
+			key->arg->d = UP;
+		} else if (strcmp(arg, "down") == 0) {
+			key->arg->d = DOWN;
+		}
 	}
 }
 
 int
 construct_key(char *mod, char *keysym, char *func, _key__t *key)
 {
-	bool	 iterative_func = false;
-	bool	 run_func		= false;
-	uint32_t _keysym		= -1;
-	uint32_t _mod			= -1;
-	int (*ptr)(arg_t *)		= NULL;
+	bool	 run_func	= false;
+	uint32_t _keysym	= -1;
+	uint32_t _mod		= -1;
+	int (*ptr)(arg_t *) = NULL;
 
-	// deal with mod
-	_mod					= parse_mod_key(mod);
+	// parse mod key
+	_mod				= parse_mod_key(mod);
 	if ((int)_mod == -1) {
 		_LOG_(
 			ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
 		return -1;
 	}
 
-	// deal with keysym
-	if (keysym == NULL) {
-		_LOG_(INFO,
-			  "keysym is null, func must be switch or transfer %s\n",
-			  func);
-		iterative_func = true;
-	} else {
+	// parse keysym if not null
+	if (keysym != NULL) {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
 			_LOG_(ERROR, "failed to parse keysym for %s\n", keysym);
 			return -1;
 		}
+	} else {
+		_LOG_(INFO,
+			  "keysym is null, func must be switch or transfer %s\n",
+			  func);
 	}
 
-	// deal with func
 	if (strncmp(func, "run", 3) == 0) {
 		run_func = true;
 		_LOG_(INFO, "found run func %s, ...\n", func);
@@ -658,80 +714,42 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	}
 
 	trim(func_param, PARENTHESIS);
+
 	if (strchr(func_param, ':')) {
-		_LOG_(INFO, "func_param %s contains colon", func_param);
 		int	   count = 0;
 		char **s	 = split_string(func_param, ':', &count);
-		if (s == NULL) {
-			_LOG_(ERROR, "failed to split string for %s\n", func_param);
+		if (s == NULL || count != 2) {
+			_LOG_(ERROR,
+				  "failed to split string or incorrect count for %s\n",
+				  func_param);
 			free(func_param);
+			if (s != NULL)
+				free(s);
 			return -1;
 		}
-		if (count != 2) {
-			_LOG_(INFO, "recieved wrong count %d, wanted 2", count);
-		} else {
-			char *f = strdup(s[0]);
-			char *a = strdup(s[1]);
-			ptr		= str_to_func(f);
-			if (ptr == NULL) {
-				_LOG_(ERROR, "failed to find function pointer for %s", f);
-				free(func_param);
-				free(s);
-				return -1;
-			}
-			key->mod		  = _mod;
-			key->keysym		  = _keysym;
-			key->function_ptr = ptr;
-			if (strcmp(f, "cycle_window") == 0) {
-				if (strcmp(a, "up") == 0) {
-					key->arg->d = UP;
-				} else if (strcmp(a, "right") == 0) {
-					key->arg->d = RIGHT;
-				} else if (strcmp(a, "left") == 0) {
-					key->arg->d = LEFT;
-				} else if (strcmp(a, "down") == 0) {
-					key->arg->d = DOWN;
-				}
-			} else if (strcmp(f, "layout")) {
-				if (strcmp(a, "master") == 0) {
-					key->arg->t = MASTER;
-				} else if (strcmp(a, "default") == 0) {
-					key->arg->t = DEFAULT;
-				} else if (strcmp(a, "grid") == 0) {
-					key->arg->t = GRID;
-				} else if (strcmp(a, "stack") == 0) {
-					key->arg->t = STACK;
-				}
-			} else if (strcmp(f, "cycle_desktop")) {
-				if (strcmp(a, "left") == 0) {
-					key->arg->d = LEFT;
-				} else if (strcmp(a, "right") == 0) {
-					key->arg->d = RIGHT;
-				}
-			}
+
+		char *f = strdup(s[0]);
+		char *a = strdup(s[1]);
+		ptr		= str_to_func(f);
+		if (ptr == NULL) {
+			_LOG_(ERROR, "failed to find function pointer for %s", f);
+			free(func_param);
 			free(s);
-			goto cleanup;
+			return -1;
 		}
+		key->mod		  = _mod;
+		key->keysym		  = _keysym;
+		key->function_ptr = ptr;
+
+		set_key_args(key, f, a);
+		free_tokens(s, count);
+		free(f);
+		free(a);
+		free(func_param);
+		return 0;
 	}
 
-	if (keysym == NULL || iterative_func) {
-		if (strcmp(func_param, "switch_desktop") == 0 ||
-			strcmp(func_param, "transfer_node") == 0) {
-			ptr = str_to_func(func_param);
-			if (ptr == NULL) {
-				_LOG_(ERROR,
-					  "failed to find function pointer for %s",
-					  func_param);
-				free(func_param);
-				return -1;
-			}
-			key->function_ptr = ptr;
-			key->keysym		  = -10;
-			key->arg		  = NULL;
-			goto cleanup;
-		}
-	}
-
+	// handle "run" functions
 	if (run_func) {
 		ptr = str_to_func("run");
 		if (ptr == NULL) {
@@ -741,10 +759,13 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 			free(func_param);
 			return -1;
 		}
-		build_run_func(func_param, key, _mod, _keysym, ptr);
-		goto cleanup;
+		build_run_func(func_param, key, _mod, _keysym);
+		key->function_ptr = ptr;
+		free(func_param);
+		return 0;
 	}
 
+	// handle other functions
 	ptr = str_to_func(func_param);
 	if (ptr == NULL) {
 		_LOG_(ERROR, "failed to find function pointer for %s", func_param);
@@ -755,9 +776,6 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 	key->mod		  = _mod;
 	key->keysym		  = _keysym;
 	key->function_ptr = ptr;
-	assign_function_args(func_param, key);
-
-cleanup:
 	free(func_param);
 	return 0;
 }
@@ -770,12 +788,6 @@ parse_keybinding(char *str, _key__t *key)
 		return -1;
 	}
 
-#ifdef _DEBUG__
-	_LOG_(DEBUG, "value before trim = %s ", str);
-	trim(str, CURLY_BRACKET);
-	_LOG_(DEBUG, "value after trim = %s ", str);
-#endif
-	trim(str, CURLY_BRACKET);
 	// bool  keysym_exists = strchr(str, '+') != NULL;
 	char plus		   = '+';
 	bool keysym_exists = false;
@@ -823,26 +835,54 @@ parse_keybinding(char *str, _key__t *key)
 _key__t *
 init_key()
 {
-	_key__t *key = (_key__t *)malloc(sizeof(_key__t));
-	arg_t	*a	 = (arg_t *)malloc(sizeof(arg_t));
+	_key__t *key = (_key__t *)calloc(1, sizeof(_key__t));
+	arg_t	*a	 = (arg_t *)calloc(1, sizeof(arg_t));
 
 	if (a == NULL || key == NULL) {
-		_LOG_(ERROR, "failed to malloc _key__t");
+		_LOG_(ERROR, "failed to calloc _key__t or arg_t");
 		return NULL;
 	}
 
-	a->argc			  = 0;
-	a->cmd			  = NULL;
-	a->idx			  = -1;
-	a->d			  = 0;
-	a->r			  = 0;
-	a->t			  = 0;
-	key->arg		  = a;
-	key->function_ptr = NULL;
-	key->mod		  = -1;
-	key->keysym		  = -1;
+	key->arg = a;
 
 	return key;
+}
+
+void
+handle_exec_cmd(char *cmd)
+{
+	_LOG_(DEBUG, "exec command = (%s)", cmd);
+	pid_t pid = fork();
+
+	if (pid == 0) {
+		if (strchr(cmd, ',') != 0) {
+			trim(cmd, SQUARE_BRACKET);
+			int	   count = 0;
+			char **s	 = split_string(cmd, ',', &count);
+			if (s == NULL)
+				return;
+			const char *args[count + 1];
+			for (int i = 0; i < count; ++i) {
+				trim(s[i], WHITE_SPACE);
+				trim(s[i], QUOTATION);
+				args[i] = s[i];
+				_LOG_(INFO, "arg exec = %s", s[i]);
+			}
+			args[count] = NULL;
+			execvp(args[0], (char *const *)args);
+			free_tokens(s, count);
+			_LOG_(ERROR, "execvp failed");
+			exit(EXIT_FAILURE);
+		} else {
+			trim(cmd, QUOTATION);
+			execlp(cmd, cmd, (char *)NULL);
+			_LOG_(ERROR, "execlp failed");
+			exit(EXIT_FAILURE);
+		}
+	} else if (pid < 0) {
+		_LOG_(ERROR, "fork failed");
+		exit(EXIT_FAILURE);
+	}
 }
 
 int
@@ -874,11 +914,13 @@ parse_config(const char *filename, config_t *c, bool reload)
 			continue;
 		}
 
-		if (reload && strcmp(key, "key") == 0) {
+		if (reload && strcmp(key, "bind") == 0) {
 			continue;
 		}
 
-		if (strcmp(key, "border_width") == 0) {
+		if (strcmp(key, "exec") == 0) {
+			handle_exec_cmd(value);
+		} else if (strcmp(key, "border_width") == 0) {
 			c->border_width = atoi(value);
 		} else if (strcmp(key, "active_border_color") == 0) {
 			c->active_border_color =
@@ -900,9 +942,9 @@ parse_config(const char *filename, config_t *c, bool reload)
 					  "Invalid value for focus_follow_pointer: %s\n",
 					  value);
 			}
-		} else if (strcmp(key, "key") == 0) {
+		} else if (strcmp(key, "bind") == 0) {
 			if (conf_keys == NULL) {
-				conf_keys = malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
+				conf_keys = (_key__t **)malloc(60 * sizeof(_key__t *));
 				if (conf_keys == NULL) {
 					fprintf(stderr,
 							"Failed to allocate memory for conf_keys "
@@ -921,7 +963,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 			_entries_++;
 		}
 	}
-// print_key_array();
+
 out:
 	fclose(file);
 	return 0;
@@ -932,8 +974,14 @@ free_keys()
 {
 	if (conf_keys) {
 		for (int i = 0; i < _entries_; ++i) {
-			free(conf_keys[i]->arg->cmd);
-			conf_keys[i]->arg->cmd = NULL;
+			if (conf_keys[i]->arg->cmd != NULL) {
+				for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
+					free(conf_keys[i]->arg->cmd[j]);
+					conf_keys[i]->arg->cmd[j] = NULL;
+				}
+				free(conf_keys[i]->arg->cmd);
+				conf_keys[i]->arg->cmd = NULL;
+			}
 			free(conf_keys[i]->arg);
 			conf_keys[i]->arg = NULL;
 			free(conf_keys[i]);

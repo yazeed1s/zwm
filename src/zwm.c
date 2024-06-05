@@ -37,7 +37,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
@@ -70,8 +69,9 @@
 #define CTRL_MASK		   XCB_MOD_MASK_CONTROL
 #define CLICK_TO_FOCUS	   XCB_BUTTON_INDEX_1
 
-wm_t				 *wm   = NULL;
-config_t			  conf = {0};
+wm_t				 *wm		  = NULL;
+config_t			  conf		  = {0};
+xcb_window_t		  focused_win = XCB_NONE;
 uint16_t			  num_lock;
 uint16_t			  caps_lock;
 uint16_t			  scroll_lock;
@@ -116,7 +116,7 @@ static const _key__t keys_[] = {
     {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})            },
     {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            				 },
     {SUPER_MASK | SHIFT_MASK, XK_r,      reload_config_wrapper,   	NULL            				 },
-	{SUPER_MASK | SHIFT_MASK, XK_Left, 	 cycle_desktop_wrapper, 	&((arg_t){.d = LEFT}) 			 }, // here1
+	{SUPER_MASK | SHIFT_MASK, XK_Left, 	 cycle_desktop_wrapper, 	&((arg_t){.d = LEFT}) 			 },
 	{SUPER_MASK | SHIFT_MASK, XK_Right,  cycle_desktop_wrapper, 	&((arg_t){.d = RIGHT}) 			 }
 };
 // clang-format on
@@ -708,6 +708,11 @@ cycle_win_wrapper(arg_t *arg)
 	direction_t d	 = arg->d;
 	node_t	   *root = wm->desktops[get_focused_desktop_idx()]->tree;
 	node_t	   *f	 = get_focused_node(root);
+
+	if (root == NULL) {
+		// tree is empty
+		return 0;
+	}
 
 	if (f == NULL) {
 		_LOG_(INFO, "cannot find focused window");
@@ -2160,7 +2165,6 @@ cycle_desktop_wrapper(arg_t *arg)
 		next = wm->n_of_desktops - 1;
 	}
 
-	// next < 0 ? switch_desktop(-next) : switch_desktop(next);
 	switch_desktop(next);
 
 	return render_tree(wm->desktops[next]->tree);
@@ -2271,7 +2275,7 @@ window_type(xcb_window_t win)
 				/*
 				 * _NET_WM_WINDOW_TYPE_DOCK
 				 * indicates a dock or panel feature.
-				 * Typically a Window Manager would keep such windows
+				 * Typically, a Window Manager would keep such windows
 				 * on top of all other windows.
 				 * */
 				xcb_ewmh_get_atoms_reply_wipe(&w_type);
@@ -2534,7 +2538,7 @@ handle_map_request(xcb_map_request_event_t *ev)
 		return idx;
 	}
 
-	// for some reasons, some applications (e.g gnome-text-editor,
+	// for some reason, some applications (e.g. gnome-text-editor,
 	// emacs, ...) are mapped multiple times, which forces zwm to
 	// create empty nodes with the same window id. if the window id
 	// exists, ignore the request.
@@ -2683,10 +2687,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		return 0;
 	}
 
-	if (win == wm->root_window || n->is_focused) {
-		_LOG_(INFO,
-			  "node -> %s is already focused",
-			  win_name(n->client->window));
+	if (win == wm->root_window) {
 		return 0;
 	}
 
@@ -2700,6 +2701,10 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 				return -1;
 			}
 		}
+		return 0;
+	}
+
+	if (n->client->window == focused_win) {
 		return 0;
 	}
 
@@ -2731,6 +2736,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	// if (has_floating_window(root)) {
 	// 	restack(root);
 	// }
+	focused_win = n->client->window;
 	update_focus(root, n);
 	xcb_flush(wm->connection);
 
@@ -3183,7 +3189,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 	}
 
 	// update_grabbed_window(root, n);
-	update_focus(root, n);
+	// update_focus(root, n);
 	window_ungrab_buttons(client->window);
 
 	const int r = set_active_window_name(win);
@@ -3219,6 +3225,11 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
 
 	xcb_flush(wm->connection);
+}
+
+void
+handle_focus_in(xcb_focus_in_event_t *focus_in_event)
+{
 }
 
 void
@@ -3410,8 +3421,9 @@ evet_loop(wm_t *w)
 			break;
 		}
 		case XCB_FOCUS_IN: {
-			__attribute__((unused)) xcb_focus_in_event_t *focus_in_event =
+			xcb_focus_in_event_t *focus_in_event =
 				(xcb_focus_in_event_t *)event;
+			handle_focus_in(focus_in_event);
 			break;
 		}
 		case XCB_FOCUS_OUT: {

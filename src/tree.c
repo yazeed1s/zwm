@@ -267,7 +267,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 		  n,
 		  new_node->client->window,
 		  nn);
-	` free(n);
+	free(n);
 	free(nn);
 #endif
 
