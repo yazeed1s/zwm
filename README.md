@@ -138,12 +138,12 @@ virtual_desktops = 7
 focus_follow_pointer = false
 ```
 Available Variables:
-- border_width: Defines the width of the window borders in pixels.
-- active_border_color: Specifies the color of the border for the active (focused) window.
-- normal_border_color: Specifies the color of the border for inactive (unfocused) windows.
-- window_gap: Sets the gap between windows in pixels.
-- virtual_desktops: sets the number of virtual desktops.
-- focus_follow_pointer: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
+- **border_width**: Defines the width of the window borders in pixels.
+- **active_border_color**: Specifies the color of the border for the active (focused) window.
+- **normal_border_color**: Specifies the color of the border for inactive (unfocused) windows.
+- **window_gap**: Sets the gap between windows in pixels.
+- **virtual_desktops**: sets the number of virtual desktops.
+- **focus_follow_pointer**: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
 
 ### 2- Commands to run on startup
 Use the `exec` directive to specify programs that should be started when ZWM is launched.
@@ -165,10 +165,10 @@ exec = ["polybar", "-c", ".config/polybar/config.ini"]
 - Example: `func(resize:grow)` means "grow the size of the window".
 - Example: `func(layout:master)` means "toggle master layout".
 #### Available modifires:
-- super: The "Windows" key.
-- alt: The "Alt" key.
-- shift: The "Shift" key.
-- ctrl: The "Control" key.
+- **super**: The "Windows" key.
+- **alt**: The "Alt" key.
+- **shift**: The "Shift" key.
+- **ctrl**: The "Control" key.
 #### Available Actions:
 - run(...): Executes a specified process.
    - Example: `bind = super + return -> run("alacritty")`
@@ -176,18 +176,18 @@ exec = ["polybar", "-c", ".config/polybar/config.ini"]
      Example: `bind = super + p -> run(["rofi", "-show", "drun"])`
 
 - func(...): Calls a predefined function. The following functions are available:
-	- kill: Kills the focused window.
-	- switch_desktop: Switches to a specified virtual desktop.
-	- fullscreen: Toggles fullscreen mode for the focused window.
-	- swap: Swaps the focused window with its sibling.
-	- transfer_node: Moves the focused window to another virtual desktop.
-	- layout: Toggles the specified layout (master, deafult, stack).
-	- traverse: (In stack layout only) Moves focus to the window above or below.
-	- flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
-	- cycle_window: Moves focus to the window in the specified direction (up, down, left, right).
-	- cycle_desktop: Cycles through the virtual desktops (left, right).
-	- resize: Adjusts the size of the focused window (grow, shrink).
-	- reload_config: Reloads the configuration file without restarting ZWM.
+	- **kill**: Kills the focused window.
+	- **switch_desktop**: Switches to a specified virtual desktop.
+	- **fullscreen**: Toggles fullscreen mode for the focused window.
+	- **swap**: Swaps the focused window with its sibling.
+	- **transfer_node**: Moves the focused window to another virtual desktop.
+	- **layout**: Toggles the specified layout (master, deafult, stack).
+	- **traverse**: (In stack layout only) Moves focus to the window above or below.
+	- **flip**: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
+	- **cycle_window**: Moves focus to the window in the specified direction (up, down, left, right).
+	- **cycle_desktop**: Cycles through the virtual desktops (left, right).
+	- **resize**: Adjusts the size of the focused window (grow, shrink).
+	- **reload_config**: Reloads the configuration file without restarting ZWM.
 
 - Default keys
 ```ini
