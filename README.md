@@ -266,7 +266,7 @@ format 			= <label>
 ;   %instance% (first part of the WM_CLASS atom, new in version 3.7.0)
 ;   %class%    (second part of the WM_CLASS atom, new in version 3.7.0)
 ; Default: %title%
-label 			= %title%
+label 		= %title%
 label-maxlen 	= 50
 label-empty 	= "[null]"
 ```
@@ -274,19 +274,19 @@ label-empty 	= "[null]"
 ```ini
 [module/ewmh]
 type = internal/xworkspaces
-label-active 				= %index%
+label-active 			= %index%
 label-active-background 	= ${colors.bg}
 label-active-underline		= ${colors.blue}
 label-active-padding		= 1
-label-occupied 				= %index%
+label-occupied 			= %index%
 label-occupied-padding 		= 1
-label-urgent 				= %index%!
+label-urgent 			= %index%!
 label-urgent-background 	= ${colors.red}
 label-urgent-padding 		= 1
-label-empty 				= %index%
+label-empty 			= %index%
 label-empty-foreground 		= ${colors.gray}
 label-empty-padding 		= 1
-label-separator 			= " "
+label-separator 		= " "
 ```
 For further custmization please refer to polybar's wiki.
 
