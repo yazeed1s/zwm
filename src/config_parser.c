@@ -45,12 +45,17 @@
 #include <xcb/xproto.h>
 
 #define MAX_LINE_LENGTH (2 << 7)
-#define MAX_KEYBINDINGS 40
-#define CONF_PATH		".config/zwm/zwm.conf"
-#define ALT				XCB_MOD_MASK_1
-#define SUPER			XCB_MOD_MASK_4
-#define SHIFT			XCB_MOD_MASK_SHIFT
-#define CTRL			XCB_MOD_MASK_CONTROL
+#define MAX_KEYBINDINGS 45
+
+#ifdef __LTEST__
+#define CONF_PATH "./zwm.conf"
+#else
+#define CONF_PATH ".config/zwm/zwm.conf"
+#endif
+#define ALT	  XCB_MOD_MASK_1
+#define SUPER XCB_MOD_MASK_4
+#define SHIFT XCB_MOD_MASK_SHIFT
+#define CTRL  XCB_MOD_MASK_CONTROL
 
 typedef enum {
 	WHITE_SPACE,
@@ -587,8 +592,7 @@ build_run_func(char	   *func_param,
 {
 	key->mod	= mod;
 	key->keysym = (xcb_keysym_t)keysym;
-
-	if (strchr(func_param, ']') == 0) {
+	if (strchr(func_param, '[')) {
 		trim(func_param, SQUARE_BRACKET);
 		int	   count = 0;
 		char **args	 = split_string(func_param, ',', &count);
@@ -944,7 +948,8 @@ parse_config(const char *filename, config_t *c, bool reload)
 			}
 		} else if (strcmp(key, "bind") == 0) {
 			if (conf_keys == NULL) {
-				conf_keys = (_key__t **)malloc(60 * sizeof(_key__t *));
+				conf_keys = (_key__t **)malloc(MAX_KEYBINDINGS *
+											   sizeof(_key__t *));
 				if (conf_keys == NULL) {
 					fprintf(stderr,
 							"Failed to allocate memory for conf_keys "
