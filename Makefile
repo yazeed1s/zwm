@@ -6,7 +6,7 @@ SRC_FILES = ./src/zwm.c ./src/logger.c ./src/tree.c ./src/config_parser.c
 HEADER_FILES = ./src/logger.h ./src/tree.h ./src/type.h ./src/zwm.h ./src/config_parser.h ./src/helper.h
 OBJ_FILES = $(SRC_FILES:.c=.o)
 DEBUG_FLAGS = -g -O0 -D_DEBUG__=1
-
+LOCAL_TEST = -D__LTEST__=1
 TARGET = zwm
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
@@ -29,6 +29,9 @@ uninstall:
 
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: clean $(TARGET)
+
+test: CFLAGS += $(LOCAL_TEST)
+test: clean $(TARGET)
 
 all: clean $(TARGET)
 

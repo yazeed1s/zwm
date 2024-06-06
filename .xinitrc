@@ -33,4 +33,4 @@ setxkbmap us &
 nitrogen --restore &
 xsetroot -cursor_name left_ptr &
 
-exec $HOME/_dev/c_dev/zwm/zwm
+exec zwm
