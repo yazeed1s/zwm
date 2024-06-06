@@ -46,6 +46,7 @@ xcb_window_t 			  get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win);
 bool                      window_exists(xcb_conn_t *conn, xcb_window_t win);
 bool					  should_ingore_hints(xcb_window_t win, const char *name);
 void                      init_clients();
+desktop_t 				 *init_desktop();
 void                      add_client(client_t *new_client);
 void                      free_clients();
 void 					  raise_window(xcb_window_t win);
@@ -93,5 +94,9 @@ int                       configure_window(xcb_conn_t *, xcb_window_t, uint16_t,
 int                       set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t );
 int                       handle_xcb_error(xcb_conn_t *, xcb_void_cookie_t, const char *);
 int 					  swap_node_wrapper();
+int
+ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh,
+							int					   screen_nbr,
+							uint32_t			   i);
 char 					  *win_name(xcb_window_t win);
 #endif // ZWM_ZWM_H

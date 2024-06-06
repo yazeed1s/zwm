@@ -621,14 +621,15 @@ change_colors(node_t *root)
 	return 0;
 }
 
+// TODO: rewrite this
 int
 reload_config_wrapper()
 {
-	uint16_t previous_border_width		  = conf.border_width;
-	uint16_t previous_window_gap		  = conf.window_gap;
-	uint32_t previous_active_border_color = conf.active_border_color;
-	uint32_t previous_normal_border_color = conf.normal_border_color;
-	int		 previous_virtual_desktops	  = conf.virtual_desktops;
+	uint16_t prev_border_width		  = conf.border_width;
+	uint16_t prev_window_gap		  = conf.window_gap;
+	uint32_t prev_active_border_color = conf.active_border_color;
+	uint32_t prev_normal_border_color = conf.normal_border_color;
+	int		 prev_virtual_desktops	  = conf.virtual_desktops;
 
 	memset(&conf, 0, sizeof(config_t));
 
@@ -645,10 +646,12 @@ reload_config_wrapper()
 	}
 
 	bool color_changed =
-		(previous_normal_border_color != conf.normal_border_color) ||
-		(previous_active_border_color != conf.active_border_color);
-	bool layout_changed = (conf.window_gap != previous_window_gap) ||
-						  (conf.border_width != previous_border_width);
+		(prev_normal_border_color != conf.normal_border_color) ||
+		(prev_active_border_color != conf.active_border_color);
+	bool layout_changed = (conf.window_gap != prev_window_gap) ||
+						  (conf.border_width != prev_border_width);
+	bool desktop_changed =
+		(prev_virtual_desktops != conf.virtual_desktops);
 
 	if (color_changed) {
 		for (int i = 0; i < wm->n_of_desktops; ++i) {
@@ -671,14 +674,68 @@ reload_config_wrapper()
 		}
 	}
 
-	render_tree(wm->desktops[get_focused_desktop_idx()]->tree);
-
-	if (previous_virtual_desktops != conf.virtual_desktops) {
+	if (desktop_changed) {
 		_LOG_(INFO, "Reloading desktop changes is not implemented yet");
-		// TODO: do the changes required for handling virtual desktops
-		// reconfiguration
+		if (conf.virtual_desktops > prev_virtual_desktops) {
+			wm->n_of_desktops = conf.virtual_desktops;
+			desktop_t **n	  = (desktop_t **)realloc(
+				wm->desktops, sizeof(desktop_t *) * wm->n_of_desktops);
+			if (n == NULL) {
+				_LOG_(ERROR, "failed to realloc desktops");
+				goto out;
+			}
+			wm->desktops = n;
+			for (int i = prev_virtual_desktops; i < wm->n_of_desktops;
+				 i++) {
+				desktop_t *d = init_desktop();
+				if (d == NULL) {
+					_LOG_(ERROR, "failed to initialize new desktop");
+					goto out;
+				}
+				d->id		  = (uint8_t)i;
+				d->is_focused = false;
+				d->layout	  = DEFAULT;
+				snprintf(d->name, sizeof(d->name), "%d", i + 1);
+				wm->desktops[i] = d;
+			}
+		} else if (conf.virtual_desktops < prev_virtual_desktops) {
+			int idx = get_focused_desktop_idx();
+			for (int i = conf.virtual_desktops; i < prev_virtual_desktops;
+				 i++) {
+				if (idx == wm->desktops[i]->id) {
+					switch_desktop_wrapper(&(arg_t){.idx = idx--});
+				}
+				if (wm->desktops[i] != NULL) {
+					if (!is_tree_empty(wm->desktops[i]->tree)) {
+						free_tree(wm->desktops[i]->tree);
+						wm->desktops[i]->tree = NULL;
+					}
+					free(wm->desktops[i]);
+					wm->desktops[i] = NULL;
+				}
+			}
+			wm->n_of_desktops = conf.virtual_desktops;
+			desktop_t **n	  = (desktop_t **)realloc(
+				wm->desktops, sizeof(desktop_t *) * wm->n_of_desktops);
+			if (n == NULL) {
+				_LOG_(ERROR, "failed to realloc desktops");
+				goto out;
+			}
+			wm->desktops = n;
+		}
+		if (ewmh_set_number_of_desktops(
+				wm->ewmh, wm->screen_nbr, (uint32_t)wm->n_of_desktops) !=
+			0) {
+			goto out;
+		}
+
+		if (ewmh_update_desktop_names() != 0) {
+			goto out;
+		}
 	}
 
+out:
+	render_tree(wm->desktops[get_focused_desktop_idx()]->tree);
 	xcb_flush(wm->connection);
 
 	return 0;
@@ -1964,6 +2021,7 @@ exec_process(arg_t *arg)
 			const char *args[arg->argc + 1];
 			for (int i = 0; i < arg->argc; i++) {
 				args[i] = arg->cmd[i];
+				_LOG_(DEBUG, "args areee %s", args[i]);
 			}
 			args[arg->argc] = NULL;
 			execvp(args[0], (char *const *)args);
@@ -2733,9 +2791,9 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		}
 	}
 
-	// if (has_floating_window(root)) {
-	// 	restack(root);
-	// }
+	if (has_floating_window(root)) {
+		restack(root);
+	}
 	focused_win = n->client->window;
 	update_focus(root, n);
 	xcb_flush(wm->connection);
