@@ -242,7 +242,7 @@ ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh)
 }
 
 int
-get_focused_desktop_idx()
+get_focused_desktop_idx(void)
 {
 	for (int i = wm->n_of_desktops; i--;) {
 		if (wm->desktops[i]->is_focused) {
@@ -253,7 +253,7 @@ get_focused_desktop_idx()
 }
 
 desktop_t *
-get_focused_desktop()
+get_focused_desktop(void)
 {
 	for (int i = 0; i < wm->n_of_desktops; ++i) {
 		if (wm->desktops[i]->is_focused) {
@@ -283,7 +283,7 @@ ewmh_set_number_of_desktops(xcb_ewmh_connection_t *ewmh,
 }
 
 int
-ewmh_update_desktop_names()
+ewmh_update_desktop_names(void)
 {
 	char		 names[MAXLEN];
 	uint32_t	 names_len = 0;
@@ -852,7 +852,7 @@ populate_client_array(node_t *root, xcb_window_t *arr, size_t *index)
 }
 
 void
-ewmh_update_client_list()
+ewmh_update_client_list(void)
 {
 	size_t size = get_active_clients_size(wm->desktops, wm->n_of_desktops);
 	if (size == 0) {
@@ -972,7 +972,7 @@ init_pointer(void)
 }
 
 desktop_t *
-init_desktop()
+init_desktop(void)
 {
 	desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
 	if (d == 0x00)
@@ -987,7 +987,7 @@ init_desktop()
 }
 
 wm_t *
-setup_wm()
+setup_wm(void)
 {
 	int i, default_screen;
 	wm = (wm_t *)malloc(sizeof(wm_t));
@@ -1080,7 +1080,7 @@ setup_desktops(wm_t *w)
 }
 
 bool
-setup_ewmh()
+setup_ewmh(void)
 {
 	wm->ewmh = ewmh_init(wm->connection);
 	if (wm->ewmh == NULL) {
@@ -1134,7 +1134,7 @@ setup_ewmh()
 }
 
 wm_t *
-init_wm()
+init_wm(void)
 {
 	wm = setup_wm();
 	if (wm == NULL)
@@ -2751,7 +2751,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	if (!conf.focus_follow_pointer) {
 		if (has_floating_window(root)) {
-			restack(root);
+			// restack(root);
+			restack();
 		}
 		if (n->client->state == FULLSCREEN) {
 			if (fulllscreen_focus(n->client->window)) {
@@ -2772,7 +2773,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	}
 
 	if (n->client->state == FLOATING) {
-		restack(root);
+		// restack(root);
+		restack();
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
 				  "cannot focus window %d (enter)",
@@ -2791,12 +2793,14 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		}
 	}
 
-	if (has_floating_window(root)) {
-		restack(root);
-	}
 	focused_win = n->client->window;
 	update_focus(root, n);
 	xcb_flush(wm->connection);
+
+	if (has_floating_window(root)) {
+		// restack(root);
+		restack();
+	}
 
 	return 0;
 }
@@ -3256,7 +3260,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 	}
 
 	if (n->client->state == FLOATING) {
-		restack(root);
+		restack();
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
 				  "cannot focus window %d (enter)",
@@ -3286,12 +3290,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 }
 
 void
-handle_focus_in(xcb_focus_in_event_t *focus_in_event)
-{
-}
-
-void
-log_active_desktop()
+log_active_desktop(void)
 {
 	for (int i = 0; i < wm->n_of_desktops; i++) {
 		_LOG_(DEBUG,
@@ -3479,9 +3478,8 @@ evet_loop(wm_t *w)
 			break;
 		}
 		case XCB_FOCUS_IN: {
-			xcb_focus_in_event_t *focus_in_event =
+			__attribute__((unused)) xcb_focus_in_event_t *focus_in_event =
 				(xcb_focus_in_event_t *)event;
-			handle_focus_in(focus_in_event);
 			break;
 		}
 		case XCB_FOCUS_OUT: {
@@ -3507,7 +3505,7 @@ evet_loop(wm_t *w)
 }
 
 void
-cleanup()
+cleanup(void)
 {
 	xcb_disconnect(wm->connection);
 	free_desktops(wm->desktops, wm->n_of_desktops);

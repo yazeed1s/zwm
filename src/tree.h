@@ -32,7 +32,7 @@
 #include "type.h"
 // clang-format off
 node_t   *create_node(client_t *c);
-node_t   *init_root();
+node_t   *init_root(void);
 node_t   *find_node_by_window_id(node_t *root, xcb_window_t window_id);
 node_t   *find_floating_node(node_t *root);
 client_t *find_client_by_window_id(node_t *root, xcb_window_t window_id);
@@ -42,7 +42,6 @@ node_t   *next_node(node_t *current);
 node_t   *find_tree_root(node_t *);
 node_t   *cycle_win(node_t *node, direction_t);
 void     unlink_node(node_t *node, desktop_t *d);
-void	 restack(node_t *root);
 void 	 apply_master_layout(node_t *parent);
 void 	 apply_default_layout(node_t *root);
 void	 apply_stack_layout(node_t *root);
@@ -71,9 +70,11 @@ bool	 has_second_child(const node_t *parent);
 bool	 is_internal(const node_t *node);
 bool	 is_external(const node_t *node);
 bool	 has_floating_window(node_t *root);
+bool	 is_sibling_floating(node_t *node);
 void	 resize_subtree(node_t *parent);
 void	 apply_layout(desktop_t *d, layout_t t);
 void	 free_tree(node_t *root);
+void	 restack(void);
 void	 horizontal_resize(node_t *n, resize_t t);
 void	 delete_node(node_t *node, desktop_t *d);
 void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);

@@ -63,7 +63,7 @@ create_node(client_t *c)
 }
 
 node_t *
-init_root()
+init_root(void)
 {
 	node_t *node = (node_t *)malloc(sizeof(node_t));
 	if (node == 0x00)
@@ -490,35 +490,64 @@ is_sibling_floating(node_t *node)
 }
 
 void
-restack(node_t *root)
+populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
+{
+	if (root == NULL)
+		return;
+
+	if (root->client != NULL && root->client->window != XCB_NONE) {
+		arr[*index] = root->client->window;
+		(*index)++;
+	}
+
+	populate_win_array(root->first_child, arr, index);
+	populate_win_array(root->second_child, arr, index);
+}
+
+void
+restack(void)
+{
+	size_t size = wm->desktops[get_focused_desktop_idx()]->n_count + 5;
+	if (size == 0) {
+		return;
+	}
+
+	// xcb_window_t clients[size + 1];
+	xcb_window_t *clients =
+		(xcb_window_t *)malloc((size + 1) * sizeof(xcb_window_t));
+	if (clients == NULL) {
+		return;
+	}
+	size_t	index = 0;
+
+	node_t *root  = wm->desktops[get_focused_desktop_idx()]->tree;
+	populate_win_array(root, clients, &index);
+
+	for (size_t i = 1; i <= index; i++) {
+		window_above(clients[i], clients[i - 1]);
+	}
+
+	free(clients);
+	clients = NULL;
+}
+
+void
+restackv1(node_t *root)
 {
 	if (root == NULL)
 		return;
 
 	if (root->client != NULL) {
-		if (root->client->state == FLOATING) {
-			// if (is_sibling_floating(root)) {
-			// 	node_t *s = get_external_sibling(root);
-			// 	if (s != NULL) {
-			// 		_LOG_(DEBUG, "SIBLING is found");
-			// 		window_below(s->client->window, root->client->window);
-			// 		return;
-			// 	} else {
-			// 		_LOG_(ERROR, "cannot find floating sibling");
-			// 	}
-			// } else {
-			// 	raise_window(root->client->window);
-			// }
-			raise_window(root->client->window);
-		} else if (root->client->state == FULLSCREEN) {
+		if (root->client->state == FLOATING ||
+			root->client->state == FULLSCREEN) {
 			raise_window(root->client->window);
 		} else {
-			// lower_window(root->client->window);
+			lower_window(root->client->window);
 		}
 	}
 
-	restack(root->first_child);
-	restack(root->second_child);
+	restackv1(root->first_child);
+	restackv1(root->second_child);
 }
 
 bool

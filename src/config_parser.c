@@ -179,7 +179,7 @@ file_exists(const char *filename)
 }
 
 void
-print_key_array()
+print_key_array(void)
 {
 	for (int i = 0; i < _entries_; i++) {
 		if (conf_keys[i]->arg != NULL) {
@@ -837,7 +837,7 @@ parse_keybinding(char *str, _key__t *key)
 }
 
 _key__t *
-init_key()
+init_key(void)
 {
 	_key__t *key = (_key__t *)calloc(1, sizeof(_key__t));
 	arg_t	*a	 = (arg_t *)calloc(1, sizeof(arg_t));
@@ -975,7 +975,7 @@ out:
 }
 
 void
-free_keys()
+free_keys(void)
 {
 	if (conf_keys) {
 		for (int i = 0; i < _entries_; ++i) {
