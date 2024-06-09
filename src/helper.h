@@ -35,6 +35,9 @@
 #define IS_TILED(c)		 (c->state == TILED)
 #define IS_FLOATING(c)	 (c->state == FLOATING)
 #define IS_FULLSCREEN(c) (c->state == FULLSCREEN)
+#define IS_EXTERNAL(n)	 (n->node_type == EXTERNAL_NODE)
+#define IS_INTERNAL(n)	 (n->node_type == INTERNAL_NODE)
+#define IS_ROOT(n)		 (n->node_type == ROOT_NODE)
 
 #define _LOG_(level, format, ...)                                         \
 	do {                                                                  \

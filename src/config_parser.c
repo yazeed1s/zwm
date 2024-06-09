@@ -855,7 +855,10 @@ init_key(void)
 void
 handle_exec_cmd(char *cmd)
 {
+#ifdef _DEBUG__
 	_LOG_(DEBUG, "exec command = (%s)", cmd);
+#endif
+	
 	pid_t pid = fork();
 
 	if (pid == 0) {
