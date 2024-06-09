@@ -2383,6 +2383,16 @@ window_type(xcb_window_t win)
 				 * */
 				xcb_ewmh_get_atoms_reply_wipe(&w_type);
 				return 6;
+			} else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION) {
+				/*
+				 * _NET_WM_WINDOW_TYPE_NOTIFICATION
+				 * indicates a notification. An example of a notification
+				 * would be a bubble appearing with informative text such
+				 * as "Your laptop is running out of power" etc. This
+				 * property is typically used on override-redirect windows.
+				 * */
+				xcb_ewmh_get_atoms_reply_wipe(&w_type);
+				return 7;
 			} else {
 				xcb_ewmh_get_atoms_reply_wipe(&w_type);
 				return 1;
@@ -2561,7 +2571,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 	int			y  = (wm->screen->height_in_pixels / 2) - (g->height / 2);
 	rectangle_t rc = {
 		.x = x, .y = y, .width = g->width, .height = g->height};
-	new_node->rectangle = rc;
+	new_node->rectangle = new_node->floating_rectangle = rc;
 	free(g);
 
 	insert_node(n, new_node, d->layout);
@@ -2616,6 +2626,11 @@ handle_map_request(xcb_map_request_event_t *ev)
 	if ((apply_floating_hints(win) != -1 && (wint != 2))) {
 		if (!should_ingore_hints(win, "emacs"))
 			goto float_;
+	}
+
+	if (wint == 7) {
+		map_floating(win);
+		return 0;
 	}
 
 	switch (wint) {
@@ -2751,10 +2766,9 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	if (!conf.focus_follow_pointer) {
 		if (has_floating_window(root)) {
-			// restack(root);
 			restack();
 		}
-		if (n->client->state == FULLSCREEN) {
+		if (IS_FULLSCREEN(n->client)) {
 			if (fulllscreen_focus(n->client->window)) {
 				_LOG_(ERROR, "cannot update win attributes");
 				return -1;
@@ -2772,8 +2786,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		return 0;
 	}
 
-	if (n->client->state == FLOATING) {
-		// restack(root);
+	if (IS_FLOATING(n->client)) {
 		restack();
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
@@ -2781,7 +2794,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 				  n->client->window);
 			return -1;
 		}
-	} else if (n->client->state == FULLSCREEN) {
+	} else if (IS_FULLSCREEN(n->client)) {
 		if (fulllscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return -1;
@@ -2798,7 +2811,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	xcb_flush(wm->connection);
 
 	if (has_floating_window(root)) {
-		// restack(root);
 		restack();
 	}
 
@@ -3184,7 +3196,7 @@ update_grabbed_window(node_t *root, node_t *n)
 	if (root == NULL)
 		return;
 
-	bool flag = root->node_type != INTERNAL_NODE && root->client != NULL;
+	bool flag = !IS_INTERNAL(root) && root->client != NULL;
 	if (flag && root != n) {
 		set_focus(root, false);
 		grab_buttons(root->client->window);
@@ -3259,7 +3271,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 		return;
 	}
 
-	if (n->client->state == FLOATING) {
+	if (IS_FLOATING(n->client)) {
 		restack();
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
@@ -3267,7 +3279,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 				  n->client->window);
 			return;
 		}
-	} else if (n->client->state == FULLSCREEN) {
+	} else if (IS_FULLSCREEN(n->client)) {
 		if (fulllscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return;

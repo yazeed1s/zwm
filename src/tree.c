@@ -103,9 +103,8 @@ render_tree(node_t *node)
 		if (current_node == NULL)
 			continue;
 
-		if (current_node->node_type != INTERNAL_NODE &&
-			current_node->client != NULL) {
-			bool flag = current_node->client->state == FULLSCREEN;
+		if (!IS_INTERNAL(current_node) && current_node->client != NULL) {
+			bool flag = IS_FULLSCREEN(current_node->client);
 			if (!flag) {
 				if (tile(current_node) != 0) {
 					_LOG_(ERROR,
@@ -169,10 +168,10 @@ has_floating_children(const node_t *parent)
 {
 	return (parent->first_child != NULL &&
 			parent->first_child->client != NULL &&
-			parent->first_child->client->state == FLOATING) ||
+			IS_FLOATING(parent->first_child->client)) ||
 		   (parent->second_child != NULL &&
 			parent->second_child->client != NULL &&
-			parent->second_child->client->state == FLOATING);
+			IS_FLOATING(parent->second_child->client));
 }
 
 node_t *
@@ -180,13 +179,13 @@ get_floating_child(const node_t *parent)
 {
 	if (parent->first_child != NULL &&
 		parent->first_child->client != NULL &&
-		parent->first_child->client->state == FLOATING) {
+		IS_FLOATING(parent->first_child->client)) {
 		return parent->first_child;
 	}
 
 	if (parent->second_child != NULL &&
 		parent->second_child->client != NULL &&
-		parent->second_child->client->state == FLOATING) {
+		IS_FLOATING(parent->second_child->client)) {
 		return parent->second_child;
 	}
 
@@ -196,7 +195,7 @@ get_floating_child(const node_t *parent)
 void
 insert_floating_node(node_t *node, desktop_t *d)
 {
-	assert(node->client->state == FLOATING);
+	assert(IS_FLOATING(node->client));
 	node_t *n = find_left_leaf(d->tree);
 	if (n == NULL)
 		return;
@@ -212,7 +211,7 @@ insert_floating_node(node_t *node, desktop_t *d)
 void
 split_node(node_t *n, node_t *nd)
 {
-	if (nd->client->state == FLOATING) {
+	if (IS_FLOATING(nd->client)) {
 		n->first_child->rectangle = n->rectangle;
 	} else {
 		if (n->rectangle.width >= n->rectangle.height) {
@@ -281,7 +280,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 		return;
 	}
 
-	if (node->node_type != ROOT_NODE)
+	if (!IS_ROOT(node))
 		node->node_type = INTERNAL_NODE;
 
 	node->first_child = create_node(node->client);
@@ -420,14 +419,14 @@ resize_subtree(node_t *parent)
 
 	if (parent->first_child != NULL) {
 		parent->first_child->rectangle = r;
-		if (parent->first_child->node_type == INTERNAL_NODE) {
+		if (IS_INTERNAL(parent->first_child)) {
 			resize_subtree(parent->first_child);
 		}
 	}
 
 	if (parent->second_child != NULL) {
 		parent->second_child->rectangle = r2;
-		if (parent->second_child->node_type == INTERNAL_NODE) {
+		if (IS_INTERNAL(parent->second_child)) {
 			resize_subtree(parent->second_child);
 		}
 	}
@@ -459,7 +458,7 @@ find_floating_node(node_t *root)
 	if (root == NULL)
 		return NULL;
 
-	if (root->client->state == FLOATING)
+	if (IS_FLOATING(root->client))
 		return root;
 
 	node_t *l = find_floating_node(root->first_child);
@@ -486,7 +485,7 @@ is_sibling_floating(node_t *node)
 								: parent->first_child;
 
 	return (sibling != NULL && sibling->client != NULL &&
-			sibling->client->state == FLOATING);
+			IS_FLOATING(sibling->client));
 }
 
 void
@@ -538,8 +537,7 @@ restackv1(node_t *root)
 		return;
 
 	if (root->client != NULL) {
-		if (root->client->state == FLOATING ||
-			root->client->state == FULLSCREEN) {
+		if (IS_FLOATING(root->client) || IS_FULLSCREEN(root->client)) {
 			raise_window(root->client->window);
 		} else {
 			lower_window(root->client->window);
@@ -572,8 +570,8 @@ has_internal_sibling(const node_t *node)
 	const node_t *parent = node->parent;
 
 	return (parent->first_child != NULL && parent->second_child != NULL) &&
-		   ((parent->first_child->node_type == INTERNAL_NODE) ||
-			(parent->second_child->node_type == INTERNAL_NODE));
+		   ((IS_INTERNAL(parent->first_child)) ||
+			(IS_INTERNAL(parent->second_child)));
 }
 
 bool
@@ -588,7 +586,7 @@ is_sibling_external(const node_t *node)
 								? parent->second_child
 								: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == EXTERNAL_NODE);
+	return (sibling != NULL && IS_EXTERNAL(sibling));
 }
 
 node_t *
@@ -602,9 +600,7 @@ get_external_sibling(const node_t *node)
 	node_t *sibling = (parent->first_child == node) ? parent->second_child
 													: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == EXTERNAL_NODE)
-			   ? sibling
-			   : NULL;
+	return (sibling != NULL && IS_EXTERNAL(sibling)) ? sibling : NULL;
 }
 
 bool
@@ -619,7 +615,7 @@ is_sibling_internal(const node_t *node)
 								? parent->second_child
 								: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == INTERNAL_NODE);
+	return (sibling != NULL && IS_INTERNAL(sibling));
 }
 
 node_t *
@@ -633,9 +629,7 @@ get_internal_sibling(node_t *node)
 	node_t *sibling = (parent->first_child == node) ? parent->second_child
 													: parent->first_child;
 
-	return (sibling != NULL && sibling->node_type == INTERNAL_NODE)
-			   ? sibling
-			   : NULL;
+	return (sibling != NULL && IS_INTERNAL(sibling)) ? sibling : NULL;
 }
 
 node_t *
@@ -651,14 +645,10 @@ get_sibling(node_t *node, node_type_t *type)
 
 	switch (*type) {
 	case INTERNAL_NODE: {
-		return (sibling != NULL && sibling->node_type == INTERNAL_NODE)
-				   ? sibling
-				   : NULL;
+		return (sibling != NULL && IS_INTERNAL(sibling)) ? sibling : NULL;
 	}
 	case EXTERNAL_NODE: {
-		return (sibling != NULL && sibling->node_type == EXTERNAL_NODE)
-				   ? sibling
-				   : NULL;
+		return (sibling != NULL && IS_EXTERNAL(sibling)) ? sibling : NULL;
 	}
 	case ROOT_NODE: break;
 	}
@@ -669,15 +659,15 @@ bool
 has_external_children(const node_t *parent)
 {
 	return (parent->first_child != NULL &&
-			parent->first_child->node_type == EXTERNAL_NODE) &&
+			IS_EXTERNAL(parent->first_child)) &&
 		   (parent->second_child != NULL &&
-			parent->second_child->node_type == EXTERNAL_NODE);
+			IS_EXTERNAL(parent->second_child));
 }
 
 node_t *
 find_tree_root(node_t *node)
 {
-	if (node->node_type == ROOT_NODE) {
+	if (IS_ROOT(node)) {
 		return node;
 	}
 	return find_tree_root(node->parent);
@@ -691,12 +681,12 @@ has_single_external_child(const node_t *parent)
 
 	return ((parent->first_child != NULL &&
 			 parent->second_child != NULL) &&
-			(parent->first_child->node_type == EXTERNAL_NODE &&
-			 parent->second_child->node_type != EXTERNAL_NODE)) ||
+			(IS_EXTERNAL(parent->first_child) &&
+			 !IS_EXTERNAL(parent->second_child))) ||
 		   ((parent->first_child != NULL &&
 			 parent->second_child != NULL) &&
-			(parent->second_child->node_type == EXTERNAL_NODE &&
-			 parent->first_child->node_type != EXTERNAL_NODE));
+			(IS_EXTERNAL(parent->second_child) &&
+			 !IS_EXTERNAL(parent->first_child)));
 }
 
 client_t *
@@ -771,15 +761,29 @@ apply_default_layout(node_t *root)
 	}
 
 	if (root->first_child != NULL) {
-		root->first_child->rectangle = r;
-		if (root->first_child->node_type == INTERNAL_NODE) {
+		root->first_child->rectangle =
+			((root->second_child->client != NULL) &&
+			 IS_FLOATING(root->second_child->client))
+				? root->rectangle
+			: ((root->first_child->client != NULL) &&
+			   IS_FLOATING(root->first_child->client))
+				? root->first_child->floating_rectangle
+				: r;
+		if (IS_INTERNAL(root->first_child)) {
 			apply_default_layout(root->first_child);
 		}
 	}
 
 	if (root->second_child != NULL) {
-		root->second_child->rectangle = r2;
-		if (root->second_child->node_type == INTERNAL_NODE) {
+		root->second_child->rectangle =
+			((root->first_child->client != NULL) &&
+			 IS_FLOATING(root->first_child->client))
+				? root->rectangle
+			: ((root->second_child->client != NULL) &&
+			   IS_FLOATING(root->second_child->client))
+				? root->second_child->floating_rectangle
+				: r2;
+		if (IS_INTERNAL(root->second_child)) {
 			apply_default_layout(root->second_child);
 		}
 	}
@@ -842,11 +846,11 @@ apply_master_layout(node_t *parent)
 		parent->second_child->rectangle = r2;
 	}
 
-	if (parent->first_child->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(parent->first_child)) {
 		apply_master_layout(parent->first_child);
 	}
 
-	if (parent->second_child->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(parent->second_child)) {
 		apply_master_layout(parent->second_child);
 	}
 }
@@ -904,14 +908,14 @@ apply_stack_layout(node_t *root)
 
 	if (root->first_child != NULL) {
 		root->first_child->rectangle = root->rectangle;
-		if (root->first_child->node_type == INTERNAL_NODE) {
+		if (IS_INTERNAL(root->first_child)) {
 			apply_stack_layout(root->first_child);
 		}
 	}
 
 	if (root->second_child != NULL) {
 		root->second_child->rectangle = root->rectangle;
-		if (root->second_child->node_type == INTERNAL_NODE) {
+		if (IS_INTERNAL(root->second_child)) {
 			apply_stack_layout(root->second_child);
 		}
 	}
@@ -1189,7 +1193,7 @@ delete_node(node_t *node, desktop_t *d)
 		return;
 	}
 
-	if (node->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(node)) {
 		_LOG_(ERROR,
 			  "node to be deleted is not an external node type: %d",
 			  node->node_type);
@@ -1271,18 +1275,6 @@ has_second_child(const node_t *parent)
 }
 
 bool
-is_internal(const node_t *node)
-{
-	return node->node_type == INTERNAL_NODE;
-}
-
-bool
-is_external(const node_t *node)
-{
-	return node->node_type == EXTERNAL_NODE;
-}
-
-bool
 is_tree_empty(const node_t *root)
 {
 	return root == NULL;
@@ -1336,7 +1328,7 @@ hide_windows(node_t *cn)
 	if (cn == NULL)
 		return 0;
 
-	if (cn->node_type != INTERNAL_NODE && cn->client != NULL) {
+	if (!IS_INTERNAL(cn) && cn->client != NULL) {
 		if (hide_window(cn->client->window) != 0) {
 			return -1;
 		}
@@ -1362,7 +1354,7 @@ show_windows(node_t *cn)
 	if (cn == NULL)
 		return 0;
 
-	if (cn->node_type != INTERNAL_NODE && cn->client != NULL) {
+	if (!IS_INTERNAL(cn) && cn->client != NULL) {
 		if (show_window(cn->client->window) != 0) {
 			return -1;
 		}
@@ -1473,7 +1465,6 @@ horizontal_resize(node_t *n, resize_t t)
 	direction_t	  shrink_direction = NONE;
 
 	node_t		 *root			   = find_tree_root(n);
-	assert(root->node_type == ROOT_NODE);
 
 	if (in_left_subtree(root->first_child, n)) {
 		grow_direction	 = RIGHT;
@@ -1485,7 +1476,7 @@ horizontal_resize(node_t *n, resize_t t)
 
 	_LOG_(INFO, "dir == %d", grow_direction);
 
-	if (n->parent == NULL || n->node_type == ROOT_NODE) {
+	if (n->parent == NULL || IS_ROOT(n)) {
 		return;
 	}
 
@@ -1506,7 +1497,7 @@ horizontal_resize(node_t *n, resize_t t)
 	 *             \
 	 *            rest...
 	 */
-	if (n->parent->node_type == ROOT_NODE) {
+	if (IS_ROOT(n->parent)) {
 		node_t *s = NULL;
 		if (is_sibling_external(n)) {
 			s = get_external_sibling(n);
@@ -1563,10 +1554,10 @@ horizontal_resize(node_t *n, resize_t t)
 	 *    /   \     \
 	 *   E    E/I   rest...
 	 */
-	if (n->parent->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(n->parent)) {
 		if (in_left_subtree(root->first_child, n)) {
 			if (root->first_child == NULL ||
-				root->first_child->node_type != INTERNAL_NODE) {
+				!IS_INTERNAL(root->first_child)) {
 				return;
 			}
 			(t == GROW) ? (root->first_child->rectangle.width += px)
@@ -1577,7 +1568,7 @@ horizontal_resize(node_t *n, resize_t t)
 						: (root->second_child->rectangle.x -= px);
 
 			if (root->second_child != NULL &&
-				root->second_child->node_type == EXTERNAL_NODE) {
+				IS_EXTERNAL(root->second_child)) {
 				resize_subtree(root->first_child);
 			} else {
 				resize_subtree(root->first_child);
@@ -1585,7 +1576,7 @@ horizontal_resize(node_t *n, resize_t t)
 			}
 		} else {
 			if (root->second_child == NULL ||
-				root->second_child->node_type != INTERNAL_NODE) {
+				!IS_INTERNAL(root->second_child)) {
 				return;
 			}
 			(t == GROW) ? (root->second_child->rectangle.width += px)
@@ -1596,7 +1587,7 @@ horizontal_resize(node_t *n, resize_t t)
 						: (root->first_child->rectangle.width += px);
 
 			if (root->first_child != NULL &&
-				root->first_child->node_type == EXTERNAL_NODE) {
+				IS_EXTERNAL(root->first_child)) {
 				resize_subtree(root->second_child);
 			} else {
 				resize_subtree(root->first_child);
@@ -1620,8 +1611,7 @@ find_left_leaf(node_t *root)
 	node_t *left_leaf = find_left_leaf(root->first_child);
 
 	if ((left_leaf != NULL && left_leaf->client != NULL) &&
-		(left_leaf->node_type == EXTERNAL_NODE ||
-		 left_leaf->node_type == ROOT_NODE)) {
+		(IS_EXTERNAL(left_leaf) || IS_ROOT(left_leaf))) {
 		return left_leaf;
 	}
 
@@ -1653,7 +1643,7 @@ unlink_node(node_t *node, desktop_t *d)
 			return;
 		}
 		// if I has no parent
-		if (node->parent->node_type == ROOT_NODE) {
+		if (IS_ROOT(node->parent)) {
 			node->parent->client	   = e->client;
 			node->parent->first_child  = NULL;
 			node->parent->second_child = NULL;
@@ -1708,7 +1698,7 @@ unlink_node(node_t *node, desktop_t *d)
 	if (is_sibling_internal(node)) {
 		node_t *n = NULL;
 		// if IN has no parent
-		if (node->parent->node_type == ROOT_NODE) {
+		if (IS_ROOT(node->parent)) {
 			n = get_internal_sibling(node);
 			if (n == NULL) {
 				_LOG_(ERROR, "internal node is null");
@@ -1863,7 +1853,7 @@ transfer_node(node_t *node, desktop_t *d)
 		if (leaf == NULL) {
 			return;
 		}
-		if (leaf->node_type != ROOT_NODE) {
+		if (!IS_ROOT(leaf)) {
 			leaf->node_type = INTERNAL_NODE;
 		}
 		leaf->first_child = create_node(leaf->client);
@@ -1890,7 +1880,7 @@ has_floating_window(node_t *root)
 	if (root == NULL)
 		return false;
 
-	if (root->client != NULL && root->client->state == FLOATING) {
+	if (root->client != NULL && IS_FLOATING(root->client)) {
 		return true;
 	}
 
@@ -1913,7 +1903,7 @@ next_node(node_t *n)
 
 	if (n->parent && n->parent->second_child != n) {
 		node_t *l = n->parent->second_child;
-		while (l->node_type != EXTERNAL_NODE) {
+		while (!IS_EXTERNAL(l)) {
 			l = l->first_child;
 		}
 		return l;
@@ -1930,7 +1920,7 @@ next_node(node_t *n)
 		return NULL;
 
 	node_t *r = p->second_child;
-	while (r->node_type != EXTERNAL_NODE) {
+	while (!IS_EXTERNAL(r)) {
 		r = r->first_child;
 	}
 	return r;
@@ -1944,7 +1934,7 @@ prev_node(node_t *n)
 
 	if (n->parent && n->parent->first_child != n) {
 		node_t *l = n->parent->first_child;
-		while (l->node_type != EXTERNAL_NODE) {
+		while (!IS_EXTERNAL(l)) {
 			if (l->second_child) {
 				l = l->second_child;
 			} else {
@@ -1965,7 +1955,7 @@ prev_node(node_t *n)
 		return NULL;
 
 	node_t *l = p->first_child;
-	while (l->node_type != EXTERNAL_NODE) {
+	while (!IS_EXTERNAL(l)) {
 		if (l->second_child) {
 			l = l->second_child;
 		} else {
@@ -2033,7 +2023,7 @@ update_focus(node_t *root, node_t *n)
 	if (root == NULL)
 		return;
 
-	bool flag = root->node_type != INTERNAL_NODE && root->client != NULL;
+	bool flag = !IS_INTERNAL(root) && root->client != NULL;
 	if (flag && root != n) {
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
@@ -2082,7 +2072,7 @@ swap_node(node_t *n)
 	n->rectangle   = sr;
 	s->rectangle   = nr;
 
-	if (s->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(s)) {
 		resize_subtree(s);
 	}
 
@@ -2131,8 +2121,7 @@ find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 
 		if (current == node)
 			continue;
-		if (current->node_type == EXTERNAL_NODE &&
-			current->client != NULL &&
+		if (IS_EXTERNAL(current) && current->client != NULL &&
 			is_within_range(&node->rectangle, &current->rectangle, d)) {
 			int distance;
 			switch (d) {

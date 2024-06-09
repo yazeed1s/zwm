@@ -176,6 +176,7 @@ struct node_t {
 	client_t   *client;
 	node_type_t node_type;
 	rectangle_t rectangle;
+	rectangle_t floating_rectangle;
 	bool		is_focused;
 	bool		is_master;
 	/* uint32_t	id; */
