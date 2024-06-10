@@ -708,7 +708,9 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 
 	if (strncmp(func, "run", 3) == 0) {
 		run_func = true;
+#ifdef _DEBUG__
 		_LOG_(INFO, "found run func %s, ...\n", func);
+#endif
 	}
 
 	char *func_param = extract_func_body(func);
@@ -858,7 +860,7 @@ handle_exec_cmd(char *cmd)
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "exec command = (%s)", cmd);
 #endif
-	
+
 	pid_t pid = fork();
 
 	if (pid == 0) {
@@ -873,7 +875,9 @@ handle_exec_cmd(char *cmd)
 				trim(s[i], WHITE_SPACE);
 				trim(s[i], QUOTATION);
 				args[i] = s[i];
+#ifdef _DEBUG__
 				_LOG_(INFO, "arg exec = %s", s[i]);
+#endif
 			}
 			args[count] = NULL;
 			execvp(args[0], (char *const *)args);

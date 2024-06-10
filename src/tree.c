@@ -6,24 +6,27 @@
  * modification, are permitted provided that the following conditions
  * are met:
  *
- *	  1. Redistributions of source code must retain the above copyright
- *	  notice, this list of conditions and the following disclaimer.
+ *	1. Redistributions of source code must retain the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer.
  *
- *	  2. Redistributions in binary form must reproduce the above copyright
- *	  notice, this list of conditions and the following disclaimer in the
- *	  documentation and/or other materials provided with the distribution.
+ *	2. Redistributions in binary form must reproduce the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer in the documentation and/or other materials provided
+ *  with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
- * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "tree.h"
@@ -1000,7 +1003,8 @@ delete_node_with_external_sibling(node_t *node)
 	 *     N||E   N||E
 	 *
 	 * logic:
-	 * just delete N and replace E with I and give it full I's rectangle
+	 * just delete N and replace E with I and give it full I's
+	 * rectangle
 	 */
 	node_t *external_node = NULL;
 	assert(is_sibling_external(node));
@@ -1488,9 +1492,9 @@ horizontal_resize(node_t *n, resize_t t)
 	 * I's type is ROOT_NODE
 	 * Node to delete is E.
 	 * logic: grow E's width by 5 pixels
-	 * then move E's sibling x by 5 pixels and shrink its width by 5 pixels
-	 * E's sibling can be External or Internal -> if internal, resize its
-	 * children
+	 * then move E's sibling x by 5 pixels and shrink its width by 5
+	 * pixels E's sibling can be External or Internal -> if internal,
+	 * resize its children
 	 *         I
 	 *    	 /   \
 	 *   	E     E/I
@@ -1545,9 +1549,9 @@ horizontal_resize(node_t *n, resize_t t)
 	 *
 	 * I's type is INTERNAL_NODE
 	 * Node to expand is E.
-	 * logic: grow the whole subtree(rectangle)'s width in E's side by 5
-	 * pixels then move the opposite subtree(rectangle)'s x by 5 pixels and
-	 * shrink its width by 5 pixels
+	 * logic: grow the whole subtree(rectangle)'s width in E's side by
+	 * 5 pixels then move the opposite subtree(rectangle)'s x by 5
+	 * pixels and shrink its width by 5 pixels
 	 *         I
 	 *    	 /   \
 	 *   	I     E/I
@@ -1635,7 +1639,8 @@ unlink_node(node_t *node, desktop_t *d)
 	 *     N||E   N||E
 	 *
 	 * logic:
-	 * just unlink N and replace E with I and give it full I's rectangle
+	 * just unlink N and replace E with I and give it full I's
+	 * rectangle
 	 */
 	if (is_sibling_external(node)) {
 		node_t *e = get_external_sibling(node);
@@ -1687,13 +1692,14 @@ unlink_node(node_t *node, desktop_t *d)
 	 *            E1    E2
 	 *
 	 * Logic:
-	 * - If N is in the left subtree, unlink N, delete IN and replace IN
-	 * with IE.
-	 * - If N is in the right subtree, unlink N delete IN and replace IN
-	 * with IE.
+	 * - If N is in the left subtree, unlink N, delete IN and replace
+	 * IN with IE.
+	 * - If N is in the right subtree, unlink N delete IN and replace
+	 * IN with IE.
 	 *
-	 * Essentially, both IN and N are deleted. IE takes the place of IN,
-	 * and the layout of IE's children (E1 and E2) is adjusted accordingly.
+	 * Essentially, both IN and N are deleted. IE takes the place of
+	 * IN, and the layout of IE's children (E1 and E2) is adjusted
+	 * accordingly.
 	 */
 	if (is_sibling_internal(node)) {
 		node_t *n = NULL;

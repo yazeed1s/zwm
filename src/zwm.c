@@ -6,24 +6,27 @@
  * modification, are permitted provided that the following conditions
  * are met:
  *
- *	  1. Redistributions of source code must retain the above copyright
- *	  notice, this list of conditions and the following disclaimer.
+ *	1. Redistributions of source code must retain the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer.
  *
- *	  2. Redistributions in binary form must reproduce the above copyright
- *	  notice, this list of conditions and the following disclaimer in the
- *	  documentation and/or other materials provided with the distribution.
+ *	2. Redistributions in binary form must reproduce the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer in the documentation and/or other materials provided
+ *  with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
- * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "zwm.h"
@@ -82,24 +85,23 @@ int8_t				  click_to_focus;
 static const _key__t keys_[] = {
 	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL                            },
 	{SUPER_MASK,              XK_Return,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          	     },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          	                 },
 	{SUPER_MASK,              XK_space,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("dmenu_run")}})                },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("dmenu_run")}})                             },
 	{SUPER_MASK,              XK_p,
-    exec_process,             &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})},
+    exec_process,             &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})           },
 	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})             },
 	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})             },
 	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})             },
 	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})             },
 	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})             },
-	{SUPER_MASK,              XK_6,      switch_desktop_wrapper,    &((arg_t){.idx = 5})             },
+	{SUPER_MASK,              XK_6,      switch_desktop_wrapper,    &((arg_t){.idx = 5})              },
 	{SUPER_MASK,              XK_7,      switch_desktop_wrapper,    &((arg_t){.idx = 6})             },
 	{SUPER_MASK,              XK_Left,   cycle_win_wrapper,         &((arg_t){.d = LEFT})            },
 	{SUPER_MASK,              XK_Right,  cycle_win_wrapper,         &((arg_t){.d = RIGHT})           },
 	{SUPER_MASK,              XK_Up,     cycle_win_wrapper,         &((arg_t){.d = UP})              },
 	{SUPER_MASK,              XK_Down,   cycle_win_wrapper,         &((arg_t){.d = DOWN})            },
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
-	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})          },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
 	{SUPER_MASK,              XK_s,      swap_node_wrapper,         NULL                             },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
@@ -588,13 +590,10 @@ set_fullscreen(node_t *n, bool flag)
 	// 	xcb_delete_property_checked(wm->connection,
 	// 								n->client->window,
 	// 								wm->ewmh->_NET_WM_STATE_FULLSCREEN);
-	// xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
-	// if (err) {
-	// 	_LOG_(ERROR,
-	// 				"Error removing window property: %d\n",
-	// 				err->error_code);
-	// 	free(err);
-	// 	return -1;
+	// xcb_generic_error_t *err = xcb_request_check(wm->connection,
+	// c); if (err) { 	_LOG_(ERROR, 				"Error removing
+	// window property: %d\n", 				err->error_code);
+	// free(err); 	return -1;
 	// }
 out:
 	xcb_flush(wm->connection);
@@ -1602,12 +1601,10 @@ grab_buttons(xcb_window_t win)
 	xcb_void_cookie_t	 cookie;
 	xcb_generic_error_t *error;
 	// cookie =
-	// 	xcb_ungrab_button(conn, XCB_BUTTON_INDEX_ANY, win, XCB_GRAB_ANY);
-	// if (error) {
-	// 	_LOG_(
-	// 		ERROR, "Error ungrabbing button: %d\n", error->error_code);
-	// 	free(error);
-	// 	return -1;
+	// 	xcb_ungrab_button(conn, XCB_BUTTON_INDEX_ANY, win,
+	// XCB_GRAB_ANY); if (error) { 	_LOG_( 		ERROR, "Error
+	// ungrabbing button: %d\n", error->error_code); 	free(error);
+	// return -1;
 	// }
 
 	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
@@ -2386,10 +2383,11 @@ window_type(xcb_window_t win)
 			} else if (a == wm->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION) {
 				/*
 				 * _NET_WM_WINDOW_TYPE_NOTIFICATION
-				 * indicates a notification. An example of a notification
-				 * would be a bubble appearing with informative text such
-				 * as "Your laptop is running out of power" etc. This
-				 * property is typically used on override-redirect windows.
+				 * indicates a notification. An example of a
+				 * notification would be a bubble appearing with
+				 * informative text such as "Your laptop is running
+				 * out of power" etc. This property is typically used
+				 * on override-redirect windows.
 				 * */
 				xcb_ewmh_get_atoms_reply_wipe(&w_type);
 				return 7;
@@ -2497,11 +2495,13 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		return 0;
 	}
 
-	node_t *n = find_node_by_window_id(d->tree, wi);
-
+	node_t *n			= find_node_by_window_id(d->tree, wi);
+	bool	is_floating = false;
 	if (n->client->state == FLOATING) {
 		_LOG_(INFO, "node under cusor is floating %d", wi);
-		n = find_left_leaf(d->tree);
+		// n = find_left_leaf(d->tree);
+		// is_floating = true;
+		return 0;
 	}
 
 	if (n->client->state == FULLSCREEN) {
@@ -2523,6 +2523,23 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		_LOG_(ERROR, "new node is null");
 		return -1;
 	}
+
+	// if (is_floating) {
+	// 	xcb_get_geometry_reply_t *g =
+	// 		get_geometry(client->window, wm->connection);
+	// 	if (g == NULL) {
+	// 		_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
+	// 		return -1;
+	// 	}
+
+	// 	int x = (wm->screen->width_in_pixels / 2) - (g->width / 2);
+	// 	int y = (wm->screen->height_in_pixels / 2) - (g->height / 2);
+	// 	rectangle_t rc = {
+	// 		.x = x, .y = y, .width = g->width, .height = g->height};
+	// 	new_node->floating_rectangle = rc;
+	// 	new_node->client->state		 = FLOATING;
+	// 	free(g);
+	// }
 
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
@@ -2586,11 +2603,11 @@ handle_map_request(xcb_map_request_event_t *ev)
 {
 	xcb_window_t win = ev->window;
 
-	if (is_transient(win)) {
-		_LOG_(INFO, "win %d, is transient.. ignoring request", win);
-		// goto float_;
-		// return 0;
-	}
+	// if (is_transient(win)) {
+	// 	//_LOG_(INFO, "win %d, is transient.. ignoring request", win);
+	// 	// goto float_;
+	// 	// return 0;
+	// }
 
 	if (!should_manage(win, wm->connection)) {
 		_LOG_(
@@ -2884,7 +2901,7 @@ handle_key_press(xcb_key_press_event_t *key_press)
 	uint16_t	 cleaned_state = (key_press->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t k = get_keysym(key_press->detail, wm->connection);
 	if (conf_keys != NULL && _entries_ != 0) {
-		_LOG_(INFO, "----using conf keys------\n");
+		// _LOG_(INFO, "----using conf keys------\n");
 		for (int i = 0; i < _entries_; i++) {
 			if (cleaned_state ==
 				(conf_keys[i]->mod & ~(XCB_MOD_MASK_LOCK))) {
@@ -2902,7 +2919,7 @@ handle_key_press(xcb_key_press_event_t *key_press)
 		return;
 	}
 
-	_LOG_(INFO, "----using default keys------\n");
+	// _LOG_(INFO, "----using default keys------\n");
 	size_t n = sizeof(keys_) / sizeof(keys_[0]);
 	for (size_t i = n; i--;) {
 		if (cleaned_state == (keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
