@@ -2018,7 +2018,9 @@ exec_process(arg_t *arg)
 			const char *args[arg->argc + 1];
 			for (int i = 0; i < arg->argc; i++) {
 				args[i] = arg->cmd[i];
+#ifdef _DEBUG__
 				_LOG_(DEBUG, "args areee %s", args[i]);
+#endif
 			}
 			args[arg->argc] = NULL;
 			execvp(args[0], (char *const *)args);
@@ -2193,6 +2195,10 @@ switch_desktop(const int nd)
 
 	if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, nd) != 0) {
 		return -1;
+	}
+
+	if (has_floating_window(wm->desktops[nd]->tree)) {
+		restackv2(wm->desktops[nd]->tree);
 	}
 
 	xcb_flush(wm->connection);
@@ -2499,9 +2505,10 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	bool	is_floating = false;
 	if (n->client->state == FLOATING) {
 		_LOG_(INFO, "node under cusor is floating %d", wi);
-		// n = find_left_leaf(d->tree);
+		n = find_left_leaf(d->tree);
 		// is_floating = true;
-		return 0;
+		if (n == NULL)
+			return 0;
 	}
 
 	if (n->client->state == FULLSCREEN) {
@@ -2783,7 +2790,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	if (!conf.focus_follow_pointer) {
 		if (has_floating_window(root)) {
-			restack();
+			// restack();
+			restackv2(root);
 		}
 		if (IS_FULLSCREEN(n->client)) {
 			if (fulllscreen_focus(n->client->window)) {
@@ -2804,7 +2812,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	}
 
 	if (IS_FLOATING(n->client)) {
-		restack();
+		// restack();
+		restackv2(root);
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
 				  "cannot focus window %d (enter)",
@@ -2828,7 +2837,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	xcb_flush(wm->connection);
 
 	if (has_floating_window(root)) {
-		restack();
+		// restack();
+		restackv2(root);
 	}
 
 	return 0;
@@ -2969,16 +2979,17 @@ handle_state(node_t		 *n,
 			  "_NET_WM_STATE_BELOW received for win %d:%s",
 			  n->client->window,
 			  name);
+		lower_window(n->client->window);
 	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
 		_LOG_(INFO,
 			  "_NET_WM_STATE_ABOVE received for win %d:%s",
 			  n->client->window,
 			  name);
+		raise_window(n->client->window);
 	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
 		_LOG_(INFO,
 			  "_NET_WM_STATE_HIDDEN received for win %d:%s",
 			  n->client->window,
-
 			  name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_STICKY) {
 		_LOG_(INFO,
@@ -3028,6 +3039,7 @@ handle_client_message(xcb_client_message_event_t *client_message)
 			DEBUG, "data32[%d]: %u\n", i, client_message->data.data32[i]);
 	}
 #endif
+	char *s = win_name(client_message->window);
 	if (client_message->type == wm->ewmh->_NET_CURRENT_DESKTOP) {
 		uint32_t nd = client_message->data.data32[0];
 		if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
@@ -3036,31 +3048,42 @@ handle_client_message(xcb_client_message_event_t *client_message)
 		if (switch_desktop(nd) != 0) {
 			return -1;
 		}
-		return 0;
 	} else if (client_message->type == wm->ewmh->_NET_CLOSE_WINDOW) {
 		_LOG_(INFO, "window want to be closed %d", client_message->window);
 	} else if (client_message->type == wm->ewmh->_NET_WM_STATE) {
-		char *s = win_name(client_message->window);
-		_LOG_(INFO, "wm_state for %d name", client_message->window, s);
-		free(s);
+		_LOG_(INFO, "wm_state for %d name %s", client_message->window, s);
 		handle_state(n,
 					 client_message->data.data32[1],
 					 client_message->data.data32[2],
 					 client_message->data.data32[0]);
 	} else if (client_message->type == wm->ewmh->_NET_ACTIVE_WINDOW) {
-
+		_LOG_(INFO,
+			  "wm_state _NET_ACTIVE_WINDOW for %d name %s",
+			  client_message->window,
+			  s);
 	} else if (client_message->type ==
 			   wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-
+		_LOG_(INFO,
+			  "wm_state _NET_WM_STATE_DEMANDS_ATTENTION for %d name %s",
+			  client_message->window,
+			  s);
 	} else if (client_message->type == wm->ewmh->_NET_WM_STATE_STICKY) {
-
+		_LOG_(INFO,
+			  "wm_state _NET_WM_STATE_STICKY for %d name %s",
+			  client_message->window,
+			  s);
 	} else if (client_message->type == wm->ewmh->_NET_WM_DESKTOP) {
+		_LOG_(INFO,
+			  "wm_state _NET_WM_DESKTOP for %d name %s",
+			  client_message->window,
+			  s);
 	}
 	// TODO: ewmh->_NET_WM_STATE
 	// TODO: ewmh->_NET_CLOSE_WINDOW
 	// TODO: ewmh->_NET_WM_DESKTOP
 	// TODO: ewmh->_NET_WM_STATE_FULLSCREEN
 	// TODO: ewmh->_NET_ACTIVE_WINDOW
+	free(s);
 	return 0;
 }
 

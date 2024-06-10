@@ -75,6 +75,8 @@ void	 resize_subtree(node_t *parent);
 void	 apply_layout(desktop_t *d, layout_t t);
 void	 free_tree(node_t *root);
 void	 restack(void);
+void
+restackv2(node_t *root);
 void	 horizontal_resize(node_t *n, resize_t t);
 void	 delete_node(node_t *node, desktop_t *d);
 void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);

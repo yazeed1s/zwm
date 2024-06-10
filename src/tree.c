@@ -534,21 +534,56 @@ restack(void)
 }
 
 void
-restackv1(node_t *root)
+restackv2(node_t *root)
 {
-	if (root == NULL)
+	if (root == NULL) {
 		return;
+	}
 
-	if (root->client != NULL) {
-		if (IS_FLOATING(root->client) || IS_FULLSCREEN(root->client)) {
-			raise_window(root->client->window);
+	// handle first child
+	if (root->first_child != NULL && root->first_child->client != NULL &&
+		IS_EXTERNAL(root->first_child)) {
+		if (IS_FLOATING(root->first_child->client)) {
+			// check if second child exists and is floating
+			if (root->second_child != NULL &&
+				root->second_child->client != NULL &&
+				IS_EXTERNAL(root->second_child) &&
+				IS_FLOATING(root->second_child->client)) {
+				// second floating child should be above the first floating
+				// child
+				window_below(root->first_child->client->window,
+							 root->second_child->client->window);
+			} else {
+				// only the first child is floating
+				raise_window(root->first_child->client->window);
+			}
 		} else {
-			lower_window(root->client->window);
+			// first child is not floating
+			lower_window(root->first_child->client->window);
 		}
 	}
 
-	restackv1(root->first_child);
-	restackv1(root->second_child);
+	// handle second child
+	if (root->second_child != NULL && root->second_child->client != NULL &&
+		IS_EXTERNAL(root->second_child)) {
+		if (IS_FLOATING(root->second_child->client)) {
+			if (root->first_child == NULL ||
+				root->first_child->client == NULL ||
+				!IS_EXTERNAL(root->first_child) ||
+				!IS_FLOATING(root->first_child->client)) {
+				// only the second child is floating
+				raise_window(root->second_child->client->window);
+			}
+			// if both are floating, the order is already handled in the
+			// first child block
+		} else {
+			// second child is not floating
+			lower_window(root->second_child->client->window);
+		}
+	}
+
+	restackv2(root->first_child);
+	restackv2(root->second_child);
 }
 
 bool
