@@ -864,7 +864,7 @@ handle_exec_cmd(char *cmd)
 	pid_t pid = fork();
 
 	if (pid == 0) {
-		if (strchr(cmd, ',') != 0) {
+		if (strchr(cmd, ',')) {
 			trim(cmd, SQUARE_BRACKET);
 			int	   count = 0;
 			char **s	 = split_string(cmd, ',', &count);
@@ -1017,6 +1017,8 @@ int
 load_config(config_t *c)
 {
 	const char *filename = CONF_PATH;
-	return !file_exists(filename) ? write_default_config(filename, c)
-								  : parse_config(filename, c, false);
+	if (!file_exists(filename)) {
+		write_default_config(filename, c);
+	}
+	return parse_config(filename, c, false);
 }
