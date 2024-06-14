@@ -117,7 +117,6 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 </p>
 
 ## Installation
-### You can grab the executable from the [releases](https://github.com/Yazeed1s/zwm/releases) page, or build from source.
 ### Build from source
 #### Dependencies
 - gcc
