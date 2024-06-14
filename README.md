@@ -117,7 +117,14 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 </p>
 
 ## Installation
+### You can grab the executable from the [releases](https://github.com/Yazeed1s/zwm/releases) page, or build from source.
 ### Build from source
+#### Dependencies
+- gcc
+- libxcb
+- xcb-util
+- xcb-util-keysyms
+- xcb-util-wm (ewmh,icccm)
 ```
 git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && sudo make install

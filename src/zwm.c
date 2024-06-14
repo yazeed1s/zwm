@@ -79,6 +79,7 @@ uint16_t			  num_lock;
 uint16_t			  caps_lock;
 uint16_t			  scroll_lock;
 int8_t				  click_to_focus;
+bool				  is_kgrabbed = false;
 
 // clang-format off
 // X11/keysymdef.h
@@ -123,8 +124,8 @@ static const _key__t keys_[] = {
 };
 // clang-format on
 
-static const uint32_t buttons_[] = {
-	XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
+static const uint32_t buttons_[]  = {
+	 XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
 
 int
 len_of_digits(long n)
@@ -1667,6 +1668,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 				return -1;
 			}
 		}
+		is_kgrabbed = true;
 		return 0;
 	}
 
@@ -1693,7 +1695,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 			return -1;
 		}
 	}
-
+	is_kgrabbed = true;
 	return 0;
 }
 
@@ -2501,8 +2503,8 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		return 0;
 	}
 
-	node_t *n			= find_node_by_window_id(d->tree, wi);
-	bool	is_floating = false;
+	node_t *n = find_node_by_window_id(d->tree, wi);
+	// bool	is_floating = false;
 	if (n->client->state == FLOATING) {
 		_LOG_(INFO, "node under cusor is floating %d", wi);
 		n = find_left_leaf(d->tree);
@@ -3341,6 +3343,27 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 	xcb_flush(wm->connection);
 }
 
+int
+handle_mapping_notify(xcb_mapping_notify_event_t *e)
+{
+	if (e->request != XCB_MAPPING_KEYBOARD &&
+		e->request != XCB_MAPPING_MODIFIER) {
+		return 0;
+	}
+
+	if (is_kgrabbed) {
+		ungrab_keys(wm->connection, wm->root_window);
+		is_kgrabbed = !is_kgrabbed;
+	}
+
+	if (0 != grab_keys(wm->connection, wm->root_window)) {
+		_LOG_(ERROR, "cannot grab keys");
+		return -1;
+	}
+
+	return 0;
+}
+
 void
 log_active_desktop(void)
 {
@@ -3541,12 +3564,9 @@ evet_loop(wm_t *w)
 			break;
 		}
 		case XCB_MAPPING_NOTIFY: {
-			__attribute__((unused))
 			xcb_mapping_notify_event_t *mapping_notify =
 				(xcb_mapping_notify_event_t *)event;
-			if (0 != grab_keys(wm->connection, wm->root_window)) {
-				_LOG_(ERROR, "cannot grab keys");
-			}
+			handle_mapping_notify(mapping_notify);
 		}
 		default: {
 			break;
@@ -3595,6 +3615,10 @@ main(int argc, char **argv)
 
 	if (argc >= 2) {
 		parse_args(argc, argv);
+	}
+
+	if (0 != grab_keys(wm->connection, wm->root_window)) {
+		_LOG_(ERROR, "cannot grab keys");
 	}
 
 	evet_loop(wm);
