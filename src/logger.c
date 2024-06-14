@@ -34,6 +34,7 @@
 #include <xcb/xcb.h>
 
 #define YEAR_OFFSET 1900
+#define LOG_PATH	"~/.local/share/xorg/zwm.log"
 
 void
 log_message(log_level_t level, const char *format, ...)
@@ -46,7 +47,7 @@ log_message(log_level_t level, const char *format, ...)
 	t	= time(NULL);
 	ptr = localtime(&t);
 	strftime(buf, 100, "%F/%I:%M:%S %p", ptr);
-	FILE *log_file = fopen("zwm.log", "a");
+	FILE *log_file = fopen(LOG_PATH, "a");
 	va_start(args, format);
 	if (log_file == NULL) {
 		fprintf(stderr, "Failed to open log file for writing\n");
