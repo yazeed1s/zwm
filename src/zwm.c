@@ -2171,13 +2171,12 @@ switch_desktop(const int nd)
 		return -1;
 	}
 
-	if (!conf.focus_follow_pointer) {
-		set_active_window_name(XCB_NONE);
-		// win_focus(XCB_NONE, false);
-	}
+	set_active_window_name(XCB_NONE);
+	win_focus(focused_win, false);
+	focused_win = XCB_NONE;
 
-	c = xcb_change_window_attributes_checked(
-		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
+	c			= xcb_change_window_attributes_checked(
+		  wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
 	err = xcb_request_check(wm->connection, c);
 	if (err != NULL) {
 		_LOG_(ERROR,
