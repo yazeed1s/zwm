@@ -2498,15 +2498,26 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 {
 	xcb_window_t wi =
 		get_window_under_cursor(wm->connection, wm->root_window);
-
+	node_t *n = NULL;
 	if (wi == wm->root_window || wi == 0) {
 		return 0;
 	}
 
-	node_t *n = find_node_by_window_id(d->tree, wi);
+	if (wi == wm->bar->window) {
+		n = find_left_leaf(d->tree);
+	} else {
+		n = find_node_by_window_id(d->tree, wi);
+		if (n == NULL || n->client == NULL) {
+			char *name = win_name(wi);
+			_LOG_(INFO, "cannot find win under cursor %s:%d", wi);
+			free(name);
+			return 0;
+		}
+	}
+
 	// bool	is_floating = false;
 	if (n->client->state == FLOATING) {
-		_LOG_(INFO, "node under cusor is floating %d", wi);
+		_LOG_(ERROR, "node under cusor is floating %d", wi);
 		n = find_left_leaf(d->tree);
 		// is_floating = true;
 		if (n == NULL)
