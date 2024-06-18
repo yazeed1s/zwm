@@ -27,33 +27,62 @@
  */
 
 #include "type.h"
+#include <pwd.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 #include <xcb/xcb.h>
 
-#define YEAR_OFFSET 1900
-#define LOG_PATH	"~/.local/share/xorg/zwm.log"
+#define LOG_DIR		 "/.local/share/xorg"
+#define LOG_FILE	 "zwm.log"
+#define MAX_PATH_LEN 2 << 7
 
 void
 log_message(log_level_t level, const char *format, ...)
 {
+	static char full_path[MAX_PATH_LEN] = {0};
+	static int	initialized				= false;
+
+	if (!initialized) {
+		const char *homedir;
+		if ((homedir = getenv("HOME")) == NULL) {
+			__uid_t		   id = getuid();
+			struct passwd *pw = getpwuid(id);
+			if (pw == NULL) {
+				fprintf(stderr, "Failed to get home directory\n");
+				return;
+			}
+			homedir = pw->pw_dir;
+		}
+
+		snprintf(full_path,
+				 sizeof(full_path),
+				 "%s%s/%s",
+				 homedir,
+				 LOG_DIR,
+				 LOG_FILE);
+		initialized = true;
+	}
+
 	struct tm *ptr;
 	time_t	   t;
 	va_list	   args;
 	char	   buf[100];
-	memset(buf, 0, sizeof(buf));
+
 	t	= time(NULL);
 	ptr = localtime(&t);
-	strftime(buf, 100, "%F/%I:%M:%S %p", ptr);
-	FILE *log_file = fopen(LOG_PATH, "a");
-	va_start(args, format);
+	strftime(buf, sizeof(buf), "%F/%I:%M:%S %p", ptr);
+
+	FILE *log_file = fopen(full_path, "a");
 	if (log_file == NULL) {
 		fprintf(stderr, "Failed to open log file for writing\n");
-		va_end(args);
 		return;
 	}
+
 	fprintf(log_file, "%s ", buf);
 	switch (level) {
 	case ERROR: fprintf(log_file, "[ERROR] "); break;
@@ -61,10 +90,13 @@ log_message(log_level_t level, const char *format, ...)
 	case DEBUG: fprintf(log_file, "[DEBUG] "); break;
 	default: break;
 	}
+
+	va_start(args, format);
 	vfprintf(log_file, format, args);
+	va_end(args);
+
 	fprintf(log_file, "\n");
 	fclose(log_file);
-	va_end(args);
 }
 
 void
