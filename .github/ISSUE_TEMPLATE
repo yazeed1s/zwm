@@ -1,0 +1,40 @@
+## Issue Type
+- [ ] Bug Report
+- [ ] Feature Request
+- [ ] Enhancement
+
+## Description
+Provide a brief description of the issue or feature request.
+
+## Steps to Reproduce (for Bug Reports)
+1. 
+2. 
+3. 
+
+## Expected Behavior
+Describe what you expected to happen.
+
+## Actual Behavior
+Describe what actually happened. Include any error messages or logs.
+
+## Configuration
+- **WN Version**: 
+- **Operating System**: 
+- **Compiler Version**: 
+- **Configuration File**: 
+
+## Environment
+- **Compositor** (if applicable): 
+- **Desktop Environment** (if applicable): 
+- **Other Relevant Software**: 
+
+## Logs and Screenshots
+Attach any relevant logs or screenshots that might help in diagnosing the issue.
+
+## Additional Information
+Add any other context about the problem here.
+
+## Checklist
+- [ ] I have searched for duplicate issues to ensure this is not a duplicate.
+- [ ] I have provided sufficient information for the developers to understand and reproduce the issue.
+---
