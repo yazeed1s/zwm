@@ -32,6 +32,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -40,6 +41,7 @@
 #define LOG_DIR		 "/.local/share/xorg"
 #define LOG_FILE	 "zwm.log"
 #define MAX_PATH_LEN 2 << 7
+#define MAX_LOG_SIZE (1024 * 1024) // 1MB
 
 void
 log_message(log_level_t level, const char *format, ...)
@@ -76,6 +78,14 @@ log_message(log_level_t level, const char *format, ...)
 	t	= time(NULL);
 	ptr = localtime(&t);
 	strftime(buf, sizeof(buf), "%F/%I:%M:%S %p", ptr);
+
+	struct stat st;
+	if (stat(full_path, &st) == 0 && st.st_size >= MAX_LOG_SIZE) {
+		FILE *log_file = fopen(full_path, "w");
+		if (log_file != NULL) {
+			fclose(log_file);
+		}
+	}
 
 	FILE *log_file = fopen(full_path, "a");
 	if (log_file == NULL) {
