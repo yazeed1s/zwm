@@ -64,7 +64,8 @@ typedef enum {
 
 _key__t **conf_keys = NULL;
 int		  _entries_ = 0;
-void free_tokens(char **, int);
+void
+free_tokens(char **, int);
 
 // clang-format off
 static conf_mapper_t _cmapper_[] = { 
@@ -176,31 +177,31 @@ file_exists(const char *filename)
 	return 0;
 }
 
-void
-print_key_array(void)
-{
-	for (int i = 0; i < _entries_; i++) {
-		if (conf_keys[i]->arg != NULL) {
-			if (conf_keys[i]->arg->cmd != NULL) {
-				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
-					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
-				}
-			}
-			_LOG_(DEBUG,
-				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
-				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
-				  i,
-				  key_to_str(conf_keys[i]->mod),
-				  key_to_str(conf_keys[i]->keysym),
-				  func_to_str(conf_keys[i]->function_ptr),
-				  conf_keys[i]->arg->idx,
-				  conf_keys[i]->arg->d,
-				  conf_keys[i]->arg->r,
-				  conf_keys[i]->arg->t,
-				  conf_keys[i]->arg->t);
-		}
-	}
-}
+// void
+// print_key_array(void)
+// {
+// 	for (int i = 0; i < _entries_; i++) {
+// 		if (conf_keys[i]->arg != NULL) {
+// 			if (conf_keys[i]->arg->cmd != NULL) {
+// 				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
+// 					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
+// 				}
+// 			}
+// 			_LOG_(DEBUG,
+// 				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
+// 				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+// 				  i,
+// 				  key_to_str(conf_keys[i]->mod),
+// 				  key_to_str(conf_keys[i]->keysym),
+// 				  func_to_str(conf_keys[i]->function_ptr),
+// 				  conf_keys[i]->arg->idx,
+// 				  conf_keys[i]->arg->d,
+// 				  conf_keys[i]->arg->r,
+// 				  conf_keys[i]->arg->t,
+// 				  conf_keys[i]->arg->t);
+// 		}
+// 	}
+// }
 
 int
 write_default_config(const char *filename, config_t *c)
@@ -465,7 +466,7 @@ split_string(const char *str, char delimiter, int *count)
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
-			free_tokens(tokens,*count);
+			free_tokens(tokens, *count);
 			return NULL;
 		}
 		i++;
@@ -593,25 +594,38 @@ build_run_func(char	   *func_param,
 			_LOG_(ERROR, "failed to split string %s", func_param);
 			return;
 		}
-		char **arr = (char **)malloc(count * sizeof(char *));
-		for (int i = 0; i < count; i++) {
-			arr[i] = strdup(args[i]);
-			trim(arr[i], WHITE_SPACE);
-			trim(arr[i], QUOTATION);
+		key->arg->cmd = (char **)malloc((count + 1) * sizeof(char *));
+		if (key->arg->cmd == NULL) {
+			_LOG_(ERROR, "failed to allocate memory for cmd array");
+			free_tokens(args, count);
+			return;
 		}
-		free(args);
-		key->arg->cmd  = arr;
 		key->arg->argc = count;
+		for (int i = 0; i < key->arg->argc; i++) {
+			trim(args[i], WHITE_SPACE);
+			trim(args[i], QUOTATION);
+			key->arg->cmd[i] = strdup(args[i]);
+			if (key->arg->cmd[i] == NULL) {
+				_LOG_(ERROR, "failed to duplicate token");
+				free_tokens(args, count);
+				return;
+			}
+		}
+		free_tokens(args, count);
 	} else {
 		trim(func_param, WHITE_SPACE);
 		trim(func_param, QUOTATION);
-		char **arr = (char **)malloc(1 * sizeof(char *));
-		arr[0]	   = strdup(func_param);
-		if (arr[0] == NULL) {
-			_LOG_(ERROR, "failed to duplicate token");
+		key->arg->cmd = (char **)malloc(1 * sizeof(char *));
+		if (key->arg->cmd == NULL) {
+			_LOG_(ERROR, "failed to allocate memory for cmd array");
 			return;
 		}
-		key->arg->cmd  = arr;
+		key->arg->cmd[0] = strdup(func_param);
+		if (key->arg->cmd[0] == NULL) {
+			_LOG_(ERROR, "failed to duplicate token");
+			key->arg->cmd = NULL;
+			return;
+		}
 		key->arg->argc = 1;
 	}
 }
@@ -835,14 +849,15 @@ _key__t *
 init_key(void)
 {
 	_key__t *key = (_key__t *)calloc(1, sizeof(_key__t));
-	arg_t	*a	 = (arg_t *)calloc(1, sizeof(arg_t));
+	key->arg	 = (arg_t *)calloc(1, sizeof(arg_t));
 
-	if (a == NULL || key == NULL) {
+	if (key->arg == NULL || key == NULL) {
 		_LOG_(ERROR, "failed to calloc _key__t or arg_t");
 		return NULL;
 	}
 
-	key->arg = a;
+	key->arg->cmd  = NULL;
+	key->arg->argc = 0;
 
 	return key;
 }
@@ -890,7 +905,7 @@ handle_exec_cmd(char *cmd)
 }
 
 int
-parse_config(const char *filename, config_t *c, bool reload)
+parse_config(const char *filename, config_t *c)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
@@ -918,9 +933,9 @@ parse_config(const char *filename, config_t *c, bool reload)
 			continue;
 		}
 
-		if (reload && strcmp(key, "bind") == 0) {
-			continue;
-		}
+		// if (reload && strcmp(key, "bind") == 0) {
+		// 	continue;
+		// }
 
 		if (strcmp(key, "exec") == 0) {
 			handle_exec_cmd(value);
@@ -979,18 +994,25 @@ free_keys(void)
 {
 	if (conf_keys) {
 		for (int i = 0; i < _entries_; ++i) {
-			if (conf_keys[i]->arg->cmd != NULL) {
-				for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
-					free(conf_keys[i]->arg->cmd[j]);
-					conf_keys[i]->arg->cmd[j] = NULL;
+			if (conf_keys[i]) {
+				if (conf_keys[i]->arg) {
+					if (conf_keys[i]->arg->cmd != NULL) {
+						for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
+							if (conf_keys[i]->arg->cmd &&
+								conf_keys[i]->arg->cmd[j]) {
+								free(conf_keys[i]->arg->cmd[j]);
+								conf_keys[i]->arg->cmd[j] = NULL;
+							}
+						}
+						free(conf_keys[i]->arg->cmd);
+						conf_keys[i]->arg->cmd = NULL;
+					}
+					free(conf_keys[i]->arg);
+					conf_keys[i]->arg = NULL;
 				}
-				free(conf_keys[i]->arg->cmd);
-				conf_keys[i]->arg->cmd = NULL;
+				free(conf_keys[i]);
+				conf_keys[i] = NULL;
 			}
-			free(conf_keys[i]->arg);
-			conf_keys[i]->arg = NULL;
-			free(conf_keys[i]);
-			conf_keys[i] = NULL;
 		}
 		free(conf_keys);
 		conf_keys = NULL;
@@ -1003,7 +1025,7 @@ reload_config(config_t *c)
 {
 
 	const char *filename = CONF_PATH;
-	return parse_config(filename, c, true);
+	return parse_config(filename, c);
 }
 
 int
@@ -1013,5 +1035,5 @@ load_config(config_t *c)
 	if (!file_exists(filename)) {
 		write_default_config(filename, c);
 	}
-	return parse_config(filename, c, false);
+	return parse_config(filename, c);
 }
