@@ -121,7 +121,7 @@ typedef enum {
 
 // clang-format off
 /*
-		I         ROOT (root is also an INTERNAL NODE, unless it is leaf by definition)
+		I         ROOT (root is also an INTERNAL NODE, unless it is a leaf by definition)
 	  /   \
 	 I     I      INTERNAL NODES
 	/     / \
@@ -144,7 +144,7 @@ typedef enum {
 	1- container of other partitions
 	2- contained by other partitions
 
-	- the behviour should be -> 
+	- the behaviour should be ->
 	- 1,2,3 are leaves (EXTERNAL_NODE) 
 	- a,b are internal nodes (INTERNAL_NODE), or screen sections/partitions
 
@@ -211,7 +211,6 @@ typedef struct {
 	uint8_t				   screen_nbr;
 } wm_t;
 
-// arg_t {char *, wm_t, resize_t, window_t, int}
 typedef struct {
 	char	  **cmd;
 	uint8_t		argc;

@@ -424,7 +424,7 @@ window_above(xcb_window_t win1, xcb_window_t win2)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in stacking window %d: error code %d",
+			  "in stacking window %d: error code %d",
 			  win2,
 			  err->error_code);
 		free(err);
@@ -446,7 +446,7 @@ window_below(xcb_window_t win1, xcb_window_t win2)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in stacking window %d: error code %d",
+			  "in stacking window %d: error code %d",
 			  win2,
 			  err->error_code);
 		free(err);
@@ -464,7 +464,7 @@ lower_window(xcb_window_t win)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in stacking window %d: error code %d",
+			  "in stacking window %d: error code %d",
 			  win,
 			  err->error_code);
 		free(err);
@@ -482,7 +482,7 @@ raise_window(xcb_window_t win)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in stacking window %d: error code %d",
+			  "in stacking window %d: error code %d",
 			  win,
 			  err->error_code);
 		free(err);
@@ -767,7 +767,6 @@ cycle_win_wrapper(arg_t *arg)
 	node_t	   *f	 = get_focused_node(root);
 
 	if (root == NULL) {
-		// tree is empty
 		return 0;
 	}
 
@@ -925,8 +924,6 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	if (c == 0x00)
 		return NULL;
 
-	// c->id					   = win;
-	// c->is_managed			   = false;
 	c->window				   = win;
 	c->type					   = wtype;
 	c->border_width			   = (uint32_t)-1;
@@ -1197,7 +1194,7 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 }
 
 int
-fulllscreen_focus(xcb_window_t win)
+fullscreen_focus(xcb_window_t win)
 {
 	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
 	uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
@@ -1375,7 +1372,7 @@ tile(node_t *node)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in mapping window %d: error code %d",
+			  "in mapping window %d: error code %d",
 			  node->client->window,
 			  err->error_code);
 		free(err);
@@ -1428,7 +1425,7 @@ display_client(rectangle_t r, xcb_window_t win)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in mapping window %d: error code %d",
+			  "in mapping window %d: error code %d",
 			  win,
 			  err->error_code);
 		free(err);
@@ -1568,7 +1565,7 @@ window_ungrab_buttons(xcb_window_t win)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in ungrab buttons for window %d: error code %d",
+			  "in ungrab buttons for window %d: error code %d",
 			  win,
 			  err->error_code);
 		free(err);
@@ -1601,13 +1598,6 @@ grab_buttons(xcb_window_t win)
 
 	xcb_void_cookie_t	 cookie;
 	xcb_generic_error_t *error;
-	// cookie =
-	// 	xcb_ungrab_button(conn, XCB_BUTTON_INDEX_ANY, win,
-	// XCB_GRAB_ANY); if (error) { 	_LOG_( 		ERROR, "Error
-	// ungrabbing button: %d\n", error->error_code); 	free(error);
-	// return -1;
-	// }
-
 	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
 	//  XCB_BUTTON_INDEX_1 = The left mouse button
 	//  XCB_BUTTON_INDEX_2 = The right mouse button
@@ -1647,7 +1637,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	if (conf_keys != NULL && _entries_ != 0) {
-		// _LOG_(INFO, "----grabing conf keys------\n");
+		// _LOG_(INFO, "----grabbing conf keys------\n");
 		for (int i = 0; i < _entries_; i++) {
 			xcb_keycode_t *key = get_keycode(conf_keys[i]->keysym, conn);
 			if (key == NULL)
@@ -1672,7 +1662,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 		return 0;
 	}
 
-	_LOG_(INFO, "----grabing default keys------\n");
+	_LOG_(INFO, "----grabbing default keys------\n");
 	const size_t n = sizeof(keys_) / sizeof(keys_[0]);
 
 	for (size_t i = n; i--;) {
@@ -2105,10 +2095,10 @@ set_focus(node_t *n, bool flag)
 	if (win_focus(n->client->window, flag) != 0) {
 		return -1;
 	}
-	// if (n->client->state != FLOATING) {
+
 	flag ? raise_window(n->client->window)
 		 : lower_window(n->client->window);
-	// }
+
 	return 0;
 }
 
@@ -2259,7 +2249,7 @@ set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 	xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
 	if (err != NULL) {
 		_LOG_(ERROR,
-			  "Errror in changing property window %d: error code %d",
+			  "in changing property window %d: error code %d",
 			  win,
 			  err->error_code);
 		free(err);
@@ -2408,7 +2398,7 @@ window_type(xcb_window_t win)
 }
 
 bool
-should_ingore_hints(xcb_window_t win, const char *name)
+should_ignore_hints(xcb_window_t win, const char *name)
 {
 	xcb_icccm_get_wm_class_reply_t t_reply;
 	xcb_get_property_cookie_t	   cn =
@@ -2514,11 +2504,9 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		}
 	}
 
-	// bool	is_floating = false;
 	if (n->client->state == FLOATING) {
-		_LOG_(ERROR, "node under cusor is floating %d", wi);
+		_LOG_(ERROR, "node under cursor is floating %d", wi);
 		n = find_left_leaf(d->tree);
-		// is_floating = true;
 		if (n == NULL)
 			return 0;
 	}
@@ -2543,23 +2531,6 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		return -1;
 	}
 
-	// if (is_floating) {
-	// 	xcb_get_geometry_reply_t *g =
-	// 		get_geometry(client->window, wm->connection);
-	// 	if (g == NULL) {
-	// 		_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
-	// 		return -1;
-	// 	}
-
-	// 	int x = (wm->screen->width_in_pixels / 2) - (g->width / 2);
-	// 	int y = (wm->screen->height_in_pixels / 2) - (g->height / 2);
-	// 	rectangle_t rc = {
-	// 		.x = x, .y = y, .width = g->width, .height = g->height};
-	// 	new_node->floating_rectangle = rc;
-	// 	new_node->client->state		 = FLOATING;
-	// 	free(g);
-	// }
-
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
 	if (d->layout == STACK) {
@@ -2582,7 +2553,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 	}
 
 	node_t *n = find_node_by_window_id(d->tree, wi);
-	// hacky approach in case win under cursor is not found
+
 	n		  = n == NULL ? find_left_leaf(d->tree) : n;
 	if (n == NULL || n->client == NULL) {
 		free(client);
@@ -2624,9 +2595,9 @@ handle_map_request(xcb_map_request_event_t *ev)
 	xcb_window_t win = ev->window;
 
 	// if (is_transient(win)) {
-	// 	//_LOG_(INFO, "win %d, is transient.. ignoring request", win);
-	// 	// goto float_;
-	// 	// return 0;
+	// 	_LOG_(INFO, "win %d, is transient... ignoring request", win);
+	// 	goto float_;
+	// 	return 0;
 	// }
 
 	if (!should_manage(win, wm->connection)) {
@@ -2655,13 +2626,13 @@ handle_map_request(xcb_map_request_event_t *ev)
 	desktop_t *d	  = wm->desktops[idx];
 
 	// 1- if window's hints suggests floating client
-	// 2- or window is not for emacs (emacs waints floating for some
+	// 2- or window is not for emacs (emacs wants floating for some
 	//    reason)
 	// 3- and window type is not _NET_WM_WINDOW_TYPE_DOCK (rules in
 	//    apply_floating_hints match duck window)
 	// then window should be floated
 	if ((apply_floating_hints(win) != -1 && (wint != 2))) {
-		if (!should_ingore_hints(win, "emacs"))
+		if (!should_ignore_hints(win, "emacs"))
 			goto float_;
 	}
 
@@ -2807,7 +2778,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 			restackv2(root);
 		}
 		if (IS_FULLSCREEN(n->client)) {
-			if (fulllscreen_focus(n->client->window)) {
+			if (fullscreen_focus(n->client->window)) {
 				_LOG_(ERROR, "cannot update win attributes");
 				return -1;
 			}
@@ -2834,7 +2805,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 			return -1;
 		}
 	} else if (IS_FULLSCREEN(n->client)) {
-		if (fulllscreen_focus(n->client->window)) {
+		if (fullscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return -1;
 		}
@@ -3138,8 +3109,8 @@ handle_configure_request(xcb_configure_request_event_t *e)
 		xcb_icccm_get_wm_name(wm->connection, e->window);
 	const uint8_t wr =
 		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
-	char name[256];
 	if (wr == 1) {
+		char name[256];
 		snprintf(name, sizeof(name), "%s", t_reply.name);
 		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 	} else {
@@ -3333,7 +3304,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 			return;
 		}
 	} else if (IS_FULLSCREEN(n->client)) {
-		if (fulllscreen_focus(n->client->window)) {
+		if (fullscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return;
 		}
@@ -3446,7 +3417,7 @@ parse_args(int argc, char **argv)
 }
 
 void
-evet_loop(wm_t *w)
+event_loop(wm_t *w)
 {
 	xcb_generic_event_t *event;
 	while ((event = xcb_wait_for_event(w->connection))) {
@@ -3609,7 +3580,7 @@ main(int argc, char **argv)
 	}
 
 	if (load_config(&conf) != 0) {
-		_LOG_(ERROR, "error while loding config -> using default macros");
+		_LOG_(ERROR, "error while loading config -> using default macros");
 		conf.active_border_color  = ACTIVE_BORDER_COLOR;
 		conf.normal_border_color  = NORMAL_BORDER_COLOR;
 		conf.border_width		  = BORDER_WIDTH;
@@ -3632,7 +3603,7 @@ main(int argc, char **argv)
 		_LOG_(ERROR, "cannot grab keys");
 	}
 
-	evet_loop(wm);
+	event_loop(wm);
 	cleanup();
 	return 0;
 }

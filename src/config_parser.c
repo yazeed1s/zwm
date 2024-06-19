@@ -30,7 +30,6 @@
 #include "tree.h"
 #include "type.h"
 #include "zwm.h"
-#include <X11/keysym.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,8 +38,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
 #include <xcb/xproto.h>
 
@@ -67,6 +64,7 @@ typedef enum {
 
 _key__t **conf_keys = NULL;
 int		  _entries_ = 0;
+void free_tokens(char **, int);
 
 // clang-format off
 static conf_mapper_t _cmapper_[] = { 
@@ -452,12 +450,13 @@ split_string(const char *str, char delimiter, int *count)
 	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
 	if (tokens == NULL) {
 		_LOG_(ERROR, "failed to allocate memory");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 	char *str_copy = strdup(str);
 	if (str_copy == NULL) {
 		_LOG_(ERROR, "failed to duplicate string");
-		exit(EXIT_FAILURE);
+		free(tokens);
+		return NULL;
 	}
 
 	char *token = strtok(str_copy, &delimiter);
@@ -466,7 +465,8 @@ split_string(const char *str, char delimiter, int *count)
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
-			exit(EXIT_FAILURE);
+			free_tokens(tokens,*count);
+			return NULL;
 		}
 		i++;
 		token = strtok(NULL, &delimiter);
@@ -537,13 +537,6 @@ parse_mod_key(char *mod)
 			_LOG_(ERROR, "failed to split string %s\n", mod);
 			return -1;
 		}
-		// #ifdef _DEBUG__
-		// 		_LOG_(DEBUG,
-		// 			  "mod (%s) splited into (%s), (%s)\n",
-		// 			  mod,
-		// 			  mods[0],
-		// 			  mods[1]);
-		// #endif
 		uint32_t mask1 = str_to_key(mods[0]);
 		uint32_t mask2 = str_to_key(mods[1]);
 		mask		   = mask1 | mask2;

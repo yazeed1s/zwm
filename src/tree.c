@@ -55,7 +55,6 @@ create_node(client_t *c)
 		return NULL;
 
 	node->client	   = c;
-	// node->id		   = 1;
 	node->parent	   = NULL;
 	node->first_child  = NULL;
 	node->second_child = NULL;
@@ -73,7 +72,6 @@ init_root(void)
 		return NULL;
 
 	node->client	   = NULL;
-	// node->id		   = 1;
 	node->parent	   = NULL;
 	node->first_child  = NULL;
 	node->second_child = NULL;
@@ -872,14 +870,13 @@ apply_master_layout(node_t *parent)
 		r.height = (parent->rectangle.height -
 					(conf.window_gap - conf.border_width)) /
 				   2;
-		// r.height  = h;
+
 		r2.x = parent->rectangle.x;
 		r2.y = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
 						 conf.border_width);
 		r2.width  = parent->rectangle.width;
 		r2.height = parent->rectangle.height - r.height - conf.window_gap -
 					conf.border_width;
-		// r2.height = h;
 		parent->first_child->rectangle	= r;
 		parent->second_child->rectangle = r2;
 	}
@@ -1050,14 +1047,14 @@ delete_node_with_external_sibling(node_t *node)
 		return -1;
 	}
 
-	// if I has no parent
+	// if 'I' has no parent
 	if (node->parent->parent == NULL) {
 		node->parent->node_type	   = ROOT_NODE;
 		node->parent->client	   = external_node->client;
 		node->parent->first_child  = NULL;
 		node->parent->second_child = NULL;
 	} else {
-		// if I has a prent
+		// if 'I' has a parent
 		/*
 		 *         I
 		 *    	 /   \
@@ -1828,7 +1825,6 @@ transfer_node_wrapper(arg_t *arg)
 	transfer_node(node, nd);
 
 	if (nd->layout == STACK) {
-		// stack_layout(nd->tree);
 		set_focus(node, true);
 		nd->top_w = node->client->window;
 	}
@@ -2071,9 +2067,7 @@ update_focus(node_t *root, node_t *n)
 			grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
-	// } else if (flag && root == n) {
-	// 	root->is_focused = true;
-	// }
+
 	update_focus(root->first_child, n);
 	update_focus(root->second_child, n);
 }
