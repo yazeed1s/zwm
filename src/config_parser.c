@@ -177,31 +177,31 @@ file_exists(const char *filename)
 	return 0;
 }
 
-// void
-// print_key_array(void)
-// {
-// 	for (int i = 0; i < _entries_; i++) {
-// 		if (conf_keys[i]->arg != NULL) {
-// 			if (conf_keys[i]->arg->cmd != NULL) {
-// 				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
-// 					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
-// 				}
-// 			}
-// 			_LOG_(DEBUG,
-// 				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
-// 				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
-// 				  i,
-// 				  key_to_str(conf_keys[i]->mod),
-// 				  key_to_str(conf_keys[i]->keysym),
-// 				  func_to_str(conf_keys[i]->function_ptr),
-// 				  conf_keys[i]->arg->idx,
-// 				  conf_keys[i]->arg->d,
-// 				  conf_keys[i]->arg->r,
-// 				  conf_keys[i]->arg->t,
-// 				  conf_keys[i]->arg->t);
-// 		}
-// 	}
-// }
+void
+print_key_array(void)
+{
+	for (int i = 0; i < _entries_; i++) {
+		if (conf_keys[i]->arg != NULL) {
+			if (conf_keys[i]->arg->cmd != NULL) {
+				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
+					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
+				}
+			}
+			_LOG_(DEBUG,
+				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
+				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
+				  i,
+				  key_to_str(conf_keys[i]->mod),
+				  key_to_str(conf_keys[i]->keysym),
+				  func_to_str(conf_keys[i]->function_ptr),
+				  conf_keys[i]->arg->idx,
+				  conf_keys[i]->arg->d,
+				  conf_keys[i]->arg->r,
+				  conf_keys[i]->arg->t,
+				  conf_keys[i]->arg->t);
+		}
+	}
+}
 
 int
 write_default_config(const char *filename, config_t *c)
