@@ -35,6 +35,7 @@
 #include "tree.h"
 #include "type.h"
 #include <X11/keysym.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -633,6 +634,12 @@ reload_config_wrapper()
 
 	memset(&conf, 0, sizeof(config_t));
 
+	ungrab_keys(wm->connection, wm->root_window);
+	is_kgrabbed = false;
+	free_keys();
+	assert(conf_keys == NULL);
+	_entries_ = 0;
+
 	if (reload_config(&conf) != 0) {
 		_LOG_(ERROR,
 			  "Error while reloading config -> using default macros");
@@ -732,6 +739,11 @@ reload_config_wrapper()
 		if (ewmh_update_desktop_names() != 0) {
 			goto out;
 		}
+	}
+
+	if (0 != grab_keys(wm->connection, wm->root_window)) {
+		_LOG_(ERROR, "cannot grab keys after reload");
+		return -1;
 	}
 
 out:
@@ -3109,8 +3121,8 @@ handle_configure_request(xcb_configure_request_event_t *e)
 		xcb_icccm_get_wm_name(wm->connection, e->window);
 	const uint8_t wr =
 		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+	char name[256];
 	if (wr == 1) {
-		char name[256];
 		snprintf(name, sizeof(name), "%s", t_reply.name);
 		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 	} else {
