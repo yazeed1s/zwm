@@ -19,6 +19,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Resize, flip, and swap windows or partitions.
 - Layouts apply to individual desktops.
 - Customizable settings.
+- Customizable window rules.
 - Keyboard-Driven, fully controlled via keyboard shortcuts.
 - Can be integrated with any status bar.
 - Hot reload
