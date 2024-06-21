@@ -169,11 +169,13 @@ exec = ["polybar", "-c", ".config/polybar/config.ini"]
 rule = wm_class("window class name"), state(tiled|floated), desktop(1..N)
 ```
 ##### Explanation:
-- wm_class: The window class name used to identify the window. Use the 'xprop' tool to find the wm_class of a window.
-- state: Specifies whether the window should be tiled or floated.
-- tiled: The window will be tiled, clearly.
-- floated: The window will be floated, clearly.
-- desktop: The virtual desktop number where the window should be placed. **Use -1 if you do not want to set it to a specific desktop**.
+- **wm_class**: The window class name used to identify the window.
+	- Use the **`xprop`** tool to find the wm_class of a window.
+- **state**: Specifies whether the window should be tiled or floated.
+- **tiled**: The window will be tiled... clearly.
+- **floated**: The window will be floated... clearly.
+- **desktop**: The virtual desktop number where the window should be placed.
+	- Use **-1** if you do not want to set it to a specific desktop.
 ```ini
 ; Example:
 rule = wm_class("firefox"), state(tiled), desktop(-1)
