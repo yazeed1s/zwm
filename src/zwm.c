@@ -2131,6 +2131,10 @@ switch_desktop_wrapper(arg_t *arg)
 		// restack(tree);
 		xcb_window_t w = wm->desktops[arg->idx]->top_w;
 		node_t		*n = find_node_by_window_id(tree, w);
+		if (n == NULL) {
+			_LOG_(WARNING, "canno retrive top window");
+			return 0;
+		}
 		set_focus(n, true);
 		return 0;
 	}

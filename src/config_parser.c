@@ -1142,7 +1142,7 @@ parse_config(const char *filename, config_t *c)
 		}
 		char *key	= strtok(line, "=");
 		char *value = strtok(NULL, "\n");
-		_LOG_(WARNING, "value after extract line = (%s)", value);
+
 		if (key == NULL || value == NULL) {
 			continue;
 		}
