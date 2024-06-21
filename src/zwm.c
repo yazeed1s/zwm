@@ -637,8 +637,10 @@ reload_config_wrapper()
 	ungrab_keys(wm->connection, wm->root_window);
 	is_kgrabbed = false;
 	free_keys();
-	assert(conf_keys == NULL);
-	_entries_ = 0;
+	free_rules();
+	assert(conf_keys == NULL && _rules == NULL);
+	_entries_  = 0;
+	rule_index = 0;
 
 	if (reload_config(&conf) != 0) {
 		_LOG_(ERROR,
@@ -2129,6 +2131,10 @@ switch_desktop_wrapper(arg_t *arg)
 		// restack(tree);
 		xcb_window_t w = wm->desktops[arg->idx]->top_w;
 		node_t		*n = find_node_by_window_id(tree, w);
+		if (n == NULL) {
+			_LOG_(WARNING, "canno retrive top window");
+			return 0;
+		}
 		set_focus(n, true);
 		return 0;
 	}
@@ -2200,9 +2206,9 @@ switch_desktop(const int nd)
 		return -1;
 	}
 
-	if (has_floating_window(wm->desktops[nd]->tree)) {
-		restackv2(wm->desktops[nd]->tree);
-	}
+	// if (has_floating_window(wm->desktops[nd]->tree)) {
+	// 	restackv2(wm->desktops[nd]->tree);
+	// }
 
 	xcb_flush(wm->connection);
 
@@ -2602,15 +2608,105 @@ handle_floating_window(client_t *client, desktop_t *d)
 }
 
 int
+insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
+{
+	desktop_t *d = wm->desktops[--idx];
+	assert(d != NULL);
+	if (find_node_by_window_id(d->tree, win) != NULL) {
+		return 0;
+	}
+	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+	if (!client) {
+		_LOG_(ERROR, "cannot allocate memory for client");
+		return -1;
+	}
+
+	client->state = is_tiled ? TILED : FLOATING;
+	if (!conf.focus_follow_pointer) {
+		grab_buttons(client->window);
+	}
+	if (is_tree_empty(d->tree)) {
+		rectangle_t	   r = {0};
+		const uint16_t w = wm->screen->width_in_pixels;
+		const uint16_t h = wm->screen->height_in_pixels;
+
+		if (wm->bar != NULL) {
+			r.x		 = conf.window_gap;
+			r.y		 = wm->bar->rectangle.height + conf.window_gap;
+			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
+			r.height = h - wm->bar->rectangle.height -
+					   2 * conf.window_gap - 2 * conf.border_width;
+		} else {
+			r.x		 = conf.window_gap;
+			r.y		 = conf.window_gap;
+			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
+			r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
+		}
+
+		if (client == NULL) {
+			_LOG_(ERROR, "client is null");
+			return -1;
+		}
+
+		d->tree			   = init_root();
+		d->tree->client	   = client;
+		d->tree->rectangle = r;
+		d->n_count += 1;
+		ewmh_update_client_list();
+	} else {
+		node_t *n = NULL;
+		n		  = find_left_leaf(d->tree);
+		if (n == NULL || n->client == NULL) {
+			char *name = win_name(win);
+			_LOG_(INFO, "cannot find win  %s:%d", win);
+			free(name);
+			return 0;
+		}
+
+		if (n->client->state == FLOATING) {
+			return 0;
+		}
+
+		if (n->client->state == FULLSCREEN) {
+			set_fullscreen(n, false);
+		}
+
+		node_t *new_node = create_node(client);
+		if (new_node == NULL) {
+			_LOG_(ERROR, "new node is null");
+			return -1;
+		}
+
+		if (new_node->client->state == FLOATING) {
+			xcb_get_geometry_reply_t *g =
+				get_geometry(client->window, wm->connection);
+			if (g == NULL) {
+				_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
+				return -1;
+			}
+
+			int x = (wm->screen->width_in_pixels / 2) - (g->width / 2);
+			int y = (wm->screen->height_in_pixels / 2) - (g->height / 2);
+			rectangle_t rc = {
+				.x = x, .y = y, .width = g->width, .height = g->height};
+			new_node->rectangle = new_node->floating_rectangle = rc;
+			free(g);
+		}
+		insert_node(n, new_node, d->layout);
+		d->n_count += 1;
+		if (d->layout == STACK) {
+			set_focus(new_node, true);
+			d->top_w = new_node->client->window;
+		}
+		ewmh_update_client_list();
+	}
+	return 0;
+}
+
+int
 handle_map_request(xcb_map_request_event_t *ev)
 {
 	xcb_window_t win = ev->window;
-
-	// if (is_transient(win)) {
-	// 	_LOG_(INFO, "win %d, is transient... ignoring request", win);
-	// 	goto float_;
-	// 	return 0;
-	// }
 
 	if (!should_manage(win, wm->connection)) {
 		_LOG_(
@@ -2618,34 +2714,36 @@ handle_map_request(xcb_map_request_event_t *ev)
 		return 0;
 	}
 
-	const int wint = window_type(win);
-
-	const int idx  = get_focused_desktop_idx();
+	int idx = get_focused_desktop_idx();
 	if (idx == -1) {
 		_LOG_(ERROR, "cannot get focused desktop idx");
 		return idx;
 	}
 
-	// for some reason, some applications (e.g. gnome-text-editor,
-	// emacs, ...) are mapped multiple times, which forces zwm to
-	// create empty nodes with the same window id. if the window id
-	// exists, ignore the request.
+	// Check if the window already exists in the tree to avoid duplication
 	if (find_node_by_window_id(wm->desktops[idx]->tree, win) != NULL) {
 		return 0;
 	}
 
-	client_t  *client = NULL;
-	desktop_t *d	  = wm->desktops[idx];
+	desktop_t *d	= wm->desktops[idx];
+	rule_t	  *rule = get_window_rule(win);
 
-	// 1- if window's hints suggests floating client
-	// 2- or window is not for emacs (emacs wants floating for some
-	//    reason)
-	// 3- and window type is not _NET_WM_WINDOW_TYPE_DOCK (rules in
-	//    apply_floating_hints match duck window)
-	// then window should be floated
-	if ((apply_floating_hints(win) != -1 && (wint != 2))) {
-		if (!should_ignore_hints(win, "emacs"))
-			goto float_;
+	if (rule != NULL) {
+		if (rule->desktop_id != -1) {
+			return insert_into_desktop(
+				rule->desktop_id, win, rule->state == TILED);
+		}
+		if (rule->state == FLOATING) {
+			return handle_floating_window_request(win, d);
+		} else if (rule->state == TILED) {
+			return handle_tiled_window_request(win, d);
+		}
+	}
+
+	int wint = window_type(win);
+
+	if ((apply_floating_hints(win) != -1 && wint != 2)) {
+		return handle_floating_window_request(win, d);
 	}
 
 	if (wint == 7) {
@@ -2656,86 +2754,98 @@ handle_map_request(xcb_map_request_event_t *ev)
 	switch (wint) {
 	case -1:
 	case 0:
-	case 1: {
-		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
-		if (client == 0x00) {
-			_LOG_(ERROR, "cannot allocate memory for client");
-			return -1;
-		}
-		client->state = TILED;
-		if (!conf.focus_follow_pointer) {
-			grab_buttons(client->window);
-		}
-
-		if (is_tree_empty(d->tree)) {
-			return handle_first_window(client, d);
-		}
-
-		return handle_subsequent_window(client, d);
-	}
-	case 2: {
-		if (wm->bar != NULL) {
-			return 0;
-		}
-		wm->bar = (bar_t *)malloc(sizeof(bar_t));
-		if (wm->bar == NULL) {
-			return -1;
-		}
-		wm->bar->window				 = win;
-		rectangle_t				  rc = {0};
-		xcb_get_geometry_reply_t *g	 = get_geometry(win, wm->connection);
-		if (g == NULL) {
-			_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
-			return -1;
-		}
-		rc.height		   = g->height;
-		rc.width		   = g->width;
-		rc.x			   = g->x;
-		rc.y			   = g->y;
-		wm->bar->rectangle = rc;
-		free(g);
-		g = NULL;
-		if (!is_tree_empty(d->tree)) {
-			d->tree->rectangle.height =
-				(uint16_t)(wm->screen->height_in_pixels - conf.window_gap -
-						   rc.height - 5);
-			d->tree->rectangle.y = (int16_t)(rc.height + 5);
-			resize_subtree(d->tree);
-			if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
-				return -1;
-			}
-			return render_tree(d->tree);
-		}
-		if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
-			return -1;
-		}
-		return 0;
-	}
+	case 1: return handle_tiled_window_request(win, d);
+	case 2: return handle_bar_request(win, d);
 	case 3:
 	case 4:
 	case 5:
-	case 6: {
-	float_:
+	case 6: return handle_floating_window_request(win, d);
+	default: return 0;
+	}
+}
+
+int
+handle_tiled_window_request(xcb_window_t win, desktop_t *d)
+{
+	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+	if (!client) {
+		_LOG_(ERROR, "cannot allocate memory for client");
+		return -1;
+	}
+
+	client->state = TILED;
+	if (!conf.focus_follow_pointer) {
+		grab_buttons(client->window);
+	}
+
+	if (is_tree_empty(d->tree)) {
+		return handle_first_window(client, d);
+	}
+
+	return handle_subsequent_window(client, d);
+}
+
+int
+handle_floating_window_request(xcb_window_t win, desktop_t *d)
+{
 #ifdef _DEBUG__
-		char *name = win_name(win);
-		_LOG_(DEBUG, "Window %s id %d is floating", name, win);
-		free(name);
+	char *name = win_name(win);
+	_LOG_(DEBUG, "Window %s id %d is floating", name, win);
+	free(name);
 #endif
-		client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
-		if (client == 0x00) {
-			_LOG_(ERROR, "cannot allocate memory for client");
+	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
+	if (!client) {
+		_LOG_(ERROR, "cannot allocate memory for client");
+		return -1;
+	}
+
+	client->state = FLOATING;
+	if (!conf.focus_follow_pointer) {
+		grab_buttons(client->window);
+	}
+
+	return handle_floating_window(client, d);
+}
+
+int
+handle_bar_request(xcb_window_t win, desktop_t *d)
+{
+	if (wm->bar != NULL) {
+		return 0;
+	}
+
+	wm->bar = (bar_t *)malloc(sizeof(bar_t));
+	if (!wm->bar) {
+		return -1;
+	}
+
+	wm->bar->window				= win;
+	xcb_get_geometry_reply_t *g = get_geometry(win, wm->connection);
+	if (!g) {
+		_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
+		return -1;
+	}
+
+	wm->bar->rectangle = (rectangle_t){
+		.height = g->height, .width = g->width, .x = g->x, .y = g->y};
+	free(g);
+
+	if (!is_tree_empty(d->tree)) {
+		d->tree->rectangle.height = wm->screen->height_in_pixels -
+									conf.window_gap -
+									wm->bar->rectangle.height - 5;
+		d->tree->rectangle.y = wm->bar->rectangle.height + 5;
+		resize_subtree(d->tree);
+		if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
 			return -1;
 		}
-		client->state = FLOATING;
-		if (!conf.focus_follow_pointer) {
-			grab_buttons(client->window);
-		}
-
-		return handle_floating_window(client, d);
+		return render_tree(d->tree);
 	}
 
-	default: break;
+	if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
+		return -1;
 	}
+
 	return 0;
 }
 

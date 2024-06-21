@@ -75,6 +75,7 @@ typedef enum {
 	ERROR,
 	INFO,
 	DEBUG,
+	WARNING
 } log_level_t;
 
 typedef struct {
@@ -247,4 +248,10 @@ typedef struct {
 	// _key__t *keys;
 	// size_t	 key_size;
 } config_t;
+
+typedef struct {
+	char	win_name[256];
+	state_t state;
+	int desktop_id;
+} rule_t;
 #endif // ZWM_TYPE_H
