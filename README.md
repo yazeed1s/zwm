@@ -129,10 +129,10 @@ git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && sudo make install
 ```
 ## Configuration
-A config file will be generated when you first start `zwm`. The file can be found in the following location:
+##### A config file will be generated when you first start `zwm`. The file can be found in the following location:
 * ~/.config/zwm/zwm.conf
 
-#### As of now, the following configs are offered:
+###### As of now, the following configs are offered:
 
 ### 1- Config variables
 ```ini
@@ -143,7 +143,7 @@ window_gap = 10
 virtual_desktops = 7
 focus_follow_pointer = false
 ```
-Available Variables:
+##### Available Variables:
 - **border_width**: Defines the width of the window borders in pixels.
 - **active_border_color**: Specifies the color of the border for the active (focused) window.
 - **normal_border_color**: Specifies the color of the border for inactive (unfocused) windows.
@@ -152,7 +152,7 @@ Available Variables:
 - **focus_follow_pointer**: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
 
 ### 2- Commands to run on startup
-Use the `exec` directive to specify programs that should be started when ZWM is launched.
+##### Use the `exec` directive to specify programs that should be started when ZWM is launched.
 - For a single command: 
 ```ini
 exec = "polybar"
@@ -161,8 +161,24 @@ exec = "polybar"
 ```ini
 exec = ["polybar", "-c", ".config/polybar/config.ini"]
 ```
-
-### 3- Key bindings
+### 3- Custom window rules
+##### Custom window rules allow you to define specific behaviors for windows based on their window class.
+##### Syntax:
+```ini 
+rule = wm_class("window class name"), state(tiled|floated), desktop(1..N)
+```
+##### Explanation:
+- wm_class: The window class name used to identify the window. Use the 'xprop' tool to find the wm_class of a window.
+- state: Specifies whether the window should be tiled or floated.
+- tiled: The window will be tiled, clearly.
+- floated: The window will be floated, clearly.
+- desktop: The virtual desktop number where the window should be placed. **Use -1 if you do not want to set it to a specific desktop**.
+```ini
+; Example:
+rule = wm_class("firefox"), state(tiled), desktop(-1)
+; This rule sets "firefox" window to be tiled and does not change its virtual desktop.
+```
+### 4- Key bindings
 - The format for defining key bindings is: `bind = modifier + key -> action`
 - If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
 - Note: Some functions require additional arguments to specify details of the action. 
@@ -171,10 +187,7 @@ exec = ["polybar", "-c", ".config/polybar/config.ini"]
 - Example: `func(resize:grow)` means "grow the size of the window".
 - Example: `func(layout:master)` means "toggle master layout".
 #### Available modifires:
-- **super**: The "Windows" key.
-- **alt**: The "Alt" key.
-- **shift**: The "Shift" key.
-- **ctrl**: The "Control" key.
+- **super (meta)**, **alt**, **shift**, **ctrl** 
 #### Available Actions:
 - run(...): Executes a specified process.
    - Example: `bind = super + return -> run("alacritty")`
