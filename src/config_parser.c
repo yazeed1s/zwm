@@ -41,7 +41,7 @@
 #include <unistd.h>
 #include <xcb/xproto.h>
 
-#define MAX_LINE_LENGTH (2 << 7)
+#define MAX_LINE_LENGTH (2 << 9)
 #define MAX_KEYBINDINGS 45
 
 #ifdef __LTEST__
@@ -62,8 +62,11 @@ typedef enum {
 	QUOTATION
 } trim_token_t;
 
-_key__t **conf_keys = NULL;
-int		  _entries_ = 0;
+_key__t **conf_keys	 = NULL;
+int		  _entries_	 = 0;
+rule_t	**_rules	 = NULL;
+int		  rule_index = 0;
+
 void
 free_tokens(char **, int);
 
@@ -236,6 +239,25 @@ const char *content =
     ";                        If true, the window is focused when the cursor enters it.\n"
     "focus_follow_pointer = true\n"
     "\n"
+	"; Custom window rules\n"
+	"; Custom window rules allow you to define specific behaviors for windows based on their window class.\n"
+	";\n"
+	"; Syntax:\n"
+	"; rule = wm_class(\"window class name\"), state(tiled|floated), desktop(1..N)\n"
+	";\n"
+	"; Explanation:\n"
+	";  - wm_class: The window class name used to identify the window. Use the 'xprop' tool to find the wm_class of a window.\n"
+	"; - state: Specifies whether the window should be tiled or floated.\n"
+	";   - tiled: The window will be tiled, clearly.\n"
+	";   - floated: The window will be floated, clearly.\n"
+	"; - desktop: The virtual desktop number where the window should be placed. Use -1 if you do not want to set it to a specific desktop.\n"
+	";\n"
+	"; Example:\n"
+	"; rule = wm_class(\"firefox\"), state(tiled), desktop(-1)\n"
+	"; This rule sets \"firefox\" window to be tiled and does not change its virtual desktop.\n"
+	"\n"
+	"rule = wm_class(\"emacs\"), state(tiled), desktop(-1)\n"
+	"\n"
     "; Key Bindings:\n"
     "; Define keyboard shortcuts to perform various actions.\n"
     "; The syntax for defining key bindings is:\n"
@@ -500,7 +522,7 @@ key_exist(_key__t *key)
 }
 
 char *
-extract_func_body(const char *str)
+extract_body(const char *str)
 {
 	const char *start = strchr(str, '(');
 	if (!start) {
@@ -513,9 +535,9 @@ extract_func_body(const char *str)
 	}
 	size_t length = end - start + 1;
 	char  *result = (char *)malloc(length + 1);
-	if (!result) {
+	if (result == NULL) {
 		_LOG_(ERROR, "failed to allocate memory");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 	strncpy(result, start, length);
@@ -720,7 +742,7 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 #endif
 	}
 
-	char *func_param = extract_func_body(func);
+	char *func_param = extract_body(func);
 	if (func_param == NULL) {
 		_LOG_(ERROR, "failed to extract func body for %s\n", func);
 		return -1;
@@ -862,6 +884,19 @@ init_key(void)
 	return key;
 }
 
+rule_t *
+init_rule(void)
+{
+	rule_t *rule = (rule_t *)calloc(1, sizeof(rule_t));
+
+	if (rule == NULL) {
+		_LOG_(ERROR, "failed to calloc rule_t");
+		return NULL;
+	}
+
+	return rule;
+}
+
 void
 handle_exec_cmd(char *cmd)
 {
@@ -905,6 +940,191 @@ handle_exec_cmd(char *cmd)
 }
 
 int
+construct_rule(char *class,
+			   char	  *state,
+			   char	  *desktop_number,
+			   rule_t *rule)
+{
+	if (class == NULL || state == NULL || desktop_number == NULL) {
+		_LOG_(ERROR, "rules are empty");
+		return -1;
+	}
+
+	// wm_class
+	char *c = extract_body(class);
+	if (c == NULL) {
+		_LOG_(ERROR, "while extracting class rule body (%s)", class);
+		return -1;
+	}
+
+	trim(c, PARENTHESIS);
+	trim(c, QUOTATION);
+	uint32_t c_len = strlen(c);
+	strncpy(rule->win_name, c, c_len);
+
+	// w_state
+	char *s = extract_body(state);
+	if (s == NULL) {
+		_LOG_(ERROR, "while extracting state rule body");
+		return -1;
+	}
+	state_t enum_state = -1;
+	trim(s, PARENTHESIS);
+	if (strcmp(s, "tiled") == 0) {
+		enum_state = TILED;
+	} else if (strcmp(s, "floated") == 0) {
+		enum_state = FLOATING;
+	}
+	rule->state = enum_state;
+
+	// w_desktop
+	char *d		= extract_body(desktop_number);
+	if (d == NULL) {
+		_LOG_(ERROR, "while extracting desktop rule body");
+		return -1;
+	}
+
+	trim(d, PARENTHESIS);
+	rule->desktop_id = atoi(d);
+
+	_LOG_(
+		INFO,
+		"constructed rule = win name = (%s), state = (%s), desktop = (%d)",
+		rule->win_name,
+		rule->state == TILED ? "TILED" : "FLOATED",
+		rule->desktop_id);
+	free(c);
+	free(s);
+	free(d);
+
+	return 0;
+}
+
+rule_t *
+get_window_rule(xcb_window_t win)
+{
+	xcb_icccm_get_wm_class_reply_t t_reply;
+	xcb_get_property_cookie_t	   cn =
+		xcb_icccm_get_wm_class(wm->connection, win);
+	const uint8_t wr =
+		xcb_icccm_get_wm_class_reply(wm->connection, cn, &t_reply, NULL);
+	if (wr == 1) {
+		for (int i = 0; i < rule_index; ++i) {
+			if (_rules[i] != NULL) {
+				if (strcasecmp(_rules[i]->win_name, t_reply.class_name) ==
+					0) {
+					return _rules[i];
+				}
+			}
+		}
+	}
+	return NULL;
+}
+
+int
+parse_rule(char *value, rule_t *rule)
+{
+	// value =  wm_class("emacs"), state(tiled), desktop(-1)
+	if (value == NULL) {
+		return -1;
+	}
+
+	trim(value, WHITE_SPACE);
+
+	int	   count = 0;
+	char **rules = split_string(value, ',', &count);
+	if (rules == NULL)
+		return -1;
+
+	if (count != 3) {
+		_LOG_(ERROR, "while splitting window rule");
+		return -1;
+	}
+
+	char *win_name	  = rules[0];
+	char *win_state	  = rules[1];
+	char *win_desktop = rules[2];
+	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
+		return -1;
+	}
+	free_tokens(rules, count);
+	return 0;
+}
+
+int
+parse_config_line(char *key, char *value, config_t *c)
+{
+	if (strcmp(key, "exec") == 0) {
+		handle_exec_cmd(value);
+	} else if (strcmp(key, "border_width") == 0) {
+		c->border_width = atoi(value);
+	} else if (strcmp(key, "active_border_color") == 0) {
+		c->active_border_color = (unsigned int)strtoul(value, NULL, 16);
+	} else if (strcmp(key, "normal_border_color") == 0) {
+		c->normal_border_color = (unsigned int)strtoul(value, NULL, 16);
+	} else if (strcmp(key, "window_gap") == 0) {
+		c->window_gap = atoi(value);
+	} else if (strcmp(key, "virtual_desktops") == 0) {
+		c->virtual_desktops = atoi(value);
+	} else if (strcmp(key, "focus_follow_pointer") == 0) {
+		if (strcmp(value, "true") == 0) {
+			c->focus_follow_pointer = true;
+		} else if (strcmp(value, "false") == 0) {
+			c->focus_follow_pointer = false;
+		} else {
+			_LOG_(ERROR,
+				  "Invalid value for focus_follow_pointer: %s\n",
+				  value);
+			return -1;
+		}
+	} else if (strcmp(key, "rule") == 0) {
+		if (_rules == NULL) {
+			_rules = (rule_t **)malloc(MAX_RULES * sizeof(rule_t *));
+			if (_rules == NULL) {
+				_LOG_(ERROR,
+					  "Failed to allocate memory for rules array\n");
+				return -1;
+			}
+		}
+		rule_t *rule = init_rule();
+		if (rule == NULL) {
+			_LOG_(ERROR, "Failed to allocate memory for rule_t\n");
+			return -1;
+		}
+		if (parse_rule(value, rule) != 0) {
+			free(rule);
+			_LOG_(ERROR, "Error while parsing rule %s\n", value);
+			return -1;
+		}
+		_rules[rule_index++] = rule;
+	} else if (strcmp(key, "bind") == 0) {
+		if (conf_keys == NULL) {
+			conf_keys =
+				(_key__t **)malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
+			if (conf_keys == NULL) {
+				_LOG_(ERROR,
+					  "Failed to allocate memory for conf_keys array\n");
+				return -1;
+			}
+		}
+		_key__t *k = init_key();
+		if (k == NULL) {
+			_LOG_(ERROR, "Failed to allocate memory for _key__t\n");
+			return -1;
+		}
+		if (parse_keybinding(value, k) != 0) {
+			err_cleanup(k);
+			_LOG_(ERROR, "Error while parsing keys\n");
+			return -1;
+		}
+		conf_keys[_entries_++] = k;
+	} else {
+		_LOG_(WARNING, "Unknown config key: %s\n", key);
+	}
+	return 0;
+}
+
+int
 parse_config(const char *filename, config_t *c)
 {
 	FILE *file = fopen(filename, "r");
@@ -915,13 +1135,21 @@ parse_config(const char *filename, config_t *c)
 
 	char line[MAX_LINE_LENGTH];
 	while (fgets(line, MAX_LINE_LENGTH, file) != NULL) {
-		char *key	= strtok(line, "=");
-		char *value = strtok(NULL, "\n");
-		if (*key == ';') {
+		if (line[0] == ' ' || line[0] == '\t' || line[0] == '\n' ||
+			line[0] == '\v' || line[0] == '\f' || line[0] == '\r' ||
+			line[0] == ';') {
 			continue;
 		}
+		char *key	= strtok(line, "=");
+		char *value = strtok(NULL, "\n");
+		_LOG_(WARNING, "value after extract line = (%s)", value);
+		if (key == NULL || value == NULL) {
+			continue;
+		}
+
 		trim(key, WHITE_SPACE);
 		trim(value, WHITE_SPACE);
+
 #ifdef _DEBUG__
 		_LOG_(DEBUG,
 			  "config line = (%s) key = (%s) value = (%s)\n",
@@ -929,64 +1157,32 @@ parse_config(const char *filename, config_t *c)
 			  key,
 			  value);
 #endif
-		if (key == NULL || value == NULL) {
-			continue;
-		}
 
-		// if (reload && strcmp(key, "bind") == 0) {
-		// 	continue;
-		// }
-
-		if (strcmp(key, "exec") == 0) {
-			handle_exec_cmd(value);
-		} else if (strcmp(key, "border_width") == 0) {
-			c->border_width = atoi(value);
-		} else if (strcmp(key, "active_border_color") == 0) {
-			c->active_border_color =
-				(unsigned int)strtoul(value, NULL, 16);
-		} else if (strcmp(key, "normal_border_color") == 0) {
-			c->normal_border_color =
-				(unsigned int)strtoul(value, NULL, 16);
-		} else if (strcmp(key, "window_gap") == 0) {
-			c->window_gap = atoi(value);
-		} else if (strcmp(key, "virtual_desktops") == 0) {
-			c->virtual_desktops = atoi(value);
-		} else if (strcmp(key, "focus_follow_pointer") == 0) {
-			if (strcmp(value, "true") == 0) {
-				c->focus_follow_pointer = true;
-			} else if (strcmp(value, "false") == 0) {
-				c->focus_follow_pointer = false;
-			} else {
-				_LOG_(ERROR,
-					  "Invalid value for focus_follow_pointer: %s\n",
-					  value);
-			}
-		} else if (strcmp(key, "bind") == 0) {
-			if (conf_keys == NULL) {
-				conf_keys = (_key__t **)malloc(MAX_KEYBINDINGS *
-											   sizeof(_key__t *));
-				if (conf_keys == NULL) {
-					fprintf(stderr,
-							"Failed to allocate memory for conf_keys "
-							"array\n");
-					return 1;
-				}
-			}
-			_key__t *k = init_key();
-			if (parse_keybinding(value, k) != 0) {
-				err_cleanup(k);
-				free_keys();
-				_LOG_(ERROR, "error while parsing keys");
-				goto out;
-			}
-			conf_keys[_entries_] = k;
-			_entries_++;
+		if (parse_config_line(key, value, c) != 0) {
+			fclose(file);
+			return -1;
 		}
 	}
 
-out:
 	fclose(file);
 	return 0;
+}
+
+void
+free_rules(void)
+{
+	if (_rules == NULL) {
+		return;
+	}
+	for (int i = 0; i < rule_index; i++) {
+		if (_rules[i] != NULL) {
+			free(_rules[i]);
+			_rules[i] = NULL;
+		}
+	}
+	free(_rules);
+	_rules	   = NULL;
+	rule_index = -1;
 }
 
 void
@@ -1023,7 +1219,6 @@ free_keys(void)
 int
 reload_config(config_t *c)
 {
-
 	const char *filename = CONF_PATH;
 	return parse_config(filename, c);
 }

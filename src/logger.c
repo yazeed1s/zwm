@@ -96,6 +96,7 @@ log_message(log_level_t level, const char *format, ...)
 	case ERROR: fprintf(log_file, "[ERROR] "); break;
 	case INFO: fprintf(log_file, "[INFO] "); break;
 	case DEBUG: fprintf(log_file, "[DEBUG] "); break;
+	case WARNING: fprintf(log_file, "[WARNING] "); break;
 	default: break;
 	}
 

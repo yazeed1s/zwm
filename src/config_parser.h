@@ -30,11 +30,19 @@
 #define ZWM_CONFIG_PARSER_H
 
 #include "type.h"
+
+#define MAX_RULES (2 << 2) // 2 << 2 = 8
+
 extern _key__t **conf_keys;
 extern int		 _entries_;
+extern rule_t  **_rules;
+extern int		 rule_index;
+
 // clang-format off
 int  load_config(config_t *c);
 void free_keys(void);
+void free_rules(void);
 int  reload_config(config_t *c);
+rule_t *get_window_rule(xcb_window_t win);
 // clang-format on
 #endif // ZWM_CONFIG_PARSER_H
