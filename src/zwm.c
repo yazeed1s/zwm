@@ -2510,7 +2510,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		return 0;
 	}
 
-	if (wi == wm->bar->window) {
+	if (wm->bar != NULL && wi == wm->bar->window) {
 		n = find_left_leaf(d->tree);
 	} else {
 		n = find_node_by_window_id(d->tree, wi);
@@ -2589,7 +2589,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 	xcb_get_geometry_reply_t *g =
 		get_geometry(client->window, wm->connection);
 	if (g == NULL) {
-		_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
+		_LOG_(ERROR, "cannot get %d geometry", client->window);
 		return -1;
 	}
 
@@ -2681,7 +2681,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 			xcb_get_geometry_reply_t *g =
 				get_geometry(client->window, wm->connection);
 			if (g == NULL) {
-				_LOG_(ERROR, "cannot get %d geometry", wm->bar->window);
+				_LOG_(ERROR, "cannot get %d geometry", client->window);
 				return -1;
 			}
 
