@@ -766,6 +766,16 @@ reload_config_wrapper()
 	uint32_t prev_normal_border_color = conf.normal_border_color;
 	int		 prev_virtual_desktops	  = conf.virtual_desktops;
 
+	memset(&conf, 0, sizeof(config_t));
+
+	ungrab_keys(wm->connection, wm->root_window);
+	is_kgrabbed = false;
+	free_keys();
+	free_rules();
+	assert(conf_keys == NULL && _rules == NULL);
+	_entries_  = 0;
+	rule_index = 0;
+
 	if (reload_config(&conf) != 0) {
 		_LOG_(ERROR,
 			  "Error while reloading config -> using default macros");
@@ -777,16 +787,6 @@ reload_config_wrapper()
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
 		return 0;
 	}
-
-	memset(&conf, 0, sizeof(config_t));
-
-	ungrab_keys(wm->connection, wm->root_window);
-	is_kgrabbed = false;
-	free_keys();
-	free_rules();
-	assert(conf_keys == NULL && _rules == NULL);
-	_entries_  = 0;
-	rule_index = 0;
 
 	bool color_changed =
 		(prev_normal_border_color != conf.normal_border_color) ||
@@ -3401,8 +3401,8 @@ handle_floating_window(client_t *client, desktop_t *d)
 		return -1;
 	}
 
-	int			x  = (wm->screen->width_in_pixels / 2) - (g->width / 2);
-	int			y  = (wm->screen->height_in_pixels / 2) - (g->height / 2);
+	int			x  = (cur_monitor->rectangle.width / 2) - (g->width / 2);
+	int			y  = (cur_monitor->rectangle.height / 2) - (g->height / 2);
 	rectangle_t rc = {
 		.x = x, .y = y, .width = g->width, .height = g->height};
 	new_node->rectangle = new_node->floating_rectangle = rc;
