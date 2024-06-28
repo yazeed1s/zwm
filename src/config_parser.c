@@ -458,19 +458,62 @@ trim(char *str, trim_token_t t)
 	}
 }
 
+// char **
+// split_string(const char *str, char delimiter, int *count)
+// {
+// 	int i		   = 0;
+// 	int num_tokens = 1;
+
+// 	for (i = 0; str[i] != '\0'; i++) {
+// 		if (str[i] == delimiter) {
+// 			num_tokens++;
+// 		}
+// 	}
+
+// 	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
+// 	if (tokens == NULL) {
+// 		_LOG_(ERROR, "failed to allocate memory");
+// 		return NULL;
+// 	}
+
+// 	char *str_copy = strdup(str);
+// 	if (str_copy == NULL) {
+// 		_LOG_(ERROR, "failed to duplicate string");
+// 		free(tokens);
+// 		return NULL;
+// 	}
+
+// 	char *token = strtok(str_copy, &delimiter);
+// 	i			= 0;
+// 	while (token != NULL) {
+// 		tokens[i] = strdup(token);
+// 		if (tokens[i] == NULL) {
+// 			_LOG_(ERROR, "failed to duplicate token");
+// 			free(str_copy);
+// 			free_tokens(tokens, i);
+// 			return NULL;
+// 		}
+// 		i++;
+// 		token = strtok(NULL, &delimiter);
+// 	}
+
+// 	*count = num_tokens;
+// 	free(str_copy);
+// 	return tokens;
+// }
+
 char **
 split_string(const char *str, char delimiter, int *count)
 {
 	int i		   = 0;
 	int num_tokens = 1;
-
 	for (i = 0; str[i] != '\0'; i++) {
 		if (str[i] == delimiter) {
 			num_tokens++;
 		}
 	}
 
-	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
+	char **tokens = (char **)malloc((num_tokens + 1) * sizeof(char *));
 	if (tokens == NULL) {
 		_LOG_(ERROR, "failed to allocate memory");
 		return NULL;
@@ -483,9 +526,10 @@ split_string(const char *str, char delimiter, int *count)
 		return NULL;
 	}
 
-	char *token = strtok(str_copy, &delimiter);
-	i			= 0;
-	while (token != NULL) {
+	char  delim_str[2] = {delimiter, '\0'};
+	char *token		   = strtok(str_copy, delim_str);
+	i				   = 0;
+	while (token != NULL && i < num_tokens) {
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
@@ -494,10 +538,11 @@ split_string(const char *str, char delimiter, int *count)
 			return NULL;
 		}
 		i++;
-		token = strtok(NULL, &delimiter);
+		token = strtok(NULL, delim_str);
 	}
+	tokens[i] = NULL;
 
-	*count = num_tokens;
+	*count	  = i;
 	free(str_copy);
 	return tokens;
 }
@@ -1038,16 +1083,43 @@ get_window_rule(xcb_window_t win)
 	return NULL;
 }
 
+// int
+// parse_rule(char *value, rule_t *rule)
+// {
+// 	// value =  wm_class("emacs"), state(tiled), desktop(-1)
+// 	if (value == NULL) {
+// 		return -1;
+// 	}
+
+// 	trim(value, WHITE_SPACE);
+
+// 	int	   count = 0;
+// 	char **rules = split_string(value, ',', &count);
+// 	if (rules == NULL)
+// 		return -1;
+
+// 	if (count != 3) {
+// 		_LOG_(ERROR, "while splitting window rule");
+// 		return -1;
+// 	}
+
+// 	char *win_name	  = rules[0];
+// 	char *win_state	  = rules[1];
+// 	char *win_desktop = rules[2];
+// 	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
+// 		return -1;
+// 	}
+// 	free_tokens(rules, count);
+// 	return 0;
+// }
 int
 parse_rule(char *value, rule_t *rule)
 {
-	// value =  wm_class("emacs"), state(tiled), desktop(-1)
 	if (value == NULL) {
 		return -1;
 	}
 
 	trim(value, WHITE_SPACE);
-
 	int	   count = 0;
 	char **rules = split_string(value, ',', &count);
 	if (rules == NULL)
@@ -1055,17 +1127,19 @@ parse_rule(char *value, rule_t *rule)
 
 	if (count != 3) {
 		_LOG_(ERROR, "while splitting window rule");
+		free_tokens(rules, count);
 		return -1;
 	}
 
 	char *win_name	  = rules[0];
 	char *win_state	  = rules[1];
 	char *win_desktop = rules[2];
-	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
-		return -1;
-	}
+
+	int	  result = construct_rule(win_name, win_state, win_desktop, rule);
+
 	free_tokens(rules, count);
-	return 0;
+
+	return result;
 }
 
 int
