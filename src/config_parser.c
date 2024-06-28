@@ -475,6 +475,7 @@ split_string(const char *str, char delimiter, int *count)
 		_LOG_(ERROR, "failed to allocate memory");
 		return NULL;
 	}
+
 	char *str_copy = strdup(str);
 	if (str_copy == NULL) {
 		_LOG_(ERROR, "failed to duplicate string");
@@ -488,12 +489,14 @@ split_string(const char *str, char delimiter, int *count)
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
-			free_tokens(tokens, *count);
+			free(str_copy);
+			free_tokens(tokens, i);
 			return NULL;
 		}
 		i++;
 		token = strtok(NULL, &delimiter);
 	}
+
 	*count = num_tokens;
 	free(str_copy);
 	return tokens;
@@ -502,10 +505,16 @@ split_string(const char *str, char delimiter, int *count)
 void
 free_tokens(char **tokens, int count)
 {
-	for (int i = 0; i < count; i++) {
-		free(tokens[i]);
+	if (tokens != NULL) {
+		for (int i = 0; i < count; i++) {
+			if (tokens[i] != NULL) {
+				free(tokens[i]);
+				tokens[i] = NULL;
+			}
+		}
 	}
 	free(tokens);
+	tokens = NULL;
 }
 
 bool
@@ -561,8 +570,14 @@ parse_mod_key(char *mod)
 			return -1;
 		}
 		uint32_t mask1 = str_to_key(mods[0]);
+		if ((int)mask1 == -1) {
+			_LOG_(ERROR, "failed to find key (%s)\n", mods[0]);
+		}
 		uint32_t mask2 = str_to_key(mods[1]);
-		mask		   = mask1 | mask2;
+		if ((int)mask2 == -1) {
+			_LOG_(ERROR, "failed to find key (%s)\n", mods[1]);
+		}
+		mask = mask1 | mask2;
 		free_tokens(mods, count);
 	} else {
 		mask = _mod;
@@ -585,16 +600,18 @@ parse_keysym(char *keysym)
 void
 err_cleanup(_key__t *k)
 {
-	if (k) {
-		if (k->arg->cmd) {
-			for (int i = 0; i < k->arg->argc; i++) {
-				free(k->arg->cmd[i]);
-				k->arg->cmd[i] = NULL;
+	if (k != NULL) {
+		if (k->arg != NULL) {
+			if (k->arg->cmd != NULL) {
+				for (int i = 0; i < k->arg->argc; i++) {
+					free(k->arg->cmd[i]);
+					k->arg->cmd[i] = NULL;
+				}
+				free(k->arg->cmd);
 			}
-			free(k->arg->cmd);
+			free(k->arg);
+			k->arg = NULL;
 		}
-		free(k->arg);
-		k->arg = NULL;
 		free(k);
 		k = NULL;
 	}
@@ -1188,14 +1205,14 @@ free_rules(void)
 void
 free_keys(void)
 {
-	if (conf_keys) {
+	if (conf_keys != NULL) {
 		for (int i = 0; i < _entries_; ++i) {
-			if (conf_keys[i]) {
-				if (conf_keys[i]->arg) {
+			if (conf_keys[i] != NULL) {
+				if (conf_keys[i]->arg != NULL) {
 					if (conf_keys[i]->arg->cmd != NULL) {
 						for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
-							if (conf_keys[i]->arg->cmd &&
-								conf_keys[i]->arg->cmd[j]) {
+							if (conf_keys[i]->arg->cmd != NULL &&
+								conf_keys[i]->arg->cmd[j] != NULL) {
 								free(conf_keys[i]->arg->cmd[j]);
 								conf_keys[i]->arg->cmd[j] = NULL;
 							}
