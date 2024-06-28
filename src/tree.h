@@ -75,8 +75,7 @@ void	 resize_subtree(node_t *parent);
 void	 apply_layout(desktop_t *d, layout_t t);
 void	 free_tree(node_t *root);
 void	 restack(void);
-void
-restackv2(node_t *root);
+void     restackv2(node_t *root);
 void	 horizontal_resize(node_t *n, resize_t t);
 void	 delete_node(node_t *node, desktop_t *d);
 void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);
@@ -90,5 +89,6 @@ void	 transfer_node(node_t *, desktop_t *);
 int	     transfer_node_wrapper(arg_t *arg);
 int	     update_focused_node(node_t *root);
 int	     swap_node(node_t *root);
+void     update_focus_all(node_t *root);
 // clang-format on
 #endif // ZWM_TREE_H

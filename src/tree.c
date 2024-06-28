@@ -507,7 +507,8 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 void
 restack(void)
 {
-	size_t size = wm->desktops[get_focused_desktop_idx()]->n_count + 5;
+	size_t size =
+		cur_monitor->desktops[get_focused_desktop_idx()]->n_count + 5;
 	if (size == 0) {
 		return;
 	}
@@ -520,7 +521,7 @@ restack(void)
 	}
 	size_t	index = 0;
 
-	node_t *root  = wm->desktops[get_focused_desktop_idx()]->tree;
+	node_t *root  = cur_monitor->desktops[get_focused_desktop_idx()]->tree;
 	populate_win_array(root, clients, &index);
 
 	for (size_t i = 1; i <= index; i++) {
@@ -832,18 +833,21 @@ default_layout(node_t *root)
 		return;
 
 	rectangle_t	   r = {0};
-	const uint16_t w = wm->screen->width_in_pixels;
-	const uint16_t h = wm->screen->height_in_pixels;
-
-	if (wm->bar != NULL) {
-		r.x		 = conf.window_gap;
-		r.y		 = wm->bar->rectangle.height + conf.window_gap;
+	// const uint16_t w = wm->screen->width_in_pixels;
+	// const uint16_t h = wm->screen->height_in_pixels;
+	uint16_t	   w = cur_monitor->rectangle.width;
+	uint16_t	   h = cur_monitor->rectangle.height;
+	const uint16_t x = cur_monitor->rectangle.x;
+	const uint16_t y = cur_monitor->rectangle.y;
+	if (wm->bar != NULL && cur_monitor == prim_monitor) {
+		r.x		 = x + conf.window_gap;
+		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
 				   2 * conf.border_width;
 	} else {
-		r.x		 = conf.window_gap;
-		r.y		 = conf.window_gap;
+		r.x		 = x + conf.window_gap;
+		r.y		 = y + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
 	}
@@ -893,25 +897,35 @@ apply_master_layout(node_t *parent)
 void
 master_layout(node_t *root, node_t *n)
 {
-	const double ratio		  = 0.70;
-	uint64_t	 w			  = wm->screen->width_in_pixels;
-	uint64_t	 h			  = wm->screen->height_in_pixels;
-	uint16_t	 master_width = w * ratio;
-	uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
-	n->is_master			  = true;
-
-	rectangle_t r1			  = {
-				   .x	   = conf.window_gap,
-				   .y	   = (int16_t)(27 + conf.window_gap),
-				   .width  = (uint16_t)(master_width - 2 * conf.window_gap),
-				   .height = (uint16_t)(h - 2 * conf.window_gap - 27),
-	   };
+	const double   ratio		= 0.70;
+	// uint64_t	 w			  = wm->screen->width_in_pixels;
+	// uint64_t	 h			  = wm->screen->height_in_pixels;
+	uint16_t	   w			= cur_monitor->rectangle.width;
+	uint16_t	   h			= cur_monitor->rectangle.height;
+	const uint16_t x			= cur_monitor->rectangle.x;
+	const uint16_t y			= cur_monitor->rectangle.y;
+	uint16_t	   master_width = w * ratio;
+	uint16_t	   r_width		= (uint16_t)(w * (1 - ratio));
+	if (n == NULL) {
+		n = find_left_leaf(root);
+		if (n == NULL) {
+			return;
+		}
+	}
+	n->is_master		= true;
+	uint16_t bar_height = wm->bar == NULL ? 0 : wm->bar->rectangle.height;
+	rectangle_t r1		= {
+			 .x		 = x + conf.window_gap,
+			 .y		 = (int16_t)(y + bar_height + conf.window_gap),
+			 .width	 = (uint16_t)(master_width - 2 * conf.window_gap),
+			 .height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+	 };
 
 	rectangle_t r2 = {
-		.x		= (master_width),
-		.y		= (int16_t)(27 + conf.window_gap),
+		.x		= (x + master_width),
+		.y		= (int16_t)(y + bar_height + conf.window_gap),
 		.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
-		.height = (uint16_t)(h - 2 * conf.window_gap - 27),
+		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
 	};
 
 	n->rectangle	= r1;
@@ -960,17 +974,21 @@ void
 stack_layout(node_t *root)
 {
 	rectangle_t	   r = {0};
-	const uint16_t w = wm->screen->width_in_pixels;
-	const uint16_t h = wm->screen->height_in_pixels;
-	if (wm->bar != NULL) {
-		r.x		 = conf.window_gap;
-		r.y		 = wm->bar->rectangle.height + conf.window_gap;
+	// const uint16_t w = wm->screen->width_in_pixels;
+	// const uint16_t h = wm->screen->height_in_pixels;
+	uint16_t	   w = cur_monitor->rectangle.width;
+	uint16_t	   h = cur_monitor->rectangle.height;
+	const uint16_t x = cur_monitor->rectangle.x;
+	const uint16_t y = cur_monitor->rectangle.y;
+	if (wm->bar != NULL && cur_monitor == prim_monitor) {
+		r.x		 = x + conf.window_gap;
+		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
 				   2 * conf.border_width;
 	} else {
-		r.x		 = conf.window_gap;
-		r.y		 = conf.window_gap;
+		r.x		 = x + conf.window_gap;
+		r.y		 = y + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
 	}
@@ -1474,11 +1492,11 @@ horizontal_resize_wrapper(arg_t *arg)
 	if (i == -1)
 		return -1;
 
-	if (wm->desktops[i]->layout == STACK) {
+	if (cur_monitor->desktops[i]->layout == STACK) {
 		return 0;
 	}
 
-	node_t *root = wm->desktops[i]->tree;
+	node_t *root = cur_monitor->desktops[i]->tree;
 	if (root == NULL)
 		return -1;
 
@@ -1806,15 +1824,15 @@ transfer_node_wrapper(arg_t *arg)
 		return d;
 
 	const int i	   = arg->idx;
-	node_t	 *root = wm->desktops[d]->tree;
+	node_t	 *root = cur_monitor->desktops[d]->tree;
 	node_t	 *node = find_node_by_window_id(root, w);
 
 	if (d == i) {
 		return 0;
 	}
 
-	desktop_t *nd = wm->desktops[i];
-	desktop_t *od = wm->desktops[d];
+	desktop_t *nd = cur_monitor->desktops[i];
+	desktop_t *od = cur_monitor->desktops[d];
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
 #endif
@@ -1854,18 +1872,22 @@ transfer_node(node_t *node, desktop_t *d)
 	assert(node->parent == NULL);
 
 	if (is_tree_empty(d->tree)) {
-		rectangle_t r = {0};
-		uint16_t	w = wm->screen->width_in_pixels;
-		uint16_t	h = wm->screen->height_in_pixels;
-		if (wm->bar != NULL) {
-			r.x		 = conf.window_gap;
-			r.y		 = wm->bar->rectangle.height + conf.window_gap;
+		rectangle_t	   r = {0};
+		// uint16_t	w = wm->screen->width_in_pixels;
+		// uint16_t	h = wm->screen->height_in_pixels;
+		uint16_t	   w = cur_monitor->rectangle.width;
+		uint16_t	   h = cur_monitor->rectangle.height;
+		const uint16_t x = cur_monitor->rectangle.x;
+		const uint16_t y = cur_monitor->rectangle.y;
+		if (wm->bar != NULL && cur_monitor == prim_monitor) {
+			r.x		 = x + conf.window_gap;
+			r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 			r.height = h - wm->bar->rectangle.height -
 					   2 * conf.window_gap - 2 * conf.border_width;
 		} else {
-			r.x		 = conf.window_gap;
-			r.y		 = conf.window_gap;
+			r.x		 = x + conf.window_gap;
+			r.y		 = y + conf.window_gap;
 			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
 			r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
 		}
@@ -2070,6 +2092,24 @@ update_focus(node_t *root, node_t *n)
 
 	update_focus(root->first_child, n);
 	update_focus(root->second_child, n);
+}
+
+void
+update_focus_all(node_t *root)
+{
+	if (root == NULL)
+		return;
+
+	bool flag = !IS_INTERNAL(root) && root->client != NULL;
+	if (flag) {
+		set_focus(root, false);
+		if (!conf.focus_follow_pointer)
+			grab_buttons(root->client->window);
+		root->is_focused = false;
+	}
+
+	update_focus_all(root->first_child);
+	update_focus_all(root->second_child);
 }
 
 node_t *
