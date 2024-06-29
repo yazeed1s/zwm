@@ -166,6 +166,7 @@ load_cursors(void)
 	if (xcb_cursor_context_new(wm->connection, wm->screen, &cursor_ctx) <
 		0) {
 		_LOG_(ERROR, "failed to allocate xcursor context");
+		return;
 	}
 #define _LOAD_CURSOR_(cursor, name)                                       \
 	do {                                                                  \
@@ -175,8 +176,8 @@ load_cursors(void)
 	_LOAD_CURSOR_(CURSOR_WATCH, "watch");
 	_LOAD_CURSOR_(CURSOR_MOVE, "fleur");
 	_LOAD_CURSOR_(CURSOR_XTERM, "xterm");
-	_LOAD_CURSOR_(CURSOR_NOT_ALLOWED, "hand2");
-	_LOAD_CURSOR_(CURSOR_HAND2, "not-allowed");
+	_LOAD_CURSOR_(CURSOR_NOT_ALLOWED, "not-allowed");
+	_LOAD_CURSOR_(CURSOR_HAND2, "hand2");
 #undef _LOAD_CURSOR_
 }
 
@@ -201,7 +202,6 @@ set_cursor(int cursor_id)
 			  "Error setting cursor on root window %d\n",
 			  err->error_code);
 		free(err);
-		exit(EXIT_FAILURE);
 	}
 }
 
@@ -3710,6 +3710,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 				return -1;
 			}
 		}
+		// set_cursor(CURSOR_NOT_ALLOWED);
 		return 0;
 	}
 
@@ -4285,7 +4286,7 @@ handle_button_press_event(xcb_button_press_event_t *ev)
 
 	update_focus(root, n);
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
-
+	// set_cursor(CURSOR_POINTER);
 	xcb_flush(wm->connection);
 }
 
