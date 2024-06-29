@@ -81,6 +81,16 @@ typedef enum {
 	WARNING
 } log_level_t;
 
+typedef enum {
+	CURSOR_POINTER = 0,
+	CURSOR_WATCH,
+	CURSOR_MOVE,
+	CURSOR_XTERM,
+	CURSOR_NOT_ALLOWED,
+	CURSOR_HAND2,
+	CURSOR_MAX
+} xcursor_cursor_t;
+
 typedef struct {
 	// 2^16 = 65535
 	uint16_t previous_x, previous_y;

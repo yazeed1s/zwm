@@ -44,6 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_cursor.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
@@ -75,20 +76,18 @@
 #define CTRL_MASK		   XCB_MOD_MASK_CONTROL
 #define CLICK_TO_FOCUS	   XCB_BUTTON_INDEX_1
 
-wm_t				 *wm		  = NULL;
-config_t			  conf		  = {0};
-xcb_window_t		  focused_win = XCB_NONE;
-xcb_window_t		  meta_window = XCB_NONE;
-uint16_t			  num_lock;
-uint16_t			  caps_lock;
-uint16_t			  scroll_lock;
-int8_t				  click_to_focus;
+wm_t				 *wm			 = NULL;
+config_t			  conf			 = {0};
+xcb_window_t		  focused_win	 = XCB_NONE;
+xcb_window_t		  meta_window	 = XCB_NONE;
 bool				  is_kgrabbed	 = false;
 monitor_t			 *prim_monitor	 = NULL;
 monitor_t			 *cur_monitor	 = NULL;
 bool				  using_xrandr	 = false;
 bool				  using_xinerama = false;
 uint8_t				  randr_base	 = 0;
+xcb_cursor_context_t *cursor_ctx;
+static xcb_cursor_t	  cursors[CURSOR_MAX];
 
 // clang-format off
 // X11/keysymdef.h
@@ -133,7 +132,7 @@ static const _key__t keys_[] = {
 };
 // clang-format on
 
-static const uint32_t buttons_[]	 = {
+static const uint32_t buttons_[] = {
 	XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
 
 int
@@ -159,6 +158,51 @@ check_xcb_error(xcb_conn_t		 *conn,
 		return -1;
 	}
 	return 0;
+}
+
+void
+load_cursors(void)
+{
+	if (xcb_cursor_context_new(wm->connection, wm->screen, &cursor_ctx) <
+		0) {
+		_LOG_(ERROR, "failed to allocate xcursor context");
+	}
+#define _LOAD_CURSOR_(cursor, name)                                       \
+	do {                                                                  \
+		cursors[cursor] = xcb_cursor_load_cursor(cursor_ctx, name);       \
+	} while (0)
+	_LOAD_CURSOR_(CURSOR_POINTER, "left_ptr");
+	_LOAD_CURSOR_(CURSOR_WATCH, "watch");
+	_LOAD_CURSOR_(CURSOR_MOVE, "fleur");
+	_LOAD_CURSOR_(CURSOR_XTERM, "xterm");
+	_LOAD_CURSOR_(CURSOR_NOT_ALLOWED, "hand2");
+	_LOAD_CURSOR_(CURSOR_HAND2, "not-allowed");
+#undef _LOAD_CURSOR_
+}
+
+xcb_cursor_t
+get_cursor(xcursor_cursor_t c)
+{
+	assert(c < CURSOR_MAX);
+	return cursors[c];
+}
+
+void
+set_cursor(int cursor_id)
+{
+	xcb_cursor_t	  c		   = get_cursor(cursor_id);
+	uint32_t		  values[] = {c};
+	xcb_void_cookie_t cookie   = xcb_change_window_attributes_checked(
+		  wm->connection, wm->root_window, XCB_CW_CURSOR, values);
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+
+	if (err) {
+		_LOG_(ERROR,
+			  "Error setting cursor on root window %d\n",
+			  err->error_code);
+		free(err);
+		exit(EXIT_FAILURE);
+	}
 }
 
 // caller must free
@@ -785,6 +829,10 @@ reload_config_wrapper()
 		conf.border_width		  = BORDER_WIDTH;
 		conf.window_gap			  = W_GAP;
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+		if (0 != grab_keys(wm->connection, wm->root_window)) {
+			_LOG_(ERROR, "cannot grab keys after reload");
+			return -1;
+		}
 		return 0;
 	}
 
@@ -1141,18 +1189,6 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	}
 
 	return c;
-}
-
-void
-init_pointer(void)
-{
-	num_lock	   = modfield_from_keysym(0xff7f);
-	caps_lock	   = modfield_from_keysym(0xffe5);
-	scroll_lock	   = modfield_from_keysym(0xff14);
-	click_to_focus = CLICK_TO_FOCUS;
-	if (caps_lock == XCB_NO_SYMBOL) {
-		caps_lock = XCB_MOD_MASK_LOCK;
-	}
 }
 
 desktop_t *
@@ -1520,7 +1556,7 @@ setup_monitors_via_xinerama()
 }
 
 void
-free_monitors()
+free_monitors(void)
 {
 	if (wm->monitors != NULL) {
 		for (int i = 0; i < wm->n_of_monitors; i++) {
@@ -1687,7 +1723,6 @@ setup_monitors(void)
 	// 						  XCB_CW_EVENT_MASK,
 	// 						  values);
 	// 		const uint32_t mask = XCB_CW_EVENT_MASK;
-
 	// 		xcb_change_window_attributes(
 	// 			wm->connection, wm->monitors[i]->root, mask, values);
 	// 		_LOG_(INFO,
@@ -1695,28 +1730,7 @@ setup_monitors(void)
 	// 			  wm->monitors[i]->root,
 	// 			  wm->monitors[i]->name);
 	// 		// show_window(wm->monitors[i]->root);
-	// 		// xcb_map_window(wm->connection, wm->monitors[i]->root);
-	// 		// hide_window(wm->monitors[i]->root);
 	// 		lower_window(wm->monitors[i]->root);
-	// 		// uint32_t values_off[] = {ROOT_EVENT_MASK &
-	// 		// 						 ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
-	// 		// uint32_t values_on[]  = {ROOT_EVENT_MASK};
-	// 		// xcb_change_window_attributes(wm->connection,
-	// 		// 							 wm->root_window,
-	// 		// 							 XCB_CW_EVENT_MASK,
-	// 		// 							 values_off);
-
-	// 		// set_window_state(wm->monitors[i]->root,
-	// 		// 				 XCB_ICCCM_WM_STATE_NORMAL);
-	// 		// xcb_map_window(wm->connection, wm->monitors[i]->root);
-
-	// 		// xcb_change_window_attributes(wm->connection,
-	// 		// 							 wm->root_window,
-	// 		// 							 XCB_CW_EVENT_MASK,
-	// 		// 							 values_on);
-	// 		// if (conf.focus_follow_pointer) {
-	// 		// 	show_window(wm->monitors[i]->root);
-	// 		// }
 	// 		xcb_icccm_set_wm_class(wm->connection,
 	// 							   wm->monitors[i]->root,
 	// 							   sizeof(ROOT_WINDOW),
@@ -1931,7 +1945,8 @@ setup_wm(void)
 		_LOG_(ERROR, "error while setting up ewmh");
 		return false;
 	}
-
+	load_cursors();
+	set_cursor(CURSOR_POINTER);
 	// init_pointer();
 
 	return true;
@@ -2298,54 +2313,25 @@ get_keysym(xcb_keycode_t keycode, xcb_conn_t *conn)
 }
 
 void
-window_grab_button(xcb_window_t win, uint8_t button, uint16_t modifier)
-{
-#define __GRAB__(btn, mod)                                                \
-	xcb_grab_button(wm->connection,                                       \
-					false,                                                \
-					win,                                                  \
-					XCB_EVENT_MASK_BUTTON_PRESS,                          \
-					XCB_GRAB_MODE_SYNC,                                   \
-					XCB_GRAB_MODE_ASYNC,                                  \
-					XCB_NONE,                                             \
-					XCB_NONE,                                             \
-					btn,                                                  \
-					mod)
-	__GRAB__(button, modifier);
-	if (num_lock != XCB_NO_SYMBOL && caps_lock != XCB_NO_SYMBOL &&
-		scroll_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | num_lock | caps_lock | scroll_lock);
-	}
-	if (num_lock != XCB_NO_SYMBOL && caps_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | num_lock | caps_lock);
-	}
-	if (caps_lock != XCB_NO_SYMBOL && scroll_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | caps_lock | scroll_lock);
-	}
-	if (num_lock != XCB_NO_SYMBOL && scroll_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | num_lock | scroll_lock);
-	}
-	if (num_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | num_lock);
-	}
-	if (caps_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | caps_lock);
-	}
-	if (scroll_lock != XCB_NO_SYMBOL) {
-		__GRAB__(button, modifier | scroll_lock);
-	}
-#undef __GRAB__
-}
-
-void
 window_grab_buttons(xcb_window_t win)
 {
-	for (unsigned int i = 0; i < LEN(buttons_); i++) {
-		if (click_to_focus == (int8_t)XCB_BUTTON_INDEX_ANY ||
-			click_to_focus == (int8_t)buttons_[i]) {
-			window_grab_button(win, buttons_[i], XCB_NONE);
-		}
-	}
+#define _GRAB_BUTTON_(button)                                             \
+	do {                                                                  \
+		xcb_grab_button_checked(wm->connection,                           \
+								false,                                    \
+								win,                                      \
+								XCB_EVENT_MASK_BUTTON_PRESS,              \
+								XCB_GRAB_MODE_ASYNC,                      \
+								XCB_GRAB_MODE_ASYNC,                      \
+								wm->root_window,                          \
+								XCB_NONE,                                 \
+								button,                                   \
+								XCB_MOD_MASK_ANY);                        \
+	} while (0)
+	_GRAB_BUTTON_(XCB_BUTTON_INDEX_1);
+	_GRAB_BUTTON_(XCB_BUTTON_INDEX_2);
+	_GRAB_BUTTON_(XCB_BUTTON_INDEX_3);
+#undef _GRAB_BUTTON_
 }
 
 void
@@ -2382,43 +2368,6 @@ ungrab_buttons_for_all(node_t *n)
 
 	ungrab_buttons_for_all(n->first_child);
 	ungrab_buttons_for_all(n->second_child);
-}
-
-void
-grab_buttons(xcb_window_t win)
-{
-
-	xcb_void_cookie_t	 cookie;
-	xcb_generic_error_t *error;
-	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
-	//  XCB_BUTTON_INDEX_1 = The left mouse button
-	//  XCB_BUTTON_INDEX_2 = The right mouse button
-	// 	XCB_BUTTON_INDEX_3 = The middle mouse button
-	// 	XCB_BUTTON_INDEX_4 =  Scroll wheel
-	// 	XCB_BUTTON_INDEX_5 = Scroll wheel
-	const size_t		 n = sizeof(buttons_) / sizeof(buttons_[0]);
-	for (size_t i = 0; i < n; ++i) {
-		cookie = xcb_grab_button_checked(wm->connection,
-										 false,
-										 win,
-										 XCB_EVENT_MASK_BUTTON_PRESS,
-										 XCB_GRAB_MODE_ASYNC,
-										 XCB_GRAB_MODE_ASYNC,
-										 wm->root_window,
-										 XCB_NONE,
-										 buttons_[i],
-										 XCB_MOD_MASK_ANY);
-		error  = xcb_request_check(wm->connection, cookie);
-		if (error) {
-			_LOG_(ERROR,
-				  "Error grabbing right mouse button: %d\n",
-				  error->error_code);
-			free(error);
-			return;
-		}
-	}
-
-	xcb_flush(wm->connection);
 }
 
 int
@@ -2480,7 +2429,42 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	is_kgrabbed = true;
 	return 0;
 }
+void
+grab_buttons(xcb_window_t win)
+{
 
+	xcb_void_cookie_t	 cookie;
+	xcb_generic_error_t *error;
+	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
+	//  XCB_BUTTON_INDEX_1 = The left mouse button
+	//  XCB_BUTTON_INDEX_2 = The right mouse button
+	// 	XCB_BUTTON_INDEX_3 = The middle mouse button
+	// 	XCB_BUTTON_INDEX_4 =  Scroll wheel
+	// 	XCB_BUTTON_INDEX_5 = Scroll wheel
+	const size_t		 n = sizeof(buttons_) / sizeof(buttons_[0]);
+	for (size_t i = 0; i < n; ++i) {
+		cookie = xcb_grab_button_checked(wm->connection,
+										 false,
+										 win,
+										 XCB_EVENT_MASK_BUTTON_PRESS,
+										 XCB_GRAB_MODE_ASYNC,
+										 XCB_GRAB_MODE_ASYNC,
+										 wm->root_window,
+										 XCB_NONE,
+										 buttons_[i],
+										 XCB_MOD_MASK_ANY);
+		error  = xcb_request_check(wm->connection, cookie);
+		if (error) {
+			_LOG_(ERROR,
+				  "Error grabbing right mouse button: %d\n",
+				  error->error_code);
+			free(error);
+			return;
+		}
+	}
+
+	xcb_flush(wm->connection);
+}
 xcb_atom_t
 get_atom(char *atom_name, xcb_conn_t *conn)
 {
@@ -3001,7 +2985,7 @@ switch_desktop(const int nd)
 }
 
 void
-log_monitors()
+log_monitors(void)
 {
 	for (int i = 0; i < wm->n_of_monitors; i++) {
 		if (wm->monitors[i] != NULL) {
@@ -3431,7 +3415,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 
 	client->state = is_tiled ? TILED : FLOATING;
 	if (!conf.focus_follow_pointer) {
-		grab_buttons(client->window);
+		window_grab_buttons(client->window);
 	}
 	if (is_tree_empty(d->tree)) {
 		rectangle_t	   r = {0};
@@ -3515,13 +3499,11 @@ int
 handle_map_request(xcb_map_request_event_t *ev)
 {
 	xcb_window_t win = ev->window;
-	cur_monitor		 = get_focused_monitor();
-	// if (cur_monitor->root == win || prim_monitor->root == win) {
-	// 	_LOG_(INFO, "TRYING TO MAP ROOT WINDOWS %d", win);
-	// 	xcb_map_window(wm->connection, win);
-	// 	lower_window(win);
-	// 	return 0;
-	// }
+
+	monitor_t	*mm	 = get_focused_monitor();
+	if (mm != NULL && mm != cur_monitor) {
+		cur_monitor = mm;
+	}
 
 	if (!should_manage(win, wm->connection)) {
 		_LOG_(
@@ -3591,7 +3573,7 @@ handle_tiled_window_request(xcb_window_t win, desktop_t *d)
 
 	client->state = TILED;
 	if (!conf.focus_follow_pointer) {
-		grab_buttons(client->window);
+		window_grab_buttons(client->window);
 	}
 
 	if (is_tree_empty(d->tree)) {
@@ -3617,7 +3599,7 @@ handle_floating_window_request(xcb_window_t win, desktop_t *d)
 
 	client->state = FLOATING;
 	if (!conf.focus_follow_pointer) {
-		grab_buttons(client->window);
+		window_grab_buttons(client->window);
 	}
 
 	return handle_floating_window(client, d);
@@ -3669,46 +3651,10 @@ int
 handle_enter_notify(const xcb_enter_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
-	// _LOG_(DEBUG, "recieved enter notify for %d", win);
-
-	// if (cur_monitor != NULL && cur_monitor->root == win) {
-	// 	_LOG_(DEBUG, "reutrn hereeee %d", win);
-	// 	return 0;
-	// }
-
-	// monitor_t *mm = get_monitor_by_root_id(win);
-	// if (mm != NULL) {
-	// 	cur_monitor = mm;
-	// 	return 0;
-	// }
-	// monitor_t *mm = get_monitor_by_root_id(win);
-	// if (mm != NULL && mm != cur_monitor) {
-	// 	_LOG_(DEBUG,
-	// 		  "enter notify for monitor %s:%d id %d, rect = x %d, y "
-	// 		  "%d,width %d,height %d",
-	// 		  mm->name,
-	// 		  mm->randr_id,
-	// 		  mm->root,
-	// 		  mm->rectangle.x,
-	// 		  mm->rectangle.y,
-	// 		  mm->rectangle.width,
-	// 		  mm->rectangle.height);
-	// 	update_focus_all(
-	// 		cur_monitor->desktops[get_focused_desktop_idx()]->tree);
-	// 	cur_monitor = mm;
-	// 	return 0;
-	// }
-	cur_monitor		 = get_focused_monitor();
-	// _LOG_(DEBUG,
-	// 	  "current monitor %s:%d id %d, rect = x %d, y "
-	// 	  "%d,width %d,height %d",
-	// 	  cur_monitor->name,
-	// 	  cur_monitor->randr_id,
-	// 	  cur_monitor->root,
-	// 	  cur_monitor->rectangle.x,
-	// 	  cur_monitor->rectangle.y,
-	// 	  cur_monitor->rectangle.width,
-	// 	  cur_monitor->rectangle.height);
+	monitor_t	*mm	 = get_focused_monitor();
+	if (mm != NULL && mm != cur_monitor) {
+		cur_monitor = mm;
+	}
 #ifdef _DEBUG__
 	char *name = win_name(win);
 	_LOG_(DEBUG, "recieved enter notify for %d, name %s ", win, name);
@@ -4241,7 +4187,7 @@ update_grabbed_window(node_t *root, node_t *n)
 	bool flag = !IS_INTERNAL(root) && root->client != NULL;
 	if (flag && root != n) {
 		set_focus(root, false);
-		grab_buttons(root->client->window);
+		window_grab_buttons(root->client->window);
 	}
 
 	update_grabbed_window(root->first_child, n);

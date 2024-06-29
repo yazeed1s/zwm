@@ -1392,7 +1392,7 @@ hide_windows(node_t *cn)
 		}
 
 		if (!conf.focus_follow_pointer) {
-			grab_buttons(cn->client->window);
+			window_grab_buttons(cn->client->window);
 		}
 	}
 
@@ -2086,7 +2086,7 @@ update_focus(node_t *root, node_t *n)
 	if (flag && root != n) {
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
-			grab_buttons(root->client->window);
+			window_grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
 
@@ -2104,7 +2104,7 @@ update_focus_all(node_t *root)
 	if (flag) {
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
-			grab_buttons(root->client->window);
+			window_grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
 
