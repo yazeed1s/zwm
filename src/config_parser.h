@@ -39,10 +39,10 @@ extern rule_t  **_rules;
 extern int		 rule_index;
 
 // clang-format off
-int  load_config(config_t *c);
-void free_keys(void);
-void free_rules(void);
-int  reload_config(config_t *c);
 rule_t *get_window_rule(xcb_window_t win);
+int     load_config(config_t *c);
+void    free_keys(void);
+void    free_rules(void);
+int     reload_config(config_t *c);
 // clang-format on
 #endif // ZWM_CONFIG_PARSER_H

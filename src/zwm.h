@@ -37,11 +37,16 @@
 extern config_t 		  conf;
 extern wm_t 			  *wm;
 extern xcb_window_t 	  focused_win;
+extern monitor_t		  *prim_monitor;
+extern monitor_t 		  *cur_monitor;
+extern 					  bool using_xrandr;
+extern 				      bool using_xinerama;
+extern 					  uint8_t randr_base;
+
 xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *c);
 xcb_atom_t                get_atom(char *atom_name, xcb_conn_t *con);
 client_t                 *create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *cn);
 client_t                 *find_client_by_window(xcb_window_t win);
-wm_t                     *init_wm();
 xcb_window_t 			  get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win);
 bool                      window_exists(xcb_conn_t *conn, xcb_window_t win);
 bool					  should_ignore_hints(xcb_window_t win, const char *name);
@@ -52,10 +57,13 @@ void                      free_clients();
 void 					  raise_window(xcb_window_t win);
 void 		              lower_window(xcb_window_t win);
 void                      grab_buttons(xcb_window_t win);
+void                      window_grab_buttons(xcb_window_t win);
 void 					  window_above(xcb_window_t, xcb_window_t);
 void 				      window_below(xcb_window_t, xcb_window_t);
 void				      update_grabbed_window(node_t *root, node_t *n);
 void 					  ungrab_keys(xcb_conn_t *conn, xcb_window_t win);
+desktop_t                *get_focused_desktop(void);
+monitor_t                *get_focused_monitor();
 int16_t                   get_cursor_axis(xcb_conn_t *conn, xcb_window_t window);
 int                       exec_process(arg_t *arg);
 int 					  layout_handler(arg_t *arg);
@@ -97,9 +105,7 @@ int                       configure_window(xcb_conn_t *, xcb_window_t, uint16_t,
 int                       set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t );
 int                       handle_xcb_error(xcb_conn_t *, xcb_void_cookie_t, const char *);
 int 					  swap_node_wrapper();
-int
-ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh,
-							int					   screen_nbr,
-							uint32_t			   i);
+int                       ewmh_update_current_desktop(xcb_ewmh_connection_t*, int, uint32_t);
 char 					  *win_name(xcb_window_t win);
+int                       ewmh_update_number_of_desktops(void);
 #endif // ZWM_ZWM_H

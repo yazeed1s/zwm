@@ -32,6 +32,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <xcb/randr.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
@@ -40,6 +41,8 @@
 #define MAXLEN				 (2 << 7)
 #define DLEN				 (2 << 4)
 #define NULL_STR			 "N/A"
+#define MONITOR_NAME		 "DEF_MONITOR"
+#define ROOT_WINDOW			 "root ZWM"
 #define NORMAL_BORDER_COLOR	 0x30302f
 #define ACTIVE_BORDER_COLOR	 0x83a598
 #define BORDER_WIDTH		 2
@@ -77,6 +80,16 @@ typedef enum {
 	DEBUG,
 	WARNING
 } log_level_t;
+
+typedef enum {
+	CURSOR_POINTER = 0,
+	CURSOR_WATCH,
+	CURSOR_MOVE,
+	CURSOR_XTERM,
+	CURSOR_NOT_ALLOWED,
+	CURSOR_HAND2,
+	CURSOR_MAX
+} xcursor_cursor_t;
 
 typedef struct {
 	// 2^16 = 65535
@@ -195,20 +208,35 @@ typedef struct {
 } desktop_t;
 
 typedef struct {
+	desktop_t		 **desktops;
+	char			   name[DLEN];
+	uint32_t		   id;
+	xcb_randr_output_t randr_id;
+	xcb_window_t	   root;
+	rectangle_t		   rectangle;
+	bool			   is_wired;
+	bool			   is_focused;
+	bool			   is_occupied;
+	bool			   is_primary;
+	uint8_t			   n_of_desktops;
+} monitor_t;
+
+typedef struct {
 	uint32_t	 id;
 	xcb_window_t window;
 	rectangle_t	 rectangle;
 } bar_t;
 
 typedef struct {
-	desktop_t			 **desktops;
+	monitor_t			 **monitors;
+	uint8_t				   n_of_monitors;
 	xcb_connection_t	  *connection;
 	xcb_ewmh_connection_t *ewmh;
 	xcb_screen_t		  *screen;
 	bar_t				  *bar;
 	xcb_window_t		   root_window;
 	split_type_t		   split_type;
-	uint8_t				   n_of_desktops;
+	// uint8_t				   n_of_desktops;
 	uint8_t				   screen_nbr;
 } wm_t;
 
@@ -252,6 +280,6 @@ typedef struct {
 typedef struct {
 	char	win_name[256];
 	state_t state;
-	int desktop_id;
+	int		desktop_id;
 } rule_t;
 #endif // ZWM_TYPE_H

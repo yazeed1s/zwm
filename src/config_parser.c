@@ -458,23 +458,67 @@ trim(char *str, trim_token_t t)
 	}
 }
 
+// char **
+// split_string(const char *str, char delimiter, int *count)
+// {
+// 	int i		   = 0;
+// 	int num_tokens = 1;
+
+// 	for (i = 0; str[i] != '\0'; i++) {
+// 		if (str[i] == delimiter) {
+// 			num_tokens++;
+// 		}
+// 	}
+
+// 	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
+// 	if (tokens == NULL) {
+// 		_LOG_(ERROR, "failed to allocate memory");
+// 		return NULL;
+// 	}
+
+// 	char *str_copy = strdup(str);
+// 	if (str_copy == NULL) {
+// 		_LOG_(ERROR, "failed to duplicate string");
+// 		free(tokens);
+// 		return NULL;
+// 	}
+
+// 	char *token = strtok(str_copy, &delimiter);
+// 	i			= 0;
+// 	while (token != NULL) {
+// 		tokens[i] = strdup(token);
+// 		if (tokens[i] == NULL) {
+// 			_LOG_(ERROR, "failed to duplicate token");
+// 			free(str_copy);
+// 			free_tokens(tokens, i);
+// 			return NULL;
+// 		}
+// 		i++;
+// 		token = strtok(NULL, &delimiter);
+// 	}
+
+// 	*count = num_tokens;
+// 	free(str_copy);
+// 	return tokens;
+// }
+
 char **
 split_string(const char *str, char delimiter, int *count)
 {
 	int i		   = 0;
 	int num_tokens = 1;
-
 	for (i = 0; str[i] != '\0'; i++) {
 		if (str[i] == delimiter) {
 			num_tokens++;
 		}
 	}
 
-	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
+	char **tokens = (char **)malloc((num_tokens + 1) * sizeof(char *));
 	if (tokens == NULL) {
 		_LOG_(ERROR, "failed to allocate memory");
 		return NULL;
 	}
+
 	char *str_copy = strdup(str);
 	if (str_copy == NULL) {
 		_LOG_(ERROR, "failed to duplicate string");
@@ -482,19 +526,23 @@ split_string(const char *str, char delimiter, int *count)
 		return NULL;
 	}
 
-	char *token = strtok(str_copy, &delimiter);
-	i			= 0;
-	while (token != NULL) {
+	char  delim_str[2] = {delimiter, '\0'};
+	char *token		   = strtok(str_copy, delim_str);
+	i				   = 0;
+	while (token != NULL && i < num_tokens) {
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
-			free_tokens(tokens, *count);
+			free(str_copy);
+			free_tokens(tokens, i);
 			return NULL;
 		}
 		i++;
-		token = strtok(NULL, &delimiter);
+		token = strtok(NULL, delim_str);
 	}
-	*count = num_tokens;
+	tokens[i] = NULL;
+
+	*count	  = i;
 	free(str_copy);
 	return tokens;
 }
@@ -502,10 +550,16 @@ split_string(const char *str, char delimiter, int *count)
 void
 free_tokens(char **tokens, int count)
 {
-	for (int i = 0; i < count; i++) {
-		free(tokens[i]);
+	if (tokens != NULL) {
+		for (int i = 0; i < count; i++) {
+			if (tokens[i] != NULL) {
+				free(tokens[i]);
+				tokens[i] = NULL;
+			}
+		}
 	}
 	free(tokens);
+	tokens = NULL;
 }
 
 bool
@@ -561,8 +615,14 @@ parse_mod_key(char *mod)
 			return -1;
 		}
 		uint32_t mask1 = str_to_key(mods[0]);
+		if ((int)mask1 == -1) {
+			_LOG_(ERROR, "failed to find key (%s)\n", mods[0]);
+		}
 		uint32_t mask2 = str_to_key(mods[1]);
-		mask		   = mask1 | mask2;
+		if ((int)mask2 == -1) {
+			_LOG_(ERROR, "failed to find key (%s)\n", mods[1]);
+		}
+		mask = mask1 | mask2;
 		free_tokens(mods, count);
 	} else {
 		mask = _mod;
@@ -585,16 +645,18 @@ parse_keysym(char *keysym)
 void
 err_cleanup(_key__t *k)
 {
-	if (k) {
-		if (k->arg->cmd) {
-			for (int i = 0; i < k->arg->argc; i++) {
-				free(k->arg->cmd[i]);
-				k->arg->cmd[i] = NULL;
+	if (k != NULL) {
+		if (k->arg != NULL) {
+			if (k->arg->cmd != NULL) {
+				for (int i = 0; i < k->arg->argc; i++) {
+					free(k->arg->cmd[i]);
+					k->arg->cmd[i] = NULL;
+				}
+				free(k->arg->cmd);
 			}
-			free(k->arg->cmd);
+			free(k->arg);
+			k->arg = NULL;
 		}
-		free(k->arg);
-		k->arg = NULL;
 		free(k);
 		k = NULL;
 	}
@@ -1021,16 +1083,43 @@ get_window_rule(xcb_window_t win)
 	return NULL;
 }
 
+// int
+// parse_rule(char *value, rule_t *rule)
+// {
+// 	// value =  wm_class("emacs"), state(tiled), desktop(-1)
+// 	if (value == NULL) {
+// 		return -1;
+// 	}
+
+// 	trim(value, WHITE_SPACE);
+
+// 	int	   count = 0;
+// 	char **rules = split_string(value, ',', &count);
+// 	if (rules == NULL)
+// 		return -1;
+
+// 	if (count != 3) {
+// 		_LOG_(ERROR, "while splitting window rule");
+// 		return -1;
+// 	}
+
+// 	char *win_name	  = rules[0];
+// 	char *win_state	  = rules[1];
+// 	char *win_desktop = rules[2];
+// 	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
+// 		return -1;
+// 	}
+// 	free_tokens(rules, count);
+// 	return 0;
+// }
 int
 parse_rule(char *value, rule_t *rule)
 {
-	// value =  wm_class("emacs"), state(tiled), desktop(-1)
 	if (value == NULL) {
 		return -1;
 	}
 
 	trim(value, WHITE_SPACE);
-
 	int	   count = 0;
 	char **rules = split_string(value, ',', &count);
 	if (rules == NULL)
@@ -1038,17 +1127,19 @@ parse_rule(char *value, rule_t *rule)
 
 	if (count != 3) {
 		_LOG_(ERROR, "while splitting window rule");
+		free_tokens(rules, count);
 		return -1;
 	}
 
 	char *win_name	  = rules[0];
 	char *win_state	  = rules[1];
 	char *win_desktop = rules[2];
-	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
-		return -1;
-	}
+
+	int	  result = construct_rule(win_name, win_state, win_desktop, rule);
+
 	free_tokens(rules, count);
-	return 0;
+
+	return result;
 }
 
 int
@@ -1188,14 +1279,14 @@ free_rules(void)
 void
 free_keys(void)
 {
-	if (conf_keys) {
+	if (conf_keys != NULL) {
 		for (int i = 0; i < _entries_; ++i) {
-			if (conf_keys[i]) {
-				if (conf_keys[i]->arg) {
+			if (conf_keys[i] != NULL) {
+				if (conf_keys[i]->arg != NULL) {
 					if (conf_keys[i]->arg->cmd != NULL) {
 						for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
-							if (conf_keys[i]->arg->cmd &&
-								conf_keys[i]->arg->cmd[j]) {
+							if (conf_keys[i]->arg->cmd != NULL &&
+								conf_keys[i]->arg->cmd[j] != NULL) {
 								free(conf_keys[i]->arg->cmd[j]);
 								conf_keys[i]->arg->cmd[j] = NULL;
 							}
