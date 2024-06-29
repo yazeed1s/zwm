@@ -15,6 +15,8 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html) 
 - Multiple Layouts (default, master, stack, grid).
 - Multiple virtual desktops.
+- Multi-monitor support.
+- Independent workspaces for each monitor by default.
 - Low memory footprint, runs within ~2MB of memory
 - Resize, flip, and swap windows or partitions.
 - Layouts apply to individual desktops.
@@ -22,7 +24,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Customizable window rules.
 - Keyboard-Driven, fully controlled via keyboard shortcuts.
 - Can be integrated with any status bar.
-- Hot reload
+- Config reload on the fly.
 
 ## The underlying data structure:
 ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
@@ -125,6 +127,9 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 - xcb-util
 - xcb-util-keysyms
 - xcb-util-wm (ewmh,icccm)
+- lxcb-randr 
+- lxcb-xinerama 
+- lxcb-cursor
 ```
 git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && sudo make install
