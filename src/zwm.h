@@ -37,11 +37,12 @@
 extern config_t 		  conf;
 extern wm_t 			  *wm;
 extern xcb_window_t 	  focused_win;
+extern monitor_t 		  *head_monitor;
 extern monitor_t		  *prim_monitor;
 extern monitor_t 		  *cur_monitor;
-extern 					  bool using_xrandr;
-extern 				      bool using_xinerama;
-extern 					  uint8_t randr_base;
+extern bool 			  using_xrandr;
+extern bool 		      using_xinerama;
+extern uint8_t 			  randr_base;
 
 xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *c);
 xcb_atom_t                get_atom(char *atom_name, xcb_conn_t *con);
@@ -94,7 +95,7 @@ int 					  horizontal_resize_wrapper(arg_t *arg);
 int 					  traverse_stack_wrapper(arg_t *arg);
 int                       resize_window(xcb_window_t win, uint16_t width, uint16_t height);
 int                       move_window(xcb_window_t win, int16_t x, int16_t y);
-int                       handle_map_request(xcb_map_request_event_t *ev);
+int                       handle_map_request(const xcb_map_request_event_t *ev);
 int                       handle_enter_notify(const xcb_enter_notify_event_t *ev);
 int                       tile(node_t *node);
 int 					  set_focus(node_t *n, bool flag);

@@ -62,10 +62,12 @@ typedef enum {
 	QUOTATION
 } trim_token_t;
 
-_key__t **conf_keys	 = NULL;
-int		  _entries_	 = 0;
-rule_t	**_rules	 = NULL;
-int		  rule_index = 0;
+// _key__t **conf_keys = NULL;
+// int		  _entries_ = 0;
+// rule_t	**_rules	 = NULL;
+// int		  rule_index = 0;
+rule_t	   *rule_head = NULL;
+conf_key_t *key_head  = NULL;
 
 void
 free_tokens(char **, int);
@@ -183,26 +185,30 @@ file_exists(const char *filename)
 void
 print_key_array(void)
 {
-	for (int i = 0; i < _entries_; i++) {
-		if (conf_keys[i]->arg != NULL) {
-			if (conf_keys[i]->arg->cmd != NULL) {
-				for (int j = 0; j < conf_keys[i]->arg->argc; ++j) {
-					_LOG_(DEBUG, "cmd = %s", conf_keys[i]->arg->cmd[j]);
+	conf_key_t *current = key_head;
+	int c = 0;
+	while (current != NULL) {
+		if (current->arg != NULL) {
+			if (current->arg->cmd != NULL) {
+				for (int j = 0; j < current->arg->argc; ++j) {
+					_LOG_(DEBUG, "cmd = %s", current->arg->cmd[j]);
 				}
 			}
 			_LOG_(DEBUG,
 				  "key %d = { \n mod = %s \n keysym = %s, func = %s, "
 				  "\nargs = {.idx = %d, .d = %d, .r = %d, .t = %d}",
-				  i,
-				  key_to_str(conf_keys[i]->mod),
-				  key_to_str(conf_keys[i]->keysym),
-				  func_to_str(conf_keys[i]->function_ptr),
-				  conf_keys[i]->arg->idx,
-				  conf_keys[i]->arg->d,
-				  conf_keys[i]->arg->r,
-				  conf_keys[i]->arg->t,
-				  conf_keys[i]->arg->t);
+				  c,
+				  key_to_str(current->mod),
+				  key_to_str(current->keysym),
+				  func_to_str(current->function_ptr),
+				  current->arg->idx,
+				  current->arg->d,
+				  current->arg->r,
+				  current->arg->t,
+				  current->arg->t);
 		}
+		c++;
+		current = current->next;
 	}
 }
 
@@ -458,50 +464,6 @@ trim(char *str, trim_token_t t)
 	}
 }
 
-// char **
-// split_string(const char *str, char delimiter, int *count)
-// {
-// 	int i		   = 0;
-// 	int num_tokens = 1;
-
-// 	for (i = 0; str[i] != '\0'; i++) {
-// 		if (str[i] == delimiter) {
-// 			num_tokens++;
-// 		}
-// 	}
-
-// 	char **tokens = (char **)malloc(num_tokens * sizeof(char *));
-// 	if (tokens == NULL) {
-// 		_LOG_(ERROR, "failed to allocate memory");
-// 		return NULL;
-// 	}
-
-// 	char *str_copy = strdup(str);
-// 	if (str_copy == NULL) {
-// 		_LOG_(ERROR, "failed to duplicate string");
-// 		free(tokens);
-// 		return NULL;
-// 	}
-
-// 	char *token = strtok(str_copy, &delimiter);
-// 	i			= 0;
-// 	while (token != NULL) {
-// 		tokens[i] = strdup(token);
-// 		if (tokens[i] == NULL) {
-// 			_LOG_(ERROR, "failed to duplicate token");
-// 			free(str_copy);
-// 			free_tokens(tokens, i);
-// 			return NULL;
-// 		}
-// 		i++;
-// 		token = strtok(NULL, &delimiter);
-// 	}
-
-// 	*count = num_tokens;
-// 	free(str_copy);
-// 	return tokens;
-// }
-
 char **
 split_string(const char *str, char delimiter, int *count)
 {
@@ -563,13 +525,15 @@ free_tokens(char **tokens, int count)
 }
 
 bool
-key_exist(_key__t *key)
+key_exist(conf_key_t *key)
 {
-	for (int i = 0; i < _entries_; i++) {
-		if (conf_keys[i]->function_ptr == key->function_ptr &&
-			conf_keys[i]->keysym == key->keysym) {
+	conf_key_t *current = key_head;
+	while (current != NULL) {
+		if (current->function_ptr == key->function_ptr &&
+			current->keysym == key->keysym) {
 			return true;
 		}
+		current = current->next;
 	}
 
 	return false;
@@ -643,7 +607,7 @@ parse_keysym(char *keysym)
 }
 
 void
-err_cleanup(_key__t *k)
+err_cleanup(conf_key_t *k)
 {
 	if (k != NULL) {
 		if (k->arg != NULL) {
@@ -663,10 +627,10 @@ err_cleanup(_key__t *k)
 }
 
 void
-build_run_func(char	   *func_param,
-			   _key__t *key,
-			   uint32_t mod,
-			   uint32_t keysym)
+build_run_func(char		  *func_param,
+			   conf_key_t *key,
+			   uint32_t	   mod,
+			   uint32_t	   keysym)
 {
 	key->mod	= mod;
 	key->keysym = (xcb_keysym_t)keysym;
@@ -715,7 +679,7 @@ build_run_func(char	   *func_param,
 }
 
 void
-set_key_args(_key__t *key, char *func, char *arg)
+set_key_args(conf_key_t *key, char *func, char *arg)
 {
 	if (strcmp(func, "cycle_window") == 0) {
 		if (strcmp(arg, "up") == 0) {
@@ -769,7 +733,7 @@ set_key_args(_key__t *key, char *func, char *arg)
 }
 
 int
-construct_key(char *mod, char *keysym, char *func, _key__t *key)
+construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 {
 	bool	 run_func	= false;
 	uint32_t _keysym	= -1;
@@ -878,7 +842,7 @@ construct_key(char *mod, char *keysym, char *func, _key__t *key)
 }
 
 int
-parse_keybinding(char *str, _key__t *key)
+parse_keybinding(char *str, conf_key_t *key)
 {
 	if (strstr(str, "->") == NULL) {
 		_LOG_(ERROR, "invalide key format %s ", str);
@@ -929,11 +893,11 @@ parse_keybinding(char *str, _key__t *key)
 	return construct_key(mod, keysym, func, key);
 }
 
-_key__t *
+conf_key_t *
 init_key(void)
 {
-	_key__t *key = (_key__t *)calloc(1, sizeof(_key__t));
-	key->arg	 = (arg_t *)calloc(1, sizeof(arg_t));
+	conf_key_t *key = (conf_key_t *)calloc(1, sizeof(conf_key_t));
+	key->arg		= (arg_t *)calloc(1, sizeof(arg_t));
 
 	if (key->arg == NULL || key == NULL) {
 		_LOG_(ERROR, "failed to calloc _key__t or arg_t");
@@ -942,8 +906,23 @@ init_key(void)
 
 	key->arg->cmd  = NULL;
 	key->arg->argc = 0;
+	key->next	   = NULL;
 
 	return key;
+}
+
+void
+add_key(conf_key_t **head, conf_key_t *k)
+{
+	if (*head == NULL) {
+		*head = k;
+		return;
+	}
+	conf_key_t *current = *head;
+	while (current->next != NULL) {
+		current = current->next;
+	}
+	current->next = k;
 }
 
 rule_t *
@@ -955,8 +934,22 @@ init_rule(void)
 		_LOG_(ERROR, "failed to calloc rule_t");
 		return NULL;
 	}
-
+	rule->next = NULL;
 	return rule;
+}
+
+void
+add_rule(rule_t **head, rule_t *r)
+{
+	if (*head == NULL) {
+		*head = r;
+		return;
+	}
+	rule_t *current = *head;
+	while (current->next != NULL) {
+		current = current->next;
+	}
+	current->next = r;
 }
 
 void
@@ -1071,47 +1064,17 @@ get_window_rule(xcb_window_t win)
 	const uint8_t wr =
 		xcb_icccm_get_wm_class_reply(wm->connection, cn, &t_reply, NULL);
 	if (wr == 1) {
-		for (int i = 0; i < rule_index; ++i) {
-			if (_rules[i] != NULL) {
-				if (strcasecmp(_rules[i]->win_name, t_reply.class_name) ==
-					0) {
-					return _rules[i];
-				}
+		rule_t *current = rule_head;
+		while (current != NULL) {
+			if (strcasecmp(current->win_name, t_reply.class_name) == 0) {
+				return current;
 			}
+			current = current->next;
 		}
 	}
 	return NULL;
 }
 
-// int
-// parse_rule(char *value, rule_t *rule)
-// {
-// 	// value =  wm_class("emacs"), state(tiled), desktop(-1)
-// 	if (value == NULL) {
-// 		return -1;
-// 	}
-
-// 	trim(value, WHITE_SPACE);
-
-// 	int	   count = 0;
-// 	char **rules = split_string(value, ',', &count);
-// 	if (rules == NULL)
-// 		return -1;
-
-// 	if (count != 3) {
-// 		_LOG_(ERROR, "while splitting window rule");
-// 		return -1;
-// 	}
-
-// 	char *win_name	  = rules[0];
-// 	char *win_state	  = rules[1];
-// 	char *win_desktop = rules[2];
-// 	if (construct_rule(win_name, win_state, win_desktop, rule) != 0) {
-// 		return -1;
-// 	}
-// 	free_tokens(rules, count);
-// 	return 0;
-// }
 int
 parse_rule(char *value, rule_t *rule)
 {
@@ -1169,14 +1132,6 @@ parse_config_line(char *key, char *value, config_t *c)
 			return -1;
 		}
 	} else if (strcmp(key, "rule") == 0) {
-		if (_rules == NULL) {
-			_rules = (rule_t **)malloc(MAX_RULES * sizeof(rule_t *));
-			if (_rules == NULL) {
-				_LOG_(ERROR,
-					  "Failed to allocate memory for rules array\n");
-				return -1;
-			}
-		}
 		rule_t *rule = init_rule();
 		if (rule == NULL) {
 			_LOG_(ERROR, "Failed to allocate memory for rule_t\n");
@@ -1187,18 +1142,9 @@ parse_config_line(char *key, char *value, config_t *c)
 			_LOG_(ERROR, "Error while parsing rule %s\n", value);
 			return -1;
 		}
-		_rules[rule_index++] = rule;
+		add_rule(&rule_head, rule);
 	} else if (strcmp(key, "bind") == 0) {
-		if (conf_keys == NULL) {
-			conf_keys =
-				(_key__t **)malloc(MAX_KEYBINDINGS * sizeof(_key__t *));
-			if (conf_keys == NULL) {
-				_LOG_(ERROR,
-					  "Failed to allocate memory for conf_keys array\n");
-				return -1;
-			}
-		}
-		_key__t *k = init_key();
+		conf_key_t *k = init_key();
 		if (k == NULL) {
 			_LOG_(ERROR, "Failed to allocate memory for _key__t\n");
 			return -1;
@@ -1208,7 +1154,7 @@ parse_config_line(char *key, char *value, config_t *c)
 			_LOG_(ERROR, "Error while parsing keys\n");
 			return -1;
 		}
-		conf_keys[_entries_++] = k;
+		add_key(&key_head, k);
 	} else {
 		_LOG_(WARNING, "Unknown config key: %s\n", key);
 	}
@@ -1262,49 +1208,40 @@ parse_config(const char *filename, config_t *c)
 void
 free_rules(void)
 {
-	if (_rules == NULL) {
-		return;
+	rule_t *current = rule_head;
+	while (current != NULL) {
+		rule_t *next = current->next;
+		free(current);
+		current = next;
 	}
-	for (int i = 0; i < rule_index; i++) {
-		if (_rules[i] != NULL) {
-			free(_rules[i]);
-			_rules[i] = NULL;
-		}
-	}
-	free(_rules);
-	_rules	   = NULL;
-	rule_index = -1;
+	rule_head = NULL;
 }
 
 void
 free_keys(void)
 {
-	if (conf_keys != NULL) {
-		for (int i = 0; i < _entries_; ++i) {
-			if (conf_keys[i] != NULL) {
-				if (conf_keys[i]->arg != NULL) {
-					if (conf_keys[i]->arg->cmd != NULL) {
-						for (int j = 0; j < conf_keys[i]->arg->argc; j++) {
-							if (conf_keys[i]->arg->cmd != NULL &&
-								conf_keys[i]->arg->cmd[j] != NULL) {
-								free(conf_keys[i]->arg->cmd[j]);
-								conf_keys[i]->arg->cmd[j] = NULL;
-							}
-						}
-						free(conf_keys[i]->arg->cmd);
-						conf_keys[i]->arg->cmd = NULL;
+	conf_key_t *current = key_head;
+	while (current != NULL) {
+		conf_key_t *next = current->next;
+		if (current->arg != NULL) {
+			if (current->arg->cmd != NULL) {
+				for (int j = 0; j < current->arg->argc; j++) {
+					if (current->arg->cmd != NULL &&
+						current->arg->cmd[j] != NULL) {
+						free(current->arg->cmd[j]);
+						current->arg->cmd[j] = NULL;
 					}
-					free(conf_keys[i]->arg);
-					conf_keys[i]->arg = NULL;
 				}
-				free(conf_keys[i]);
-				conf_keys[i] = NULL;
+				free(current->arg->cmd);
+				current->arg->cmd = NULL;
 			}
+			free(current->arg);
+			current->arg = NULL;
 		}
-		free(conf_keys);
-		conf_keys = NULL;
-		_entries_ = -1;
+		free(current);
+		current = next;
 	}
+	key_head = NULL;
 }
 
 int

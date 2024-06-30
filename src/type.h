@@ -62,16 +62,16 @@ typedef enum {
 } flip_t;
 
 typedef enum {
-	GROW   = 1 << 1,
-	SHRINK = 1 << 2,
+	GROW = 1 << 1,
+	SHRINK
 } resize_t;
 
 typedef enum {
-	LEFT  = 1 << 1,
-	RIGHT = 1 << 2,
-	UP	  = 1 << 3,
-	DOWN  = 1 << 4,
-	NONE  = 1 << 5
+	LEFT = 1 << 1,
+	RIGHT,
+	UP,
+	DOWN,
+	NONE
 } direction_t;
 
 typedef enum {
@@ -89,7 +89,7 @@ typedef enum {
 	CURSOR_NOT_ALLOWED,
 	CURSOR_HAND2,
 	CURSOR_MAX
-} xcursor_cursor_t;
+} cursor_t;
 
 typedef struct {
 	// 2^16 = 65535
@@ -112,9 +112,9 @@ typedef enum {
 
 typedef enum {
 	DEFAULT = 1 << 1,
-	MASTER	= 1 << 2,
-	STACK	= 1 << 3,
-	GRID	= 1 << 4,
+	MASTER,
+	STACK,
+	GRID
 } layout_t;
 
 typedef struct {
@@ -122,15 +122,12 @@ typedef struct {
 	xcb_window_t window;
 	xcb_atom_t	 type;
 	state_t		 state;
-	/* uint32_t	 id; */
-	/* bool		 is_managed; */
-	/* posxy_t		 position_info; */
 } client_t;
 
 typedef enum {
-	ROOT_NODE	  = 1 << 1,
-	INTERNAL_NODE = 1 << 2,
-	EXTERNAL_NODE = 1 << 3
+	ROOT_NODE = 1 << 1,
+	INTERNAL_NODE,
+	EXTERNAL_NODE
 } node_type_t;
 
 // clang-format off
@@ -193,8 +190,6 @@ struct node_t {
 	rectangle_t floating_rectangle;
 	bool		is_focused;
 	bool		is_master;
-	/* uint32_t	id; */
-	/* split_type_t split_type; */
 };
 
 typedef struct {
@@ -207,8 +202,10 @@ typedef struct {
 	bool		 is_focused;
 } desktop_t;
 
-typedef struct {
+typedef struct monitor_t monitor_t;
+struct monitor_t {
 	desktop_t		 **desktops;
+	monitor_t		  *next;
 	char			   name[DLEN];
 	uint32_t		   id;
 	xcb_randr_output_t randr_id;
@@ -219,7 +216,7 @@ typedef struct {
 	bool			   is_occupied;
 	bool			   is_primary;
 	uint8_t			   n_of_desktops;
-} monitor_t;
+};
 
 typedef struct {
 	uint32_t	 id;
@@ -228,15 +225,12 @@ typedef struct {
 } bar_t;
 
 typedef struct {
-	monitor_t			 **monitors;
-	uint8_t				   n_of_monitors;
 	xcb_connection_t	  *connection;
 	xcb_ewmh_connection_t *ewmh;
 	xcb_screen_t		  *screen;
 	bar_t				  *bar;
 	xcb_window_t		   root_window;
 	split_type_t		   split_type;
-	// uint8_t				   n_of_desktops;
 	uint8_t				   screen_nbr;
 } wm_t;
 
@@ -256,6 +250,15 @@ typedef struct {
 	arg_t *arg;
 } _key__t;
 
+typedef struct conf_key_t conf_key_t;
+struct conf_key_t {
+	uint32_t	 mod;
+	xcb_keysym_t keysym;
+	int (*function_ptr)(arg_t *);
+	arg_t	   *arg;
+	conf_key_t *next;
+};
+
 typedef struct {
 	char *func_name;
 	int (*function_ptr)(arg_t *);
@@ -273,13 +276,13 @@ typedef struct {
 	uint32_t normal_border_color;
 	int		 virtual_desktops;
 	bool	 focus_follow_pointer;
-	// _key__t *keys;
-	// size_t	 key_size;
 } config_t;
 
-typedef struct {
+typedef struct rule_t rule_t;
+struct rule_t {
 	char	win_name[256];
 	state_t state;
 	int		desktop_id;
-} rule_t;
+	rule_t *next;
+};
 #endif // ZWM_TYPE_H

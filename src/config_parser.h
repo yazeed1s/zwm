@@ -33,10 +33,12 @@
 
 #define MAX_RULES (2 << 2) // 2 << 2 = 8
 
-extern _key__t **conf_keys;
-extern int		 _entries_;
-extern rule_t  **_rules;
-extern int		 rule_index;
+// extern _key__t **conf_keys;
+// extern int		 _entries_;
+// extern rule_t  **_rules;
+// extern int		 rule_index;
+extern rule_t	  *rule_head;
+extern conf_key_t *key_head;
 
 // clang-format off
 rule_t *get_window_rule(xcb_window_t win);
