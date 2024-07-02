@@ -1,7 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized
 LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm -lxcb-randr -lxcb-xinerama -lxcb-cursor
-
 SRC_FILES = ./src/zwm.c ./src/logger.c ./src/tree.c ./src/config_parser.c
 HEADER_FILES = ./src/logger.h ./src/tree.h ./src/type.h ./src/zwm.h ./src/config_parser.h ./src/helper.h
 OBJ_FILES = $(SRC_FILES:.c=.o)
@@ -11,7 +10,6 @@ LOCAL_TEST = -D__LTEST__=1
 TARGET = zwm
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
-
 
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -23,10 +21,11 @@ clean:
 	rm -f $(TARGET) $(OBJ_FILES)
 
 install: $(TARGET)
-	cp -pf $(TARGET) $(BINDIR)
+	mkdir -p "$(DESTDIR)$(BINDIR)"
+	cp -pf $(TARGET) "$(DESTDIR)$(BINDIR)"
 
 uninstall:
-	rm -f $(BINDIR)/$(TARGET)
+	rm -f "$(DESTDIR)$(BINDIR)"/$(TARGET)
 
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: clean $(TARGET)
