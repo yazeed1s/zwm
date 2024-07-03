@@ -8,7 +8,7 @@ DEBUG_FLAGS = -g -O0 -D_DEBUG__=1
 GDB_FLAGS = -ggdb3
 LOCAL_TEST = -D__LTEST__=1
 TARGET = zwm
-PREFIX = /usr/local
+PREFIX = /usr
 BINDIR = $(PREFIX)/bin
 
 $(TARGET): $(OBJ_FILES)

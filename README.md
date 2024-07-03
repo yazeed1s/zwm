@@ -120,6 +120,10 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 </p>
 
 ## Installation
+### Arch Linux (AUR)
+```
+yay -S zwm
+```
 ### Build from source
 #### Dependencies
 - gcc
