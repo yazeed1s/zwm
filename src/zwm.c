@@ -36,6 +36,7 @@
 #include "type.h"
 #include <X11/keysym.h>
 #include <assert.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -92,75 +93,76 @@ xcb_cursor_t		  cursors[CURSOR_MAX];
 // clang-format off
 // X11/keysymdef.h
 static const _key__t keys_[] = {
-	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL                            },
+	{SUPER_MASK,              XK_w,      close_or_kill_wrapper,      NULL                      },
 	{SUPER_MASK,              XK_Return,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          	                 },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("alacritty")}})          },
 	{SUPER_MASK,              XK_space,
-    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("dmenu_run")}})                             },
+    exec_process,             &((arg_t){.argc = 1, .cmd = (char *[]){("dmenu_run")}})          },
 	{SUPER_MASK,              XK_p,
-    exec_process,             &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})           },
-	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})             },
-	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})             },
-	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})             },
-	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})             },
-	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})             },
-	{SUPER_MASK,              XK_6,      switch_desktop_wrapper,    &((arg_t){.idx = 5})              },
-	{SUPER_MASK,              XK_7,      switch_desktop_wrapper,    &((arg_t){.idx = 6})             },
-	{SUPER_MASK,              XK_Left,   cycle_win_wrapper,         &((arg_t){.d = LEFT})            },
-	{SUPER_MASK,              XK_Right,  cycle_win_wrapper,         &((arg_t){.d = RIGHT})           },
-	{SUPER_MASK,              XK_Up,     cycle_win_wrapper,         &((arg_t){.d = UP})              },
-	{SUPER_MASK,              XK_Down,   cycle_win_wrapper,         &((arg_t){.d = DOWN})            },
-	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})            },
-	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                             },
-	{SUPER_MASK,              XK_s,      swap_node_wrapper,         NULL                             },
-	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})             },
-	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})             },
-	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})             },
-	{SUPER_MASK | SHIFT_MASK, XK_4,      transfer_node_wrapper,     &((arg_t){.idx = 3})             },
-	{SUPER_MASK | SHIFT_MASK, XK_5,      transfer_node_wrapper,     &((arg_t){.idx = 4})             },
-	{SUPER_MASK | SHIFT_MASK, XK_6,      transfer_node_wrapper,     &((arg_t){.idx = 5})             },
-	{SUPER_MASK | SHIFT_MASK, XK_7,      transfer_node_wrapper,     &((arg_t){.idx = 6})             },
-	{SUPER_MASK | SHIFT_MASK, XK_m,      layout_handler,            &((arg_t){.t = MASTER})          },
-    {SUPER_MASK | SHIFT_MASK, XK_d,      layout_handler,            &((arg_t){.t = DEFAULT})         },
-    {SUPER_MASK | SHIFT_MASK, XK_s,      layout_handler,            &((arg_t){.t = STACK})           },
-	{SUPER_MASK | SHIFT_MASK, XK_k,      traverse_stack_wrapper,    &((arg_t){.d = UP})              },
-    {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})            },
-    {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            				 },
-    {SUPER_MASK | SHIFT_MASK, XK_r,      reload_config_wrapper,   	NULL            				 },
-	{SUPER_MASK | SHIFT_MASK, XK_Left, 	 cycle_desktop_wrapper, 	&((arg_t){.d = LEFT}) 			 },
-	{SUPER_MASK | SHIFT_MASK, XK_Right,  cycle_desktop_wrapper, 	&((arg_t){.d = RIGHT}) 			 }
+    exec_process,             &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})},
+	{SUPER_MASK,              XK_1,      switch_desktop_wrapper,    &((arg_t){.idx = 0})       },
+	{SUPER_MASK,              XK_2,      switch_desktop_wrapper,    &((arg_t){.idx = 1})       },
+	{SUPER_MASK,              XK_3,      switch_desktop_wrapper,    &((arg_t){.idx = 2})       },
+	{SUPER_MASK,              XK_4,      switch_desktop_wrapper,    &((arg_t){.idx = 3})       },
+	{SUPER_MASK,              XK_5,      switch_desktop_wrapper,    &((arg_t){.idx = 4})       },
+	{SUPER_MASK,              XK_6,      switch_desktop_wrapper,    &((arg_t){.idx = 5})       },
+	{SUPER_MASK,              XK_7,      switch_desktop_wrapper,    &((arg_t){.idx = 6})       },
+	{SUPER_MASK,              XK_Left,   cycle_win_wrapper,         &((arg_t){.d = LEFT})      },
+	{SUPER_MASK,              XK_Right,  cycle_win_wrapper,         &((arg_t){.d = RIGHT})     },
+	{SUPER_MASK,              XK_Up,     cycle_win_wrapper,         &((arg_t){.d = UP})        },
+	{SUPER_MASK,              XK_Down,   cycle_win_wrapper,         &((arg_t){.d = DOWN})      },
+	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})      },
+	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                       },
+	{SUPER_MASK,              XK_s,      swap_node_wrapper,         NULL                       },
+	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})       },
+	{SUPER_MASK | SHIFT_MASK, XK_2,      transfer_node_wrapper,     &((arg_t){.idx = 1})       },
+	{SUPER_MASK | SHIFT_MASK, XK_3,      transfer_node_wrapper,     &((arg_t){.idx = 2})       },
+	{SUPER_MASK | SHIFT_MASK, XK_4,      transfer_node_wrapper,     &((arg_t){.idx = 3})       },
+	{SUPER_MASK | SHIFT_MASK, XK_5,      transfer_node_wrapper,     &((arg_t){.idx = 4})       },
+	{SUPER_MASK | SHIFT_MASK, XK_6,      transfer_node_wrapper,     &((arg_t){.idx = 5})       },
+	{SUPER_MASK | SHIFT_MASK, XK_7,      transfer_node_wrapper,     &((arg_t){.idx = 6})       },
+	{SUPER_MASK | SHIFT_MASK, XK_m,      layout_handler,            &((arg_t){.t = MASTER})    },
+    {SUPER_MASK | SHIFT_MASK, XK_d,      layout_handler,            &((arg_t){.t = DEFAULT})   },
+    {SUPER_MASK | SHIFT_MASK, XK_s,      layout_handler,            &((arg_t){.t = STACK})     },
+	{SUPER_MASK | SHIFT_MASK, XK_k,      traverse_stack_wrapper,    &((arg_t){.d = UP})        },
+    {SUPER_MASK | SHIFT_MASK, XK_j,      traverse_stack_wrapper,    &((arg_t){.d = DOWN})      },
+    {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            		   },
+    {SUPER_MASK | SHIFT_MASK, XK_r,      reload_config_wrapper,   	NULL            		   },
+	{SUPER_MASK | SHIFT_MASK, XK_Left, 	 cycle_desktop_wrapper, 	&((arg_t){.d = LEFT}) 	   },
+	{SUPER_MASK | SHIFT_MASK, XK_Right,  cycle_desktop_wrapper, 	&((arg_t){.d = RIGHT}) 	   }
 };
-// clang-format on
 
 static const uint32_t buttons_[] = {
 	XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
 
-int
-len_of_digits(long n)
-{
-	int count = 0;
-	do {
-		n /= 10;
-		++count;
-	} while (n != 0);
-	return count;
-}
+static monitor_t *get_focused_monitor();
+static int set_fullscreen(node_t *, bool);
+static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
+static int resize_window(xcb_window_t, uint16_t x, uint16_t y);
+static int move_window(xcb_window_t, int16_t x, int16_t y);
+static int win_focus(xcb_window_t, bool);
+static void update_grabbed_window(node_t *, node_t *);
+static void ungrab_keys(xcb_conn_t *, xcb_window_t);
+static int grab_keys(xcb_conn_t *, xcb_window_t);
+static desktop_t *init_desktop();
+static int ewmh_update_current_desktop(xcb_ewmh_connection_t *, int, uint32_t);
+static char *win_name(xcb_window_t);
+static int ewmh_update_number_of_desktops(void);
+static int set_active_window_name(xcb_window_t);
+static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
+static int change_window_attr(xcb_conn_t *, xcb_window_t, uint32_t, const void *);
+static int configure_window(xcb_conn_t *, xcb_window_t, uint16_t, const void *);
+static int set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t);
+static xcb_atom_t get_atom(char *, xcb_conn_t *);
+static bool window_exists(xcb_conn_t *, xcb_window_t);
+static int close_or_kill(xcb_window_t);
+static int switch_desktop(const int);
+static int handle_tiled_window_request(xcb_window_t, desktop_t *);
+static int handle_floating_window_request(xcb_window_t, desktop_t *);
+static int handle_bar_request(xcb_window_t, desktop_t *);
+// clang-format on
 
-int
-check_xcb_error(xcb_conn_t		 *conn,
-				xcb_void_cookie_t cookie,
-				const char		 *err)
-{
-	xcb_generic_error_t *error = xcb_request_check(conn, cookie);
-	if (error != NULL) {
-		_LOG_(ERROR, "%s: error code %d\n", err, error->error_code);
-		free(error);
-		return -1;
-	}
-	return 0;
-}
-
-void
+static void
 load_cursors(void)
 {
 	if (xcb_cursor_context_new(wm->connection, wm->screen, &cursor_ctx) <
@@ -181,14 +183,14 @@ load_cursors(void)
 #undef _LOAD_CURSOR_
 }
 
-xcb_cursor_t
+static xcb_cursor_t
 get_cursor(cursor_t c)
 {
 	assert(c < CURSOR_MAX);
 	return cursors[c];
 }
 
-void
+static void
 set_cursor(int cursor_id)
 {
 	xcb_cursor_t	  c		   = get_cursor(cursor_id);
@@ -207,7 +209,7 @@ set_cursor(int cursor_id)
 }
 
 // caller must free
-char *
+static char *
 win_name(xcb_window_t win)
 {
 	xcb_icccm_get_text_property_reply_t t_reply;
@@ -243,7 +245,7 @@ layout_handler(arg_t *arg)
 	return render_tree(d->tree);
 }
 
-xcb_ewmh_connection_t *
+static xcb_ewmh_connection_t *
 ewmh_init(xcb_conn_t *conn)
 {
 	if (conn == 0x00) {
@@ -271,7 +273,7 @@ ewmh_init(xcb_conn_t *conn)
 	return ewmh;
 }
 
-int
+static int
 ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh)
 {
 	pid_t			  wm_pid = getpid();
@@ -320,7 +322,7 @@ get_focused_desktop_idx(void)
 	return -1;
 }
 
-desktop_t *
+static desktop_t *
 get_focused_desktop(void)
 {
 	monitor_t *focused_monitor = get_focused_monitor();
@@ -334,7 +336,7 @@ get_focused_desktop(void)
 	return NULL;
 }
 
-int
+static int
 ewmh_set_number_of_desktops(xcb_ewmh_connection_t *ewmh,
 							int					   screen_nbr,
 							uint32_t			   nd)
@@ -353,7 +355,7 @@ ewmh_set_number_of_desktops(xcb_ewmh_connection_t *ewmh,
 	return 0;
 }
 
-int
+static int
 ewmh_update_desktop_names(void)
 {
 	char		 names[MAXLEN];
@@ -389,7 +391,7 @@ ewmh_update_desktop_names(void)
 	return 0;
 }
 
-int16_t
+static int16_t
 modfield_from_keysym(xcb_keysym_t keysym)
 {
 	uint16_t	   modfield = 0;
@@ -434,7 +436,7 @@ end:
 	return modfield;
 }
 
-void
+static void
 remove_property(xcb_connection_t *con,
 				xcb_window_t	  win,
 				xcb_atom_t		  prop,
@@ -614,7 +616,7 @@ set_fullscreen_wrapper()
 	return 0;
 }
 
-int
+static int
 set_fullscreen(node_t *n, bool flag)
 {
 	if (n == NULL)
@@ -684,7 +686,7 @@ out:
 	return 0;
 }
 
-int
+static int
 change_colors(node_t *root)
 {
 	if (root == NULL)
@@ -704,7 +706,7 @@ change_colors(node_t *root)
 	return 0;
 }
 
-void
+static void
 apply_monitor_layout_changes(monitor_t *m)
 {
 	for (int d = 0; d < m->n_of_desktops; ++d) {
@@ -1042,24 +1044,18 @@ traverse_stack_wrapper(arg_t *arg)
 
 	node_t *root = cur_monitor->desktops[i]->tree;
 	node_t *node = find_node_by_window_id(root, w);
-	node_t *n	 = NULL;
-	if (d == UP) {
-		n = next_node(node);
-		if (n == NULL) {
-			return -1;
-		}
-	} else if (d == DOWN) {
-		n = prev_node(node);
-		if (n == NULL) {
-			return -1;
-		}
+	node_t *n	 = d == UP ? next_node(node) : prev_node(node);
+
+	if (n == NULL) {
+		return -1;
 	}
+
 	set_focus(n, true);
 	cur_monitor->desktops[i]->top_w = n->client->window;
 	return 0;
 }
 
-size_t
+static size_t
 get_active_clients_size(desktop_t **d, const int n)
 {
 	size_t t = 0;
@@ -1069,7 +1065,7 @@ get_active_clients_size(desktop_t **d, const int n)
 	return t;
 }
 
-void
+static void
 populate_client_array(node_t *root, xcb_window_t *arr, size_t *index)
 {
 	if (root == NULL)
@@ -1084,7 +1080,7 @@ populate_client_array(node_t *root, xcb_window_t *arr, size_t *index)
 	populate_client_array(root->second_child, arr, index);
 }
 
-void
+static void
 ewmh_update_client_list(void)
 {
 	size_t size = get_active_clients_size(prim_monitor->desktops,
@@ -1110,7 +1106,7 @@ ewmh_update_client_list(void)
 	active_clients = NULL;
 }
 
-int
+static int
 ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh,
 							int					   screen_nbr,
 							uint32_t			   i)
@@ -1128,7 +1124,7 @@ ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh,
 	return 0;
 }
 
-xcb_get_geometry_reply_t *
+static xcb_get_geometry_reply_t *
 get_geometry(xcb_window_t win, xcb_conn_t *conn)
 {
 	xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(conn, win);
@@ -1152,7 +1148,7 @@ get_geometry(xcb_window_t win, xcb_conn_t *conn)
 	return gr;
 }
 
-client_t *
+static client_t *
 create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 {
 	client_t *c = (client_t *)malloc(sizeof(client_t));
@@ -1174,6 +1170,7 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 			  c->window,
 			  err->error_code);
 		free(err);
+		free(c);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1191,7 +1188,7 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	return c;
 }
 
-desktop_t *
+static desktop_t *
 init_desktop(void)
 {
 	desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
@@ -1206,7 +1203,7 @@ init_desktop(void)
 	return d;
 }
 
-monitor_t *
+static monitor_t *
 init_monitor(void)
 {
 	monitor_t *m = (monitor_t *)malloc(sizeof(monitor_t));
@@ -1226,7 +1223,7 @@ init_monitor(void)
 	return m;
 }
 
-void
+static void
 add_monitor(monitor_t **head, monitor_t *m)
 {
 	if (*head == NULL) {
@@ -1240,7 +1237,7 @@ add_monitor(monitor_t **head, monitor_t *m)
 	current->next = m;
 }
 
-wm_t *
+static wm_t *
 init_wm(void)
 {
 	int i, default_screen;
@@ -1306,7 +1303,7 @@ init_wm(void)
 	return wm;
 }
 
-monitor_t *
+static monitor_t *
 get_monitor_by_randr_id(xcb_randr_output_t id)
 {
 	monitor_t *current = head_monitor;
@@ -1319,7 +1316,7 @@ get_monitor_by_randr_id(xcb_randr_output_t id)
 	return NULL;
 }
 
-monitor_t *
+static monitor_t *
 get_monitor_by_root_id(xcb_window_t id)
 {
 	monitor_t *current = head_monitor;
@@ -1332,7 +1329,7 @@ get_monitor_by_root_id(xcb_window_t id)
 	return NULL;
 }
 
-monitor_t *
+static monitor_t *
 get_focused_monitor()
 {
 	xcb_query_pointer_cookie_t pointer_cookie =
@@ -1366,7 +1363,7 @@ get_focused_monitor()
 	return NULL;
 }
 
-int
+static int
 get_connected_monitor_count_xinerama()
 {
 	xcb_xinerama_query_screens_cookie_t c =
@@ -1380,7 +1377,7 @@ get_connected_monitor_count_xinerama()
 	return len;
 }
 
-int
+static int
 get_connected_monitor_count_xrandr()
 {
 	xcb_randr_get_screen_resources_current_cookie_t c =
@@ -1417,7 +1414,7 @@ get_connected_monitor_count_xrandr()
 	return monitor_count;
 }
 
-int
+static int
 get_connected_monitor_count(bool xrandr, bool xinerama)
 {
 	int n = 0;
@@ -1434,7 +1431,7 @@ get_connected_monitor_count(bool xrandr, bool xinerama)
 	return n;
 }
 
-bool
+static bool
 setup_monitors_via_xrandr()
 {
 	xcb_randr_get_screen_resources_cookie_t screen_resources_c =
@@ -1527,7 +1524,7 @@ setup_monitors_via_xrandr()
 	return true;
 }
 
-bool
+static bool
 setup_monitors_via_xinerama()
 {
 	xcb_xinerama_query_screens_cookie_t query_screens_c =
@@ -1567,7 +1564,7 @@ setup_monitors_via_xinerama()
 	return true;
 }
 
-void
+static void
 free_monitors(void)
 {
 	monitor_t *current = head_monitor;
@@ -1588,7 +1585,7 @@ free_monitors(void)
 	head_monitor = NULL;
 }
 
-void
+static void
 ewmh_update_desktop_viewport(void)
 {
 	uint32_t   desktops_count  = 0;
@@ -1619,7 +1616,7 @@ ewmh_update_desktop_viewport(void)
 		wm->ewmh, wm->screen_nbr, desktop, coords);
 }
 
-bool
+static bool
 setup_monitors(void)
 {
 
@@ -1794,7 +1791,7 @@ get_monitor_from_desktop(desktop_t *desktop)
 	return NULL;
 }
 
-bool
+static bool
 setup_desktops(void)
 {
 	monitor_t *current_monitor = head_monitor;
@@ -1821,7 +1818,7 @@ setup_desktops(void)
 	return true;
 }
 
-int
+static int
 ewmh_update_number_of_desktops(void)
 {
 	uint32_t desktops_count	 = 0;
@@ -1846,7 +1843,7 @@ ewmh_update_number_of_desktops(void)
 	return 0;
 }
 
-bool
+static bool
 setup_ewmh(void)
 {
 	wm->ewmh = ewmh_init(wm->connection);
@@ -1924,7 +1921,7 @@ setup_ewmh(void)
 	return true;
 }
 
-bool
+static bool
 setup_wm(void)
 {
 	if (wm == NULL)
@@ -1951,7 +1948,7 @@ setup_wm(void)
 	return true;
 }
 
-int
+static int
 resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 {
 	if (win == 0 || win == XCB_NONE)
@@ -1975,7 +1972,7 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 	return 0;
 }
 
-int
+static int
 move_window(xcb_window_t win, int16_t x, int16_t y)
 {
 	if (win == 0 || win == XCB_NONE) {
@@ -1999,7 +1996,7 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 	return 0;
 }
 
-int
+static int
 fullscreen_focus(xcb_window_t win)
 {
 	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
@@ -2030,7 +2027,7 @@ fullscreen_focus(xcb_window_t win)
 	return 0;
 }
 
-int
+static int
 win_focus(xcb_window_t win, bool set_focus)
 {
 	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
@@ -2063,7 +2060,7 @@ win_focus(xcb_window_t win, bool set_focus)
 }
 
 // TODO: rewrite this
-int
+static int
 change_border_attr(xcb_conn_t  *conn,
 				   xcb_window_t win,
 				   uint32_t		bcolor,
@@ -2099,7 +2096,7 @@ change_border_attr(xcb_conn_t  *conn,
 	return 0;
 }
 
-int
+static int
 change_window_attr(xcb_conn_t  *conn,
 				   xcb_window_t win,
 				   uint32_t		attr,
@@ -2118,7 +2115,7 @@ change_window_attr(xcb_conn_t  *conn,
 	return 0;
 }
 
-int
+static int
 configure_window(xcb_conn_t	 *conn,
 				 xcb_window_t win,
 				 uint16_t	  attr,
@@ -2137,7 +2134,7 @@ configure_window(xcb_conn_t	 *conn,
 	return 0;
 }
 
-int
+static int
 set_input_focus(xcb_conn_t	   *conn,
 				uint8_t			revert_to,
 				xcb_window_t	win,
@@ -2189,7 +2186,7 @@ tile(node_t *node)
 	return 0;
 }
 
-bool
+static bool
 supports_protocol(xcb_window_t win, xcb_atom_t atom, xcb_conn_t *conn)
 {
 	xcb_get_property_cookie_t		   cookie = {0};
@@ -2214,7 +2211,7 @@ supports_protocol(xcb_window_t win, xcb_atom_t atom, xcb_conn_t *conn)
 	return result;
 }
 
-int
+static int
 display_client(rectangle_t r, xcb_window_t win)
 {
 	uint16_t width	= r.width;
@@ -2242,7 +2239,7 @@ display_client(rectangle_t r, xcb_window_t win)
 	return 0;
 }
 
-int16_t
+static int16_t
 get_cursor_axis(xcb_conn_t *conn, xcb_window_t win)
 {
 	xcb_query_pointer_cookie_t p_cookie = xcb_query_pointer(conn, win);
@@ -2278,7 +2275,7 @@ get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win)
 	return x;
 }
 
-xcb_keycode_t *
+static xcb_keycode_t *
 get_keycode(xcb_keysym_t keysym, xcb_conn_t *conn)
 {
 	xcb_key_symbols_t *keysyms = NULL;
@@ -2295,18 +2292,16 @@ get_keycode(xcb_keysym_t keysym, xcb_conn_t *conn)
 	return keycode;
 }
 
-xcb_keysym_t
-get_keysym(xcb_keycode_t keycode, xcb_conn_t *conn)
+static xcb_keysym_t
+get_keysym(xcb_keycode_t keycode, xcb_connection_t *conn)
 {
-	xcb_key_symbols_t *keysyms = NULL;
-	xcb_keysym_t	   keysym;
+	xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(conn);
+	xcb_keysym_t	   keysym  = 0;
 
-	if ((keysyms = xcb_key_symbols_alloc(conn)) == NULL) {
-		keysym = 0;
+	if (keysyms != NULL) {
+		keysym = xcb_key_symbols_get_keysym(keysyms, keycode, 0);
+		xcb_key_symbols_free(keysyms);
 	}
-
-	keysym = xcb_key_symbols_get_keysym(keysyms, keycode, 0);
-	xcb_key_symbols_free(keysyms);
 
 	return keysym;
 }
@@ -2333,7 +2328,7 @@ window_grab_buttons(xcb_window_t win)
 #undef _GRAB_BUTTON_
 }
 
-void
+static void
 window_ungrab_buttons(xcb_window_t win)
 {
 	xcb_void_cookie_t cookie = xcb_ungrab_button_checked(
@@ -2350,7 +2345,7 @@ window_ungrab_buttons(xcb_window_t win)
 	}
 }
 
-void
+static void
 ungrab_buttons_for_all(node_t *n)
 {
 	if (n == NULL)
@@ -2369,7 +2364,7 @@ ungrab_buttons_for_all(node_t *n)
 	ungrab_buttons_for_all(n->second_child);
 }
 
-int
+static int
 grab_keys(xcb_conn_t *conn, xcb_window_t win)
 {
 	if (conn == NULL || win == XCB_NONE) {
@@ -2430,43 +2425,8 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	is_kgrabbed = true;
 	return 0;
 }
-void
-grab_buttons(xcb_window_t win)
-{
 
-	xcb_void_cookie_t	 cookie;
-	xcb_generic_error_t *error;
-	//  XCB_BUTTON_INDEX_ANY = Any of the following(or none)
-	//  XCB_BUTTON_INDEX_1 = The left mouse button
-	//  XCB_BUTTON_INDEX_2 = The right mouse button
-	// 	XCB_BUTTON_INDEX_3 = The middle mouse button
-	// 	XCB_BUTTON_INDEX_4 =  Scroll wheel
-	// 	XCB_BUTTON_INDEX_5 = Scroll wheel
-	const size_t		 n = sizeof(buttons_) / sizeof(buttons_[0]);
-	for (size_t i = 0; i < n; ++i) {
-		cookie = xcb_grab_button_checked(wm->connection,
-										 false,
-										 win,
-										 XCB_EVENT_MASK_BUTTON_PRESS,
-										 XCB_GRAB_MODE_ASYNC,
-										 XCB_GRAB_MODE_ASYNC,
-										 wm->root_window,
-										 XCB_NONE,
-										 buttons_[i],
-										 XCB_MOD_MASK_ANY);
-		error  = xcb_request_check(wm->connection, cookie);
-		if (error) {
-			_LOG_(ERROR,
-				  "Error grabbing right mouse button: %d\n",
-				  error->error_code);
-			free(error);
-			return;
-		}
-	}
-
-	xcb_flush(wm->connection);
-}
-xcb_atom_t
+static xcb_atom_t
 get_atom(char *atom_name, xcb_conn_t *conn)
 {
 	xcb_intern_atom_cookie_t atom_cookie;
@@ -2484,7 +2444,7 @@ get_atom(char *atom_name, xcb_conn_t *conn)
 	return 0;
 }
 
-int
+static int
 send_client_message(xcb_window_t win,
 					xcb_atom_t	 property,
 					xcb_atom_t	 value,
@@ -2523,7 +2483,7 @@ close_or_kill_wrapper()
 	return close_or_kill(win);
 }
 
-int
+static int
 close_or_kill(xcb_window_t win)
 {
 	xcb_atom_t wm_delete = get_atom("WM_DELETE_WINDOW", wm->connection);
@@ -2566,7 +2526,7 @@ close_or_kill(xcb_window_t win)
 	return 0;
 }
 
-void
+static void
 ungrab_keys(xcb_conn_t *conn, xcb_window_t win)
 {
 	if (conn == NULL || win == XCB_NONE) {
@@ -2583,7 +2543,7 @@ ungrab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 }
 
-void
+static void
 map_floating(xcb_window_t x)
 {
 	rectangle_t				  rc = {0};
@@ -2603,7 +2563,7 @@ map_floating(xcb_window_t x)
 	xcb_map_window(wm->connection, x);
 }
 
-int
+static int
 kill_window(xcb_window_t win)
 {
 	if (win == XCB_NONE) {
@@ -2800,60 +2760,7 @@ exec_process(arg_t *arg)
 	return 0;
 }
 
-void
-shift_cmd(xcb_key_press_event_t *key_event)
-{
-	xcb_keysym_t k = get_keysym(key_event->detail, wm->connection);
-	xcb_window_t w =
-		get_window_under_cursor(wm->connection, wm->root_window);
-
-	if (w == wm->root_window)
-		return;
-
-	int d = get_focused_desktop_idx();
-	if (d == -1)
-		return;
-
-	node_t *root = cur_monitor->desktops[d]->tree;
-	node_t *node = find_node_by_window_id(root, w);
-
-	for (int i = 1; i <= cur_monitor->n_of_desktops; ++i) {
-		if (k == (xcb_keysym_t)(XK_0 + i)) {
-			if (d == i - 1) {
-				return;
-			}
-			desktop_t *nd = cur_monitor->desktops[i - 1];
-			desktop_t *od = cur_monitor->desktops[d];
-			if (hide_window(node->client->window) != 0) {
-				return;
-			}
-			unlink_node(node, od);
-			transfer_node(node, nd);
-			if (render_tree(od->tree) != 0) {
-				return;
-			}
-			break;
-		}
-	}
-}
-
-void
-polybar_exec(char *dir)
-{
-	pid_t pid = fork();
-
-	if (pid == -1) {
-		perror("fork");
-		exit(EXIT_FAILURE);
-	} else if (pid == 0) {
-		char *args[] = {"polybar", "-c", (char *)dir, NULL};
-		execvp("polybar", args);
-		perror("execvp");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void
+static void
 update_focused_desktop(int id)
 {
 	if (cur_monitor == NULL) {
@@ -2912,7 +2819,7 @@ out:
 	return render_tree(tree);
 }
 
-int
+static int
 switch_desktop(const int nd)
 {
 	if (nd > conf.virtual_desktops) {
@@ -2985,7 +2892,7 @@ switch_desktop(const int nd)
 	return 0;
 }
 
-void
+static void
 log_monitors(void)
 {
 	monitor_t *current_monitor = head_monitor;
@@ -3005,33 +2912,21 @@ log_monitors(void)
 int
 cycle_desktop_wrapper(arg_t *arg)
 {
-	direction_t d		= arg->d;
-	int			current = get_focused_desktop_idx();
+	int current = get_focused_desktop_idx();
 	if (current == -1) {
-		_LOG_(ERROR, "cannot find current desktop");
+		_LOG_(ERROR, "Cannot find current desktop");
 		return -1;
 	}
-	int next = current;
-	if (current == -1)
-		return current;
-	if (d == RIGHT) {
-		next += 1;
-	} else if (d == LEFT) {
-		next -= 1;
-	}
 
-	if (next >= cur_monitor->n_of_desktops) {
-		next = 0;
-	} else if (next < 0) {
-		next = cur_monitor->n_of_desktops - 1;
-	}
+	int n_desktops = cur_monitor->n_of_desktops;
+	int next =
+		(current + (arg->d == RIGHT ? 1 : -1) + n_desktops) % n_desktops;
 
 	switch_desktop(next);
-
 	return render_tree(cur_monitor->desktops[next]->tree);
 }
 
-int
+static int
 set_active_window_name(xcb_window_t win)
 {
 	xcb_void_cookie_t aw_cookie =
@@ -3048,7 +2943,7 @@ set_active_window_name(xcb_window_t win)
 	return 0;
 }
 
-int
+static int
 set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 {
 	const long		  data[] = {state, XCB_NONE};
@@ -3067,7 +2962,7 @@ set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 	return 0;
 }
 
-bool
+static bool
 should_manage(xcb_window_t win, xcb_conn_t *conn)
 {
 	xcb_get_window_attributes_cookie_t attr_cookie;
@@ -3085,7 +2980,7 @@ should_manage(xcb_window_t win, xcb_conn_t *conn)
 	return manage;
 }
 
-int
+static int
 apply_floating_hints(xcb_window_t win)
 {
 	xcb_get_property_cookie_t c =
@@ -3113,7 +3008,7 @@ apply_floating_hints(xcb_window_t win)
 	return -1;
 }
 
-int
+static int
 window_type(xcb_window_t win)
 {
 	xcb_ewmh_get_atoms_reply_t w_type;
@@ -3206,7 +3101,7 @@ window_type(xcb_window_t win)
 	return -1;
 }
 
-bool
+static bool
 should_ignore_hints(xcb_window_t win, const char *name)
 {
 	xcb_icccm_get_wm_class_reply_t t_reply;
@@ -3219,11 +3114,12 @@ should_ignore_hints(xcb_window_t win, const char *name)
 			xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 			return true;
 		}
+		xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 	}
 	return false;
 }
 
-bool
+static bool
 window_exists(xcb_conn_t *conn, xcb_window_t win)
 {
 	xcb_query_tree_cookie_t c = xcb_query_tree(conn, win);
@@ -3238,7 +3134,7 @@ window_exists(xcb_conn_t *conn, xcb_window_t win)
 	return true;
 }
 
-bool
+static bool
 is_transient(xcb_window_t win)
 {
 	xcb_window_t			  transient = XCB_NONE;
@@ -3257,7 +3153,7 @@ is_transient(xcb_window_t win)
 	return false;
 }
 
-int
+static int
 handle_first_window(client_t *client, desktop_t *d)
 {
 	rectangle_t	   r = {0};
@@ -3293,7 +3189,7 @@ handle_first_window(client_t *client, desktop_t *d)
 	return tile(d->tree);
 }
 
-int
+static int
 handle_subsequent_window(client_t *client, desktop_t *d)
 {
 	xcb_window_t wi =
@@ -3352,7 +3248,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	return render_tree(d->tree);
 }
 
-int
+static int
 handle_floating_window(client_t *client, desktop_t *d)
 {
 	xcb_window_t wi =
@@ -3400,7 +3296,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 	return render_tree(d->tree);
 }
 
-int
+static int
 insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 {
 	desktop_t *d = cur_monitor->desktops[--idx];
@@ -3497,7 +3393,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 	return 0;
 }
 
-int
+static int
 handle_map_request(const xcb_map_request_event_t *ev)
 {
 	xcb_window_t win = ev->window;
@@ -3564,7 +3460,7 @@ handle_map_request(const xcb_map_request_event_t *ev)
 	}
 }
 
-int
+static int
 handle_tiled_window_request(xcb_window_t win, desktop_t *d)
 {
 	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
@@ -3585,7 +3481,7 @@ handle_tiled_window_request(xcb_window_t win, desktop_t *d)
 	return handle_subsequent_window(client, d);
 }
 
-int
+static int
 handle_floating_window_request(xcb_window_t win, desktop_t *d)
 {
 #ifdef _DEBUG__
@@ -3607,7 +3503,7 @@ handle_floating_window_request(xcb_window_t win, desktop_t *d)
 	return handle_floating_window(client, d);
 }
 
-int
+static int
 handle_bar_request(xcb_window_t win, desktop_t *d)
 {
 	if (wm->bar != NULL) {
@@ -3649,7 +3545,7 @@ handle_bar_request(xcb_window_t win, desktop_t *d)
 	return 0;
 }
 
-int
+static int
 handle_enter_notify(const xcb_enter_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
@@ -3754,7 +3650,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	return 0;
 }
 
-int
+static int
 handle_leave_notify(const xcb_leave_notify_event_t *ev)
 {
 	if (!conf.focus_follow_pointer) {
@@ -3815,7 +3711,7 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 	return 0;
 }
 
-void
+static void
 handle_key_press(const xcb_key_press_event_t *key_press)
 {
 	uint16_t	 cleaned_state = (key_press->state & ~(XCB_MOD_MASK_LOCK));
@@ -3857,7 +3753,7 @@ handle_key_press(const xcb_key_press_event_t *key_press)
 	}
 }
 
-int
+static int
 handle_state(node_t		 *n,
 			 xcb_atom_t	  state,
 			 xcb_atom_t	  state_,
@@ -3918,7 +3814,7 @@ handle_state(node_t		 *n,
 	return 0;
 }
 
-int
+static int
 handle_client_message(const xcb_client_message_event_t *client_message)
 {
 
@@ -3999,7 +3895,7 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 	return 0;
 }
 
-int
+static int
 handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 {
 	xcb_window_t win = ev->window;
@@ -4046,7 +3942,7 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 	return 0;
 }
 
-void
+static void
 handle_configure_request(const xcb_configure_request_event_t *e)
 {
 	xcb_window_t						win = e->window;
@@ -4133,7 +4029,7 @@ handle_configure_request(const xcb_configure_request_event_t *e)
 	}
 }
 
-int
+static int
 handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 {
 	xcb_window_t win = ev->event;
@@ -4180,7 +4076,7 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 	return 0;
 }
 
-void
+static void
 update_grabbed_window(node_t *root, node_t *n)
 {
 	if (root == NULL)
@@ -4196,7 +4092,7 @@ update_grabbed_window(node_t *root, node_t *n)
 	update_grabbed_window(root->second_child, n);
 }
 
-void
+static void
 handle_button_press_event(const xcb_button_press_event_t *ev)
 {
 	if (conf.focus_follow_pointer) {
@@ -4291,7 +4187,7 @@ handle_button_press_event(const xcb_button_press_event_t *ev)
 	xcb_flush(wm->connection);
 }
 
-int
+static int
 handle_mapping_notify(const xcb_mapping_notify_event_t *e)
 {
 	if (e->request != XCB_MAPPING_KEYBOARD &&
@@ -4312,7 +4208,7 @@ handle_mapping_notify(const xcb_mapping_notify_event_t *e)
 	return 0;
 }
 
-void
+static void
 log_children(xcb_conn_t *conn, xcb_window_t root_window)
 {
 	xcb_query_tree_cookie_t tree_cookie =
@@ -4344,19 +4240,7 @@ log_children(xcb_conn_t *conn, xcb_window_t root_window)
 	free(tree_reply);
 }
 
-void
-free_desktops(desktop_t **d, int n)
-{
-	for (int i = 0; i < n; ++i) {
-		free_tree(d[i]->tree);
-		free(d[i]);
-		d[i] = NULL;
-	}
-	free(d);
-	d = NULL;
-}
-
-void
+static void
 parse_args(int argc, char **argv)
 {
 	// quick and dirty approach
@@ -4371,7 +4255,7 @@ parse_args(int argc, char **argv)
 	exec_process(&((arg_t){.argc = 1, .cmd = (char *[]){c}}));
 }
 
-void
+static void
 event_loop(wm_t *w)
 {
 	xcb_generic_event_t *event;
@@ -4513,8 +4397,8 @@ event_loop(wm_t *w)
 	}
 }
 
-void
-cleanup(void)
+static void
+cleanup(int sig)
 {
 	xcb_disconnect(wm->connection);
 	xcb_ewmh_connection_wipe(wm->ewmh);
@@ -4523,6 +4407,8 @@ cleanup(void)
 	free_monitors(); // frees desktops and trees as well
 	free(wm);
 	wm = NULL;
+	_LOG_(INFO, "ZWM exits with signal number %d", sig);
+	exit(sig);
 }
 
 int
@@ -4558,7 +4444,13 @@ main(int argc, char **argv)
 		_LOG_(ERROR, "cannot grab keys");
 	}
 
+	signal(SIGINT, cleanup);
+	signal(SIGTERM, cleanup);
+	signal(SIGSEGV, cleanup);
+	signal(SIGABRT, cleanup);
+
 	event_loop(wm);
-	cleanup();
+	cleanup(0);
+
 	return 0;
 }

@@ -44,6 +44,15 @@
 #include "type.h"
 #include "zwm.h"
 
+// clang-format off
+static void master_layout(node_t *parent, node_t *);
+static void stack_layout(node_t *parent);
+static void default_layout(node_t *parent);
+static node_t *find_tree_root(node_t *);
+static bool is_parent_null(const node_t *node);
+static void horizontal_resize(node_t *n, resize_t t);
+// clang-format on
+
 node_t *
 create_node(client_t *c)
 {
@@ -51,8 +60,10 @@ create_node(client_t *c)
 		return NULL;
 
 	node_t *node = (node_t *)malloc(sizeof(node_t));
-	if (node == 0x00)
+	if (node == 0x00) {
+		free(c);
 		return NULL;
+	}
 
 	node->client	   = c;
 	node->parent	   = NULL;
@@ -152,7 +163,7 @@ render_tree(node_t *node)
 	return 0;
 }
 
-int
+static int
 get_tree_level(node_t *node)
 {
 	if (node == NULL)
@@ -164,7 +175,7 @@ get_tree_level(node_t *node)
 	return 1 + MAX(level_first_child, level_second_child);
 }
 
-bool
+static bool
 has_floating_children(const node_t *parent)
 {
 	return (parent->first_child != NULL &&
@@ -175,7 +186,7 @@ has_floating_children(const node_t *parent)
 			IS_FLOATING(parent->second_child->client));
 }
 
-node_t *
+static node_t *
 get_floating_child(const node_t *parent)
 {
 	if (parent->first_child != NULL &&
@@ -193,7 +204,7 @@ get_floating_child(const node_t *parent)
 	return NULL;
 }
 
-void
+static void
 insert_floating_node(node_t *node, desktop_t *d)
 {
 	assert(IS_FLOATING(node->client));
@@ -209,7 +220,7 @@ insert_floating_node(node_t *node, desktop_t *d)
 	node->node_type = EXTERNAL_NODE;
 }
 
-void
+static void
 split_node(node_t *n, node_t *nd)
 {
 	if (IS_FLOATING(nd->client)) {
@@ -318,7 +329,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 	}
 }
 
-void
+static void
 arrange_tree(node_t *tree, layout_t l)
 {
 	switch (l) {
@@ -453,7 +464,7 @@ find_master_node(node_t *root)
 	return NULL;
 }
 
-node_t *
+static node_t *
 find_floating_node(node_t *root)
 {
 	if (root == NULL)
@@ -473,7 +484,7 @@ find_floating_node(node_t *root)
 	return NULL;
 }
 
-bool
+static bool
 is_sibling_floating(node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -489,7 +500,7 @@ is_sibling_floating(node_t *node)
 			IS_FLOATING(sibling->client));
 }
 
-void
+static void
 populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 {
 	if (root == NULL)
@@ -539,30 +550,23 @@ restackv2(node_t *root)
 		return;
 	}
 
-	// handle first child
 	if (root->first_child != NULL && root->first_child->client != NULL &&
 		IS_EXTERNAL(root->first_child)) {
 		if (IS_FLOATING(root->first_child->client)) {
-			// check if second child exists and is floating
 			if (root->second_child != NULL &&
 				root->second_child->client != NULL &&
 				IS_EXTERNAL(root->second_child) &&
 				IS_FLOATING(root->second_child->client)) {
-				// second floating child should be above the first floating
-				// child
 				window_below(root->first_child->client->window,
 							 root->second_child->client->window);
 			} else {
-				// only the first child is floating
 				raise_window(root->first_child->client->window);
 			}
 		} else {
-			// first child is not floating
 			lower_window(root->first_child->client->window);
 		}
 	}
 
-	// handle second child
 	if (root->second_child != NULL && root->second_child->client != NULL &&
 		IS_EXTERNAL(root->second_child)) {
 		if (IS_FLOATING(root->second_child->client)) {
@@ -570,13 +574,9 @@ restackv2(node_t *root)
 				root->first_child->client == NULL ||
 				!IS_EXTERNAL(root->first_child) ||
 				!IS_FLOATING(root->first_child->client)) {
-				// only the second child is floating
 				raise_window(root->second_child->client->window);
 			}
-			// if both are floating, the order is already handled in the
-			// first child block
 		} else {
-			// second child is not floating
 			lower_window(root->second_child->client->window);
 		}
 	}
@@ -585,7 +585,7 @@ restackv2(node_t *root)
 	restackv2(root->second_child);
 }
 
-bool
+static bool
 has_sibling(const node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -597,7 +597,7 @@ has_sibling(const node_t *node)
 	return (parent->first_child != NULL && parent->second_child != NULL);
 }
 
-bool
+static bool
 has_internal_sibling(const node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -611,7 +611,7 @@ has_internal_sibling(const node_t *node)
 			(IS_INTERNAL(parent->second_child)));
 }
 
-bool
+static bool
 is_sibling_external(const node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -626,7 +626,7 @@ is_sibling_external(const node_t *node)
 	return (sibling != NULL && IS_EXTERNAL(sibling));
 }
 
-node_t *
+static node_t *
 get_external_sibling(const node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -640,7 +640,7 @@ get_external_sibling(const node_t *node)
 	return (sibling != NULL && IS_EXTERNAL(sibling)) ? sibling : NULL;
 }
 
-bool
+static bool
 is_sibling_internal(const node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -655,7 +655,7 @@ is_sibling_internal(const node_t *node)
 	return (sibling != NULL && IS_INTERNAL(sibling));
 }
 
-node_t *
+static node_t *
 get_internal_sibling(node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -669,7 +669,7 @@ get_internal_sibling(node_t *node)
 	return (sibling != NULL && IS_INTERNAL(sibling)) ? sibling : NULL;
 }
 
-node_t *
+static node_t *
 get_sibling(node_t *node, node_type_t *type)
 {
 	if (node == NULL || node->parent == NULL) {
@@ -692,7 +692,7 @@ get_sibling(node_t *node, node_type_t *type)
 	return NULL;
 }
 
-bool
+static bool
 has_external_children(const node_t *parent)
 {
 	return (parent->first_child != NULL &&
@@ -701,7 +701,7 @@ has_external_children(const node_t *parent)
 			IS_EXTERNAL(parent->second_child));
 }
 
-node_t *
+static node_t *
 find_tree_root(node_t *node)
 {
 	if (IS_ROOT(node)) {
@@ -710,7 +710,7 @@ find_tree_root(node_t *node)
 	return find_tree_root(node->parent);
 }
 
-bool
+static bool
 has_single_external_child(const node_t *parent)
 {
 	if (parent == NULL)
@@ -726,7 +726,7 @@ has_single_external_child(const node_t *parent)
 			 !IS_EXTERNAL(parent->first_child)));
 }
 
-client_t *
+static client_t *
 find_client_by_window_id(node_t *root, xcb_window_t win)
 {
 	if (root == NULL)
@@ -826,7 +826,7 @@ apply_default_layout(node_t *root)
 	}
 }
 
-void
+static void
 default_layout(node_t *root)
 {
 	if (root == NULL)
@@ -894,7 +894,7 @@ apply_master_layout(node_t *parent)
 	}
 }
 
-void
+static void
 master_layout(node_t *root, node_t *n)
 {
 	const double   ratio		= 0.70;
@@ -933,7 +933,7 @@ master_layout(node_t *root, node_t *n)
 	apply_master_layout(root);
 }
 
-void
+static void
 master_clean_up(node_t *root)
 {
 	if (root == NULL)
@@ -970,7 +970,7 @@ apply_stack_layout(node_t *root)
 	}
 }
 
-void
+static void
 stack_layout(node_t *root)
 {
 	rectangle_t	   r = {0};
@@ -1044,7 +1044,7 @@ apply_layout(desktop_t *d, layout_t t)
 	}
 }
 
-int
+static int
 delete_node_with_external_sibling(node_t *node)
 {
 	/* node to delete = N, internal node = I, external node = E
@@ -1102,7 +1102,7 @@ delete_node_with_external_sibling(node_t *node)
 	return 0;
 }
 
-int
+static int
 delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 {
 	if (d == NULL) {
@@ -1206,7 +1206,7 @@ delete_node_with_internal_sibling(node_t *node, desktop_t *d)
 	return 0;
 }
 
-void
+static void
 delete_floating_node(node_t *node, desktop_t *d)
 {
 	if (node == NULL || node->client == NULL || d == NULL) {
@@ -1316,13 +1316,13 @@ out:
 	return;
 }
 
-bool
+static bool
 has_first_child(const node_t *parent)
 {
 	return parent->first_child != NULL;
 }
 
-bool
+static bool
 has_second_child(const node_t *parent)
 {
 	return parent->second_child != NULL;
@@ -1334,13 +1334,13 @@ is_tree_empty(const node_t *root)
 	return root == NULL;
 }
 
-bool
+static bool
 is_parent_null(const node_t *node)
 {
 	return node->parent == NULL;
 }
 
-bool
+static bool
 is_parent_internal(const node_t *node)
 {
 	return node->parent->node_type == INTERNAL_NODE;
@@ -1443,7 +1443,7 @@ client_exist(node_t *cn, xcb_window_t win)
 	return false;
 }
 
-bool
+static bool
 in_left_subtree(node_t *lc, node_t *n)
 {
 	if (lc == NULL)
@@ -1464,7 +1464,7 @@ in_left_subtree(node_t *lc, node_t *n)
 	return false;
 }
 
-bool
+static bool
 in_right_subtree(node_t *rc, node_t *n)
 {
 	if (rc == NULL)
@@ -1511,7 +1511,7 @@ horizontal_resize_wrapper(arg_t *arg)
 	return 0;
 }
 
-void
+static void
 horizontal_resize(node_t *n, resize_t t)
 {
 	const int16_t px			   = 5;
@@ -2154,7 +2154,7 @@ swap_node(node_t *n)
 	return 0;
 }
 
-bool
+static bool
 is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
 {
 	switch (d) {
@@ -2178,7 +2178,7 @@ is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
 	}
 }
 
-node_t *
+static node_t *
 find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 {
 	if (root == NULL)
@@ -2251,7 +2251,7 @@ cycle_win(node_t *node, direction_t d)
 	return neighbor;
 }
 
-bool
+static bool
 is_closer_node(node_t	  *current,
 			   node_t	  *new_node,
 			   node_t	  *node,
@@ -2277,7 +2277,7 @@ is_closer_node(node_t	  *current,
 	}
 }
 
-node_t *
+static node_t *
 find_neighbor(node_t *root, node_t *node, direction_t d)
 {
 	if (root == NULL || root == node)

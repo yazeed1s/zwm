@@ -69,7 +69,7 @@ typedef enum {
 rule_t	   *rule_head = NULL;
 conf_key_t *key_head  = NULL;
 
-void
+static void
 free_tokens(char **, int);
 
 // clang-format off
@@ -122,7 +122,7 @@ static key_mapper_t	 _kmapper_[] = {
 };
 // clang-format on
 
-int (*str_to_func(char *ch))(arg_t *)
+static int (*str_to_func(char *ch))(arg_t *)
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
@@ -145,7 +145,7 @@ func_to_str(int (*ptr)(arg_t *))
 	return NULL;
 }
 
-uint32_t
+static uint32_t
 str_to_key(char *ch)
 {
 	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
@@ -158,7 +158,7 @@ str_to_key(char *ch)
 	return -1;
 }
 
-char *
+static char *
 key_to_str(uint32_t val)
 {
 	int n = sizeof(_kmapper_) / sizeof(_kmapper_[0]);
@@ -171,7 +171,7 @@ key_to_str(uint32_t val)
 	return NULL;
 }
 
-int
+static int
 file_exists(const char *filename)
 {
 	FILE *file = fopen(filename, "r");
@@ -182,11 +182,11 @@ file_exists(const char *filename)
 	return 0;
 }
 
-void
+static void
 print_key_array(void)
 {
 	conf_key_t *current = key_head;
-	int c = 0;
+	int			c		= 0;
 	while (current != NULL) {
 		if (current->arg != NULL) {
 			if (current->arg->cmd != NULL) {
@@ -212,7 +212,7 @@ print_key_array(void)
 	}
 }
 
-int
+static int
 write_default_config(const char *filename, config_t *c)
 {
 	// clang-format off
@@ -408,7 +408,7 @@ const char *content =
 	return 0;
 }
 
-void
+static void
 trim(char *str, trim_token_t t)
 {
 	if (str == NULL) {
@@ -464,7 +464,8 @@ trim(char *str, trim_token_t t)
 	}
 }
 
-char **
+// caller must free using free_tokens(...)
+static char **
 split_string(const char *str, char delimiter, int *count)
 {
 	int i		   = 0;
@@ -509,7 +510,7 @@ split_string(const char *str, char delimiter, int *count)
 	return tokens;
 }
 
-void
+static void
 free_tokens(char **tokens, int count)
 {
 	if (tokens != NULL) {
@@ -524,7 +525,7 @@ free_tokens(char **tokens, int count)
 	tokens = NULL;
 }
 
-bool
+static bool
 key_exist(conf_key_t *key)
 {
 	conf_key_t *current = key_head;
@@ -539,16 +540,17 @@ key_exist(conf_key_t *key)
 	return false;
 }
 
-char *
+// caller must free
+static char *
 extract_body(const char *str)
 {
 	const char *start = strchr(str, '(');
-	if (!start) {
+	if (start == NULL) {
 		return NULL;
 	}
 
 	const char *end = strchr(start, ')');
-	if (!end) {
+	if (end == NULL) {
 		return NULL;
 	}
 	size_t length = end - start + 1;
@@ -563,7 +565,7 @@ extract_body(const char *str)
 	return result;
 }
 
-uint32_t
+static uint32_t
 parse_mod_key(char *mod)
 {
 #ifdef _DEBUG__
@@ -594,7 +596,7 @@ parse_mod_key(char *mod)
 	return mask;
 }
 
-uint32_t
+static uint32_t
 parse_keysym(char *keysym)
 {
 	uint32_t keysym_ = str_to_key(keysym);
@@ -606,7 +608,7 @@ parse_keysym(char *keysym)
 	return keysym_;
 }
 
-void
+static void
 err_cleanup(conf_key_t *k)
 {
 	if (k != NULL) {
@@ -626,7 +628,7 @@ err_cleanup(conf_key_t *k)
 	}
 }
 
-void
+static void
 build_run_func(char		  *func_param,
 			   conf_key_t *key,
 			   uint32_t	   mod,
@@ -678,7 +680,7 @@ build_run_func(char		  *func_param,
 	}
 }
 
-void
+static void
 set_key_args(conf_key_t *key, char *func, char *arg)
 {
 	if (strcmp(func, "cycle_window") == 0) {
@@ -732,7 +734,7 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 	}
 }
 
-int
+static int
 construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 {
 	bool	 run_func	= false;
@@ -841,7 +843,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	return 0;
 }
 
-int
+static int
 parse_keybinding(char *str, conf_key_t *key)
 {
 	if (strstr(str, "->") == NULL) {
@@ -893,7 +895,7 @@ parse_keybinding(char *str, conf_key_t *key)
 	return construct_key(mod, keysym, func, key);
 }
 
-conf_key_t *
+static conf_key_t *
 init_key(void)
 {
 	conf_key_t *key = (conf_key_t *)calloc(1, sizeof(conf_key_t));
@@ -911,7 +913,7 @@ init_key(void)
 	return key;
 }
 
-void
+static void
 add_key(conf_key_t **head, conf_key_t *k)
 {
 	if (*head == NULL) {
@@ -925,7 +927,7 @@ add_key(conf_key_t **head, conf_key_t *k)
 	current->next = k;
 }
 
-rule_t *
+static rule_t *
 init_rule(void)
 {
 	rule_t *rule = (rule_t *)calloc(1, sizeof(rule_t));
@@ -938,7 +940,7 @@ init_rule(void)
 	return rule;
 }
 
-void
+static void
 add_rule(rule_t **head, rule_t *r)
 {
 	if (*head == NULL) {
@@ -952,7 +954,7 @@ add_rule(rule_t **head, rule_t *r)
 	current->next = r;
 }
 
-void
+static void
 handle_exec_cmd(char *cmd)
 {
 #ifdef _DEBUG__
@@ -994,7 +996,7 @@ handle_exec_cmd(char *cmd)
 	}
 }
 
-int
+static int
 construct_rule(char *class,
 			   char	  *state,
 			   char	  *desktop_number,
@@ -1067,15 +1069,17 @@ get_window_rule(xcb_window_t win)
 		rule_t *current = rule_head;
 		while (current != NULL) {
 			if (strcasecmp(current->win_name, t_reply.class_name) == 0) {
+				xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 				return current;
 			}
 			current = current->next;
 		}
+		xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 	}
 	return NULL;
 }
 
-int
+static int
 parse_rule(char *value, rule_t *rule)
 {
 	if (value == NULL) {
@@ -1105,7 +1109,7 @@ parse_rule(char *value, rule_t *rule)
 	return result;
 }
 
-int
+static int
 parse_config_line(char *key, char *value, config_t *c)
 {
 	if (strcmp(key, "exec") == 0) {
@@ -1161,7 +1165,7 @@ parse_config_line(char *key, char *value, config_t *c)
 	return 0;
 }
 
-int
+static int
 parse_config(const char *filename, config_t *c)
 {
 	FILE *file = fopen(filename, "r");

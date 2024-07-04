@@ -38,8 +38,8 @@
 
 #define LOG_DIR		 "/.local/share/xorg"
 #define LOG_FILE	 "zwm.log"
-#define MAX_PATH_LEN 2 << 7
-#define MAX_LOG_SIZE (1024 * 1024) // 1MB
+#define MAX_PATH_LEN (2 << 7)
+#define MAX_LOG_SIZE (2 << 12) // ~8kb
 
 void
 log_message(log_level_t level, const char *format, ...)
@@ -68,24 +68,25 @@ log_message(log_level_t level, const char *format, ...)
 		initialized = true;
 	}
 
-	struct tm *ptr;
-	time_t	   t;
+	time_t	   t   = time(NULL);
+	struct tm *ptr = localtime(&t);
 	va_list	   args;
 	char	   buf[100];
 
-	t	= time(NULL);
-	ptr = localtime(&t);
 	strftime(buf, sizeof(buf), "%F/%I:%M:%S %p", ptr);
 
 	struct stat st;
-	if (stat(full_path, &st) == 0 && st.st_size >= MAX_LOG_SIZE) {
-		FILE *log_file = fopen(full_path, "w");
-		if (log_file != NULL) {
-			fclose(log_file);
+	FILE	   *log_file;
+	if (stat(full_path, &st) == 0) {
+		if (st.st_size >= MAX_LOG_SIZE) {
+			log_file = fopen(full_path, "w");
+		} else {
+			log_file = fopen(full_path, "a");
 		}
+	} else {
+		log_file = fopen(full_path, "a");
 	}
 
-	FILE *log_file = fopen(full_path, "a");
 	if (log_file == NULL) {
 		fprintf(stderr, "Failed to open log file for writing\n");
 		return;
@@ -106,10 +107,4 @@ log_message(log_level_t level, const char *format, ...)
 
 	fprintf(log_file, "\n");
 	fclose(log_file);
-}
-
-void
-log_window_id(xcb_window_t window, const char *message)
-{
-	log_message(DEBUG, "%s: Window ID: %u", message, window);
 }
