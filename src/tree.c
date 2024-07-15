@@ -898,28 +898,30 @@ static void
 master_layout(node_t *root, node_t *n)
 {
 	const double   ratio		= 0.70;
-	// uint64_t	 w			  = wm->screen->width_in_pixels;
-	// uint64_t	 h			  = wm->screen->height_in_pixels;
-	uint16_t	   w			= cur_monitor->rectangle.width;
-	uint16_t	   h			= cur_monitor->rectangle.height;
+	const uint16_t w			= cur_monitor->rectangle.width;
+	const uint16_t h			= cur_monitor->rectangle.height;
 	const uint16_t x			= cur_monitor->rectangle.x;
 	const uint16_t y			= cur_monitor->rectangle.y;
-	uint16_t	   master_width = w * ratio;
-	uint16_t	   r_width		= (uint16_t)(w * (1 - ratio));
+	const uint16_t master_width = w * ratio;
+	const uint16_t r_width		= (uint16_t)(w * (1 - ratio));
+	const uint16_t bar_height =
+		wm->bar == NULL ? 0 : wm->bar->rectangle.height;
+
 	if (n == NULL) {
 		n = find_left_leaf(root);
 		if (n == NULL) {
 			return;
 		}
 	}
-	n->is_master		= true;
-	uint16_t bar_height = wm->bar == NULL ? 0 : wm->bar->rectangle.height;
-	rectangle_t r1		= {
-			 .x		 = x + conf.window_gap,
-			 .y		 = (int16_t)(y + bar_height + conf.window_gap),
-			 .width	 = (uint16_t)(master_width - 2 * conf.window_gap),
-			 .height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
-	 };
+
+	n->is_master   = true;
+
+	rectangle_t r1 = {
+		.x		= x + conf.window_gap,
+		.y		= (int16_t)(y + bar_height + conf.window_gap),
+		.width	= (uint16_t)(master_width - 2 * conf.window_gap),
+		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+	};
 
 	rectangle_t r2 = {
 		.x		= (x + master_width),
@@ -927,6 +929,17 @@ master_layout(node_t *root, node_t *n)
 		.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
 		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
 	};
+
+	if (n->node_type == ROOT_NODE && n->first_child == NULL &&
+		n->second_child == NULL) {
+		n->rectangle = (rectangle_t){
+			.x		= x + conf.window_gap,
+			.y		= (int16_t)(y + bar_height + conf.window_gap),
+			.width	= (uint16_t)(w - 2 * conf.window_gap),
+			.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+		};
+		return;
+	}
 
 	n->rectangle	= r1;
 	root->rectangle = r2;
