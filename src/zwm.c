@@ -3282,8 +3282,10 @@ handle_floating_window(client_t *client, desktop_t *d)
 		return -1;
 	}
 
-	int			x  = (cur_monitor->rectangle.width / 2) - (g->width / 2);
-	int			y  = (cur_monitor->rectangle.height / 2) - (g->height / 2);
+	int x = cur_monitor->rectangle.x + (cur_monitor->rectangle.width / 2) -
+			(g->width / 2);
+	int y = cur_monitor->rectangle.y +
+			(cur_monitor->rectangle.height / 2) - (g->height / 2);
 	rectangle_t rc = {
 		.x = x, .y = y, .width = g->width, .height = g->height};
 	new_node->rectangle = new_node->floating_rectangle = rc;
@@ -4408,7 +4410,10 @@ cleanup(int sig)
 	free(wm);
 	wm = NULL;
 	_LOG_(INFO, "ZWM exits with signal number %d", sig);
-	exit(sig);
+
+	// uncommenting the following line *exit(sig)* prevents the os
+	// from generating a core dump file when zwm crashes
+	// exit(sig);
 }
 
 int
