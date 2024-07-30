@@ -147,11 +147,11 @@ cd zwm && sudo make install
 ### 1- Config variables
 ```ini
 border_width = 2
-active_border_color = 0x83a598
+active_border_color = 0x4a4a48
 normal_border_color = 0x30302f
 window_gap = 10
 virtual_desktops = 7
-focus_follow_pointer = false
+focus_follow_pointer = true
 ```
 ##### Available Variables:
 - **border_width**: Defines the width of the window borders in pixels.
@@ -219,6 +219,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 	- **cycle_desktop**: Cycles through the virtual desktops (left, right).
 	- **resize**: Adjusts the size of the focused window (grow, shrink).
 	- **reload_config**: Reloads the configuration file without restarting ZWM.
+	- **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
 
 - Default keys
 ```ini
@@ -241,6 +242,10 @@ bind = super + up -> func(cycle_window:up)
 bind = super + right -> func(cycle_window:right)
 bind = super + left -> func(cycle_window:left)
 bind = super + down -> func(cycle_window:down)
+bind = shift + up -> func(shift_window:up)
+bind = shift + right -> func(shift_window:right)
+bind = shift + left -> func(shift_window:left)
+bind = shift + down -> func(shift_window:down)
 bind = super|shift + left -> func(cycle_desktop:left)
 bind = super|shift + right -> func(cycle_desktop:right)
 bind = super|shift + 1 -> func(transfer_node:1)
@@ -285,6 +290,10 @@ More options will be added in the future as development progresses.
 | `super + ↓`       | focus window below              |
 | `super + shift + →`       | cycle desktop right             |
 | `super + shift + ←`       | cycle desktop left             |
+| `shift + ←`       | shift window to the left by 10px      |
+| `shift + ↑`       | shift window up by 10px              |
+| `shift + →`       | shift window to the right by 10px       |
+| `shift + ↓`       | shift window down by 10px              |
 
 ## ewmh specific settings for polyabr
 ### To display the window name (CLASS_NAME):
