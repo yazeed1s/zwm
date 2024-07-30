@@ -129,7 +129,11 @@ static const _key__t keys_[] = {
     {SUPER_MASK | SHIFT_MASK, XK_f,      flip_node_wrapper,   		NULL            		   },
     {SUPER_MASK | SHIFT_MASK, XK_r,      reload_config_wrapper,   	NULL            		   },
 	{SUPER_MASK | SHIFT_MASK, XK_Left, 	 cycle_desktop_wrapper, 	&((arg_t){.d = LEFT}) 	   },
-	{SUPER_MASK | SHIFT_MASK, XK_Right,  cycle_desktop_wrapper, 	&((arg_t){.d = RIGHT}) 	   }
+	{SUPER_MASK | SHIFT_MASK, XK_Right,  cycle_desktop_wrapper, 	&((arg_t){.d = RIGHT}) 	   },
+	{SHIFT_MASK,              XK_Left,   shift_floating_window,     &((arg_t){.d = LEFT})      },
+	{SHIFT_MASK,              XK_Right,  shift_floating_window,     &((arg_t){.d = RIGHT})     },
+	{SHIFT_MASK,              XK_Up,     shift_floating_window,     &((arg_t){.d = UP})        },
+	{SHIFT_MASK,              XK_Down,   shift_floating_window,     &((arg_t){.d = DOWN})      },
 };
 
 static const uint32_t buttons_[] = {
@@ -589,6 +593,77 @@ swap_node_wrapper()
 		return -1;
 
 	return render_tree(root);
+}
+
+int
+shift_floating_window(arg_t *arg)
+{
+	int idx = get_focused_desktop_idx();
+	if (idx == -1) {
+		_LOG_(ERROR, "Failed to shift node, cannot find focused desktop");
+		return -1;
+	}
+
+	node_t *root = cur_monitor->desktops[idx]->tree;
+	if (root == NULL)
+		return -1;
+
+	xcb_window_t w =
+		get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == wm->root_window)
+		return 0;
+
+	node_t *n = find_node_by_window_id(root, w);
+	if (n == NULL)
+		return -1;
+
+	if (n->client != NULL && n->client->state != FLOATING)
+		return 0;
+
+	const int16_t pxl			 = 10;
+	int16_t		  new_x			 = n->rectangle.x;
+	int16_t		  new_y			 = n->rectangle.y;
+	int16_t		  monitor_x		 = cur_monitor->rectangle.x;
+	int16_t		  monitor_y		 = cur_monitor->rectangle.y;
+	int16_t		  monitor_width	 = cur_monitor->rectangle.width;
+	int16_t		  monitor_height = cur_monitor->rectangle.height;
+
+	switch (arg->d) {
+	case LEFT:
+		new_x -= pxl;
+		if (new_x < monitor_x) {
+			return 0;
+		}
+		break;
+	case RIGHT:
+		new_x += pxl;
+		if (new_x + n->rectangle.width > monitor_x + monitor_width) {
+			return 0;
+		}
+		break;
+	case UP:
+		new_y -= pxl;
+		if (new_y < monitor_y) {
+			return 0;
+		}
+		break;
+	case DOWN:
+		new_y += pxl;
+		if (new_y + n->rectangle.height > monitor_y + monitor_height) {
+			return 0;
+		}
+		break;
+	case NONE: return 0;
+	}
+
+	if (move_window(n->client->window, new_x, new_y) != 0) {
+		return -1;
+	}
+
+	n->rectangle.x = new_x;
+	n->rectangle.y = new_y;
+
+	return 0;
 }
 
 int

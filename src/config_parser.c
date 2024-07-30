@@ -86,7 +86,8 @@ static conf_mapper_t _cmapper_[] = {
 	{"flip", 	            flip_node_wrapper},
 	{"cycle_window", 	    cycle_win_wrapper},
 	{"reload_config",   reload_config_wrapper},
-	{"cycle_desktop",   cycle_desktop_wrapper}
+	{"cycle_desktop",   cycle_desktop_wrapper},
+	{"shift_window", 	shift_floating_window},
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -234,7 +235,7 @@ const char *content =
     "; - border_width: defines the width of the window borders in pixels.\n"
     "border_width = 2\n"
     "; - active_border_color: specifies the color of the border for the active (focused) window.\n"
-    "active_border_color = 0x83a598\n"
+    "active_border_color = 0x4a4a48\n"
     "; - normal_border_color: specifies the color of the border for inactive (unfocused) windows.\n"
     "normal_border_color = 0x30302f\n"
     "; - window_gap: sets the gap between windows in pixels.\n"
@@ -303,6 +304,7 @@ const char *content =
     ";   - cycle_desktop: Cycles through the virtual desktops (left, right).\n"
     ";   - resize: Adjusts the size of the focused window (grow, shrink).\n"
     ";   - reload_config: Reloads the configuration file without restarting ZWM.\n"
+	";   - shift_window: Shift floating window position to the specified direction (up, down, left, right).\n"
     "\n"
     "; Define key bindings\n"
     "\n"
@@ -339,6 +341,12 @@ const char *content =
     "bind = super + left -> func(cycle_window:left)\n"
     "bind = super + down -> func(cycle_window:down)\n"
     "\n"
+	"; shift floating window position to the specified direction\n"
+    "bind = shift + up -> func(shift_window:up)\n"
+    "bind = shift + right -> func(shift_window:right)\n"
+    "bind = shift + left -> func(shift_window:left)\n"
+    "bind = shift + down -> func(shift_window:down)\n"
+ 	"\n"
     "; cycle through virtual desktops\n"
     "bind = super|shift + left -> func(cycle_desktop:left)\n"
     "bind = super|shift + right -> func(cycle_desktop:right)\n"
@@ -397,7 +405,7 @@ const char *content =
 		return -1;
 	}
 
-	c->active_border_color	= 0x83a598;
+	c->active_border_color	= 0x4a4a48;
 	c->normal_border_color	= 0x30302f;
 	c->border_width			= 2;
 	c->window_gap			= 10;
@@ -684,6 +692,16 @@ static void
 set_key_args(conf_key_t *key, char *func, char *arg)
 {
 	if (strcmp(func, "cycle_window") == 0) {
+		if (strcmp(arg, "up") == 0) {
+			key->arg->d = UP;
+		} else if (strcmp(arg, "right") == 0) {
+			key->arg->d = RIGHT;
+		} else if (strcmp(arg, "left") == 0) {
+			key->arg->d = LEFT;
+		} else if (strcmp(arg, "down") == 0) {
+			key->arg->d = DOWN;
+		}
+	} else if (strcmp(func, "shift_window") == 0) {
 		if (strcmp(arg, "up") == 0) {
 			key->arg->d = UP;
 		} else if (strcmp(arg, "right") == 0) {
