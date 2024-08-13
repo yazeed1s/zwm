@@ -543,6 +543,7 @@ restack(void)
 	clients = NULL;
 }
 
+// TODO: this function fails to restack floating windows of different parents
 void
 restackv2(node_t *root)
 {
