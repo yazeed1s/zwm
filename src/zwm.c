@@ -150,7 +150,6 @@ static void ungrab_keys(xcb_conn_t *, xcb_window_t);
 static int grab_keys(xcb_conn_t *, xcb_window_t);
 static desktop_t *init_desktop();
 static int ewmh_update_current_desktop(xcb_ewmh_connection_t *, int, uint32_t);
-static char *win_name(xcb_window_t);
 static int ewmh_update_number_of_desktops(void);
 static int set_active_window_name(xcb_window_t);
 static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
@@ -213,7 +212,7 @@ set_cursor(int cursor_id)
 }
 
 // caller must free
-static char *
+char *
 win_name(xcb_window_t win)
 {
 	xcb_icccm_get_text_property_reply_t t_reply;
@@ -281,6 +280,9 @@ static int
 ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh)
 {
 	pid_t			  wm_pid = getpid();
+	xcb_void_cookie_t supporting_cookie_root =
+		xcb_ewmh_set_supporting_wm_check_checked(
+			ewmh, wm->root_window, win);
 	xcb_void_cookie_t supporting_cookie =
 		xcb_ewmh_set_supporting_wm_check_checked(ewmh, win, win);
 	xcb_void_cookie_t name_cookie =
@@ -289,6 +291,14 @@ ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh)
 		xcb_ewmh_set_wm_pid_checked(ewmh, win, (uint32_t)wm_pid);
 
 	xcb_generic_error_t *err;
+	if ((err = xcb_request_check(ewmh->connection,
+								 supporting_cookie_root))) {
+		_LOG_(ERROR,
+			  "Error setting supporting window: %d\n",
+			  err->error_code);
+		free(err);
+		return -1;
+	}
 	if ((err = xcb_request_check(ewmh->connection, supporting_cookie))) {
 		_LOG_(ERROR,
 			  "Error setting supporting window: %d\n",
@@ -1131,6 +1141,20 @@ traverse_stack_wrapper(arg_t *arg)
 }
 
 static size_t
+get_active_clients_size_prime()
+{
+	size_t	   t	= 0;
+	monitor_t *curr = head_monitor;
+	while (curr != NULL) {
+		for (int i = 0; i < curr->n_of_desktops; ++i) {
+			t += curr->desktops[i]->n_count;
+		}
+		curr = curr->next;
+	}
+	return t;
+}
+
+static size_t
 get_active_clients_size(desktop_t **d, const int n)
 {
 	size_t t = 0;
@@ -1162,21 +1186,30 @@ ewmh_update_client_list(void)
 										  prim_monitor->n_of_desktops);
 	if (size == 0) {
 		xcb_ewmh_set_client_list(wm->ewmh, wm->screen_nbr, 0, NULL);
+		_LOG_(ERROR, "unable to get clients size");
 		return;
 	}
-	// xcb_window_t active_clients[size + 1];
+	// TODO handle stacking client list --
+	// xcb_ewmh_set_client_list_stacking(...)
+
+	//  xcb_window_t active_clients[size + 1];
 	xcb_window_t *active_clients =
 		(xcb_window_t *)malloc((size + 1) * sizeof(xcb_window_t));
 	if (active_clients == NULL) {
 		return;
 	}
-	size_t index = 0;
-	for (int i = 0; i < prim_monitor->n_of_desktops; ++i) {
-		node_t *root = prim_monitor->desktops[i]->tree;
-		populate_client_array(root, active_clients, &index);
+	size_t	   index = 0;
+	monitor_t *curr	 = head_monitor;
+	while (curr != NULL) {
+		for (int i = 0; i < curr->n_of_desktops; ++i) {
+			node_t *root = curr->desktops[i]->tree;
+			populate_client_array(root, active_clients, &index);
+		}
+		curr = curr->next;
 	}
 	xcb_ewmh_set_client_list(
 		wm->ewmh, wm->screen_nbr, size, active_clients);
+	_LOG_(DEBUG, "set client size done");
 	free(active_clients);
 	active_clients = NULL;
 }
@@ -1965,7 +1998,7 @@ setup_ewmh(void)
 		return false;
 	}
 
-	if (ewmh_set_supporting(meta_window, wm->ewmh) != 0) {
+	if (ewmh_set_supporting(wm->root_window, wm->ewmh) != 0) {
 		return false;
 	}
 
@@ -2693,7 +2726,7 @@ kill_window(xcb_window_t win)
 	}
 
 	delete_node(n, d);
-	// ewmh_update_client_list();
+	ewmh_update_client_list();
 
 	if (is_tree_empty(d->tree)) {
 		set_active_window_name(XCB_NONE);
@@ -3260,7 +3293,7 @@ handle_first_window(client_t *client, desktop_t *d)
 	d->tree->rectangle = r;
 	d->n_count += 1;
 
-	// ewmh_update_client_list();
+	ewmh_update_client_list();
 	return tile(d->tree);
 }
 
@@ -3319,7 +3352,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		set_focus(new_node, true);
 		d->top_w = new_node->client->window;
 	}
-	// ewmh_update_client_list();
+	ewmh_update_client_list();
 	return render_tree(d->tree);
 }
 
@@ -3368,7 +3401,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
-	// ewmh_update_client_list();
+	ewmh_update_client_list();
 
 	return render_tree(d->tree);
 }
@@ -3419,7 +3452,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 		d->tree->client	   = client;
 		d->tree->rectangle = r;
 		d->n_count += 1;
-		// ewmh_update_client_list();
+		ewmh_update_client_list();
 	} else {
 		node_t *n = NULL;
 		n		  = find_left_leaf(d->tree);
@@ -3465,7 +3498,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 			set_focus(new_node, true);
 			d->top_w = new_node->client->window;
 		}
-		// ewmh_update_client_list();
+		ewmh_update_client_list();
 	}
 	return 0;
 }

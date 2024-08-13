@@ -67,4 +67,5 @@ int 		 shift_floating_window(arg_t *arg);
 int          tile(node_t *node);
 int 		 set_focus(node_t *n, bool flag);
 int 		 swap_node_wrapper();
+char        *win_name(xcb_window_t);
 #endif // ZWM_ZWM_H
