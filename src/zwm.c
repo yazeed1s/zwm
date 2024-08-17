@@ -2671,6 +2671,44 @@ map_floating(xcb_window_t x)
 	xcb_map_window(wm->connection, x);
 }
 
+static void
+find_window_in_desktops(desktop_t  **curr_desktop,
+						node_t	   **curr_node,
+						xcb_window_t win)
+{
+	monitor_t *curr = head_monitor;
+	while (curr != NULL) {
+		for (int i = 0; i < cur_monitor->n_of_desktops; i++) {
+			desktop_t *d = cur_monitor->desktops[i];
+			node_t	  *n = find_node_by_window_id(d->tree, win);
+			if (n != NULL) {
+				*curr_desktop = d;
+				*curr_node	  = n;
+				_LOG_(DEBUG, "Window %d found in desktop %d", win, i);
+				return;
+			}
+		}
+		curr = curr->next;
+	}
+	_LOG_(ERROR, "Window %d not found in any desktop", win);
+}
+
+static bool
+client_exist_in_desktops(xcb_window_t win)
+{
+	monitor_t *curr = head_monitor;
+	while (curr != NULL) {
+		for (int i = 0; i < curr->n_of_desktops; ++i) {
+			if (!is_tree_empty(curr->desktops[i]->tree)) {
+				if (client_exist(curr->desktops[i]->tree, win))
+					return true;
+			}
+		}
+		curr = curr->next;
+	}
+	return false;
+}
+
 static int
 kill_window(xcb_window_t win)
 {
@@ -2709,8 +2747,13 @@ kill_window(xcb_window_t win)
 	client_t  *c = (n != NULL) ? n->client : NULL;
 
 	if (c == NULL) {
-		_LOG_(ERROR, "cannot find client with window %d", win);
-		return -1;
+		// window isn't in current desktop
+		find_window_in_desktops(&d, &n, win);
+		c = (n != NULL) ? n->client : NULL;
+		if (c == NULL) {
+			_LOG_(ERROR, "cannot find client with window %d", win);
+			return -1;
+		}
 	}
 
 	xcb_void_cookie_t cookie = xcb_unmap_window(wm->connection, c->window);
@@ -3705,8 +3748,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	if (!conf.focus_follow_pointer) {
 		if (has_floating_window(root)) {
-			// restack();
-			restackv2(root);
+			restack();
+			// restackv2(root);
 		}
 		if (IS_FULLSCREEN(n->client)) {
 			if (fullscreen_focus(n->client->window)) {
@@ -3728,8 +3771,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	}
 
 	if (IS_FLOATING(n->client)) {
-		// restack();
-		restackv2(root);
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
 				  "cannot focus window %d (enter)",
@@ -3752,8 +3793,8 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	update_focus(root, n);
 
 	if (has_floating_window(root)) {
-		// restack();
-		restackv2(root);
+		restack();
+		// restackv2(root);
 	}
 
 	xcb_flush(wm->connection);
@@ -4035,7 +4076,7 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 	if (root == NULL)
 		return 0;
 
-	if (!client_exist(root, win)) {
+	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);
