@@ -515,35 +515,105 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 	populate_win_array(root->second_child, arr, index);
 }
 
+static void
+stack_and_lower(node_t *root, node_t **stack, int *top, int max_size)
+{
+	if (root == NULL)
+		return;
+	if (root->client != NULL && !IS_INTERNAL(root) &&
+		IS_FLOATING(root->client)) {
+		if (*top < max_size - 1) {
+			stack[++(*top)] = root;
+		} else {
+			int		 size = max_size * 2;
+			node_t **s	  = realloc(stack, sizeof(node_t *) * size);
+			if (s == NULL) {
+				_LOG_(ERROR, "cannot reallocate stack");
+				return;
+			}
+			stack	 = s;
+			max_size = size;
+		}
+	} else if (root->client != NULL && !IS_INTERNAL(root) &&
+			   !IS_FLOATING(root->client)) { // non floating
+		lower_window(root->client->window);
+	}
+	stack_and_lower(root->first_child, stack, top, max_size);
+	stack_and_lower(root->second_child, stack, top, max_size);
+}
+
+static void
+sort(node_t **s, int n)
+{
+	// do quick sort instead?
+	for (int i = 0; i <= n; i++) {
+		for (int j = i + 1; j <= n; j++) {
+			int32_t area_i =
+				s[i]->rectangle.height * s[i]->rectangle.width;
+			int32_t area_j =
+				s[j]->rectangle.height * s[j]->rectangle.width;
+			if (area_j > area_i) {
+				// swap
+				node_t *temp = s[i];
+				s[i]		 = s[j];
+				s[j]		 = temp;
+			}
+		}
+	}
+}
+
 void
 restack(void)
 {
-	size_t size =
-		cur_monitor->desktops[get_focused_desktop_idx()]->n_count + 5;
-	if (size == 0) {
+	int idx = get_focused_desktop_idx();
+	if (idx == -1)
+		return;
+
+	node_t *root = cur_monitor->desktops[idx]->tree;
+	if (root == NULL)
+		return;
+
+	int		 stack_size = 5;
+	int		 top		= -1;
+
+	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
+
+	if (stack == NULL) {
+		_LOG_(ERROR, "cannot allocate stack");
 		return;
 	}
 
-	// xcb_window_t clients[size + 1];
-	xcb_window_t *clients =
-		(xcb_window_t *)malloc((size + 1) * sizeof(xcb_window_t));
-	if (clients == NULL) {
-		return;
+	stack_and_lower(root, stack, &top, stack_size);
+
+	if (top >= 0) {
+		sort(stack, top);
+
+		for (int i = 1; i <= top; i++) {
+			if (stack[i]->client && stack[i]->client->window &&
+				stack[i - 1]->client && stack[i - 1]->client->window) {
+				window_above(stack[i]->client->window,
+							 stack[i - 1]->client->window);
+			}
+		}
+
+#ifdef _DEBUG__
+		char *s	 = win_name(stack[0]->client->window);
+		char *ss = win_name(stack[top]->client->window);
+		_LOG_(DEBUG,
+			  "Largest floating window: %s, Smallest floating window: %s",
+			  s,
+			  ss);
+		free(s);
+		free(ss);
+#endif
 	}
-	size_t	index = 0;
-
-	node_t *root  = cur_monitor->desktops[get_focused_desktop_idx()]->tree;
-	populate_win_array(root, clients, &index);
-
-	for (size_t i = 1; i <= index; i++) {
-		window_above(clients[i], clients[i - 1]);
-	}
-
-	free(clients);
-	clients = NULL;
+	free(stack);
+	stack = NULL;
 }
 
-// TODO: this function fails to restack floating windows of different parents
+// TODO: this function fails to restack floating windows of different
+// parents
+// (fixed in restack(void))
 void
 restackv2(node_t *root)
 {
