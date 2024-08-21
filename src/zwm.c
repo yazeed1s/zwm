@@ -2707,7 +2707,8 @@ map_floating(xcb_window_t x)
 static void
 find_window_in_desktops(desktop_t  **curr_desktop,
 						node_t	   **curr_node,
-						xcb_window_t win)
+						xcb_window_t win,
+						bool		*found)
 {
 	monitor_t *curr = head_monitor;
 	while (curr != NULL) {
@@ -2717,6 +2718,7 @@ find_window_in_desktops(desktop_t  **curr_desktop,
 			if (n != NULL) {
 				*curr_desktop = d;
 				*curr_node	  = n;
+				*found		  = true;
 				_LOG_(DEBUG, "Window %d found in desktop %d", win, i);
 				return;
 			}
@@ -2749,6 +2751,11 @@ kill_window(xcb_window_t win)
 		return -1;
 	}
 
+	if (win == wm->root_window) {
+		_LOG_(INFO, "root window, returning %d", win);
+		return 0;
+	}
+
 	xcb_icccm_get_text_property_reply_t t_reply;
 	xcb_get_property_cookie_t			cn =
 		xcb_icccm_get_wm_name(wm->connection, win);
@@ -2765,23 +2772,19 @@ kill_window(xcb_window_t win)
 		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 	}
 
-	if (win == 0) {
-		return 0;
-	}
-
 	int curi = get_focused_desktop_idx();
 	if (curi == -1) {
 		_LOG_(ERROR, "cannot find focused desktop");
 		return curi;
 	}
 
-	desktop_t *d = cur_monitor->desktops[curi];
-	node_t	  *n = find_node_by_window_id(d->tree, win);
-	client_t  *c = (n != NULL) ? n->client : NULL;
-
+	desktop_t *d			   = cur_monitor->desktops[curi];
+	node_t	  *n			   = find_node_by_window_id(d->tree, win);
+	client_t  *c			   = (n != NULL) ? n->client : NULL;
+	bool	   another_desktop = false;
 	if (c == NULL) {
 		// window isn't in current desktop
-		find_window_in_desktops(&d, &n, win);
+		find_window_in_desktops(&d, &n, win, &another_desktop);
 		c = (n != NULL) ? n->client : NULL;
 		if (c == NULL) {
 			_LOG_(ERROR, "cannot find client with window %d", win);
@@ -2808,9 +2811,11 @@ kill_window(xcb_window_t win)
 		set_active_window_name(XCB_NONE);
 	}
 
-	if (render_tree(d->tree) != 0) {
-		_LOG_(ERROR, "cannot render tree");
-		return -1;
+	if (!another_desktop) {
+		if (render_tree(d->tree) != 0) {
+			_LOG_(ERROR, "cannot render tree");
+			return -1;
+		}
 	}
 
 	return 0;
@@ -4069,6 +4074,12 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 			  "wm_state _NET_WM_DESKTOP for %d name %s",
 			  client_message->window,
 			  s);
+	} else if (client_message->type == wm->ewmh->_NET_CLOSE_WINDOW) {
+		_LOG_(INFO,
+			  "wm_state _NET_CLOSE_WINDOW for %d name %s",
+			  client_message->window,
+			  s);
+		close_or_kill(client_message->window);
 	}
 	// TODO: ewmh->_NET_WM_STATE
 	// TODO: ewmh->_NET_CLOSE_WINDOW
@@ -4086,6 +4097,12 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 	int			 idx = get_focused_desktop_idx();
 	if (idx == -1)
 		return -1;
+
+#ifdef _DEBUG__
+	char *s = win_name(win);
+	_LOG_(DEBUG, "recieved unmap notify for %d, name %s ", win, s);
+	free(s);
+#endif
 
 	if (wm->bar != NULL && wm->bar->window == win) {
 		xcb_void_cookie_t cookie = xcb_unmap_window(wm->connection, win);
@@ -4216,10 +4233,16 @@ handle_configure_request(const xcb_configure_request_event_t *e)
 static int
 handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 {
-	xcb_window_t win = ev->event;
+	xcb_window_t win = ev->window;
 	int			 idx = get_focused_desktop_idx();
 	if (idx == -1)
 		return -1;
+
+#ifdef _DEBUG__
+	char *s = win_name(win);
+	_LOG_(DEBUG, "recieved destroy notify for %d, name %s ", win, s);
+	free(s);
+#endif
 
 	if (wm->bar != NULL && wm->bar->window == win) {
 		xcb_void_cookie_t cookie = xcb_unmap_window(wm->connection, win);
