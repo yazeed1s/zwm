@@ -60,6 +60,7 @@ int          hide_window(xcb_window_t win);
 int          get_focused_desktop_idx();
 int          show_window(xcb_window_t win);
 int 		 switch_desktop_wrapper(arg_t *arg);
+int 		 gap_handler(arg_t *arg);
 int 		 cycle_desktop_wrapper(arg_t *arg);
 int 	     close_or_kill_wrapper();
 int 		 traverse_stack_wrapper(arg_t *arg);

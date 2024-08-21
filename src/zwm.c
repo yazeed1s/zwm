@@ -134,6 +134,8 @@ static const _key__t keys_[] = {
 	{SHIFT_MASK,              XK_Right,  shift_floating_window,     &((arg_t){.d = RIGHT})     },
 	{SHIFT_MASK,              XK_Up,     shift_floating_window,     &((arg_t){.d = UP})        },
 	{SHIFT_MASK,              XK_Down,   shift_floating_window,     &((arg_t){.d = DOWN})      },
+    {SUPER_MASK,              XK_i,      gap_handler,               &((arg_t){.r = GROW})      },
+    {SUPER_MASK,              XK_d,      gap_handler,               &((arg_t){.r = SHRINK})    },
 };
 
 static const uint32_t buttons_[] = {
@@ -718,7 +720,7 @@ set_fullscreen(node_t *n, bool flag)
 		n->client->state = FULLSCREEN;
 		if (change_border_attr(wm->connection,
 							   n->client->window,
-							   NORMAL_BORDER_COLOR,
+							   conf.normal_border_color,
 							   0,
 							   false) != 0) {
 			return -1;
@@ -757,6 +759,13 @@ set_fullscreen(node_t *n, bool flag)
 					n->client->window,
 					wm->ewmh->_NET_WM_STATE,
 					wm->ewmh->_NET_WM_STATE_FULLSCREEN);
+	if (change_border_attr(wm->connection,
+						   n->client->window,
+						   conf.normal_border_color,
+						   conf.border_width,
+						   true) != 0) {
+		return -1;
+	}
 	// xcb_void_cookie_t c =
 	// 	xcb_delete_property_checked(wm->connection,
 	// 								n->client->window,
@@ -1056,6 +1065,30 @@ reload_config_wrapper()
 out:
 
 	render_tree(cur_monitor->desktops[get_focused_desktop_idx()]->tree);
+	xcb_flush(wm->connection);
+
+	return 0;
+}
+
+int
+gap_handler(arg_t *arg)
+{
+	const int pxl			   = 5;
+	conf.window_gap			   = arg->r == GROW ? conf.window_gap + pxl
+								 : conf.window_gap - pxl <= 0 ? 0
+															  : conf.window_gap - pxl;
+
+	monitor_t *current_monitor = head_monitor;
+	while (current_monitor != NULL) {
+		apply_monitor_layout_changes(current_monitor);
+		current_monitor = current_monitor->next;
+	}
+
+	int idx = get_focused_desktop_idx();
+	if (idx == -1)
+		return -1;
+
+	render_tree(cur_monitor->desktops[idx]->tree);
 	xcb_flush(wm->connection);
 
 	return 0;
@@ -4210,7 +4243,7 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 	if (root == NULL)
 		return 0;
 
-	if (!client_exist(root, win)) {
+	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);

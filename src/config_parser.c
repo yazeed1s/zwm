@@ -88,6 +88,7 @@ static conf_mapper_t _cmapper_[] = {
 	{"reload_config",   reload_config_wrapper},
 	{"cycle_desktop",   cycle_desktop_wrapper},
 	{"shift_window", 	shift_floating_window},
+	{"gap_handler", 			  gap_handler},
 }; 
 
 static key_mapper_t	 _kmapper_[] = { 
@@ -305,6 +306,7 @@ const char *content =
     ";   - resize: Adjusts the size of the focused window (grow, shrink).\n"
     ";   - reload_config: Reloads the configuration file without restarting ZWM.\n"
 	";   - shift_window: Shift floating window position to the specified direction (up, down, left, right).\n"
+	";   - gap_handler: Increase or decrease window gaps (GROW, SHRINK).\n"
     "\n"
     "; Define key bindings\n"
     "\n"
@@ -328,6 +330,10 @@ const char *content =
     "; resize the focused window\n"
     "bind = super + l -> func(resize:grow)\n"
     "bind = super + h -> func(resize:shrink)\n"
+    "\n"
+    "; change the gaps between windows\n"
+    "bind = super + i -> func(gap_handler:grow)\n"
+    "bind = super + d -> func(gap_handler:shrink)\n"
     "\n"
     "; toggle fullscreen mode\n"
     "bind = super + f -> func(fullscreen)\n"
@@ -728,6 +734,12 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 			key->arg->d = RIGHT;
 		}
 	} else if (strcmp(func, "resize") == 0) {
+		if (strcmp(arg, "grow") == 0) {
+			key->arg->r = GROW;
+		} else if (strcmp(arg, "shrink") == 0) {
+			key->arg->r = SHRINK;
+		}
+	} else if (strcmp(func, "gap_handler") == 0) {
 		if (strcmp(arg, "grow") == 0) {
 			key->arg->r = GROW;
 		} else if (strcmp(arg, "shrink") == 0) {
