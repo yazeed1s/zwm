@@ -220,6 +220,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 	- **resize**: Adjusts the size of the focused window (grow, shrink).
 	- **reload_config**: Reloads the configuration file without restarting ZWM.
 	- **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
+	- **gap_handler**: Increase or decrease window gaps (GROW, SHRINK).
 
 - Default keys
 ```ini
@@ -236,6 +237,8 @@ bind = super + 6 -> func(switch_desktop:6)
 bind = super + 7 -> func(switch_desktop:7)
 bind = super + l -> func(resize:grow)
 bind = super + h -> func(resize:shrink)
+bind = super + i -> func(gap_handler:grow)
+bind = super + d -> func(gap_handler:shrink)
 bind = super + f -> func(fullscreen)
 bind = super + s -> func(swap)
 bind = super + up -> func(cycle_window:up)
@@ -294,6 +297,8 @@ More options will be added in the future as development progresses.
 | `shift + ↑`       | shift window up by 10px              |
 | `shift + →`       | shift window to the right by 10px       |
 | `shift + ↓`       | shift window down by 10px              |
+| `super + i`       | increase window gaps by 5px       |
+| `super + d`       | decrease window gaps by 5px              |
 
 ## ewmh specific settings for polyabr
 ### To display the window name (CLASS_NAME):
