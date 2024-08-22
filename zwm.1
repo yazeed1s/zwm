@@ -1,0 +1,191 @@
+.TH ZWM 1 "August 2024" "1.0" "ZWM Manual"
+.SH NAME
+ZWM
+
+.SH SYNOPSIS
+.B zwm
+[\fIOPTIONS\fR]
+
+.SH DESCRIPTION
+.B zwm
+is a minimalistic and opinionated tiling window manager for X11. It uses XCB for communication with the X server and employs a customized BSP tree for managing windows.
+
+.SH CONFIGURATION
+A configuration file is generated on first run and located at:
+.TP
+~/.config/zwm/zwm.conf
+
+.TP
+Configuration variables:
+.nf
+border_width = 2
+active_border_color = 0x4a4a48
+normal_border_color = 0x30302f
+window_gap = 10
+virtual_desktops = 7
+focus_follow_pointer = true
+.fi
+
+.TP
+Commands to run on startup:
+.nf
+exec = "polybar"
+exec = ["polybar", "-c", ".config/polybar/config.ini"]
+.fi
+
+.TP
+Custom window rules:
+.nf
+rule = wm_class("window class name"), state(tiled|floated), desktop(1..N)
+.fi
+
+.TP
+Key bindings:
+.nf
+bind = super + return -> run("alacritty")
+bind = super + space -> run("dmenu_run")
+bind = super + p -> run(["rofi", "-show", "drun"])
+bind = super + w -> func(kill)
+bind = super + 1 -> func(switch_desktop:1)
+bind = super + l -> func(resize:grow)
+bind = super + h -> func(resize:shrink)
+bind = super + i -> func(gap_handler:grow)
+bind = super + d -> func(gap_handler:shrink)
+bind = super + f -> func(fullscreen)
+bind = super + s -> func(swap)
+bind = super + up -> func(cycle_window:up)
+bind = super + down -> func(cycle_window:down)
+bind = super + left -> func(cycle_window:left)
+bind = super + right -> func(cycle_window:right)
+bind = super|shift + left -> func(cycle_desktop:left)
+bind = super|shift + right -> func(cycle_desktop:right)
+bind = shift + up -> func(shift_window:up)
+bind = shift + down -> func(shift_window:down)
+bind = super|shift + m -> func(layout:master)
+bind = super|shift + s -> func(layout:stack)
+bind = super|shift + d -> func(layout:default)
+bind = super|shift + k -> func(traverse:up)
+bind = super|shift + j -> func(traverse:down)
+bind = super|shift + f -> func(flip)
+bind = super|shift + r -> func(reload_config)
+.fi
+
+.SH DEFAULT KEYBINDINGS
+.TP
+.B super + w
+ \- Kill/close window
+.TP
+.B super + return
+ \- Launch terminal (alacritty)
+.TP
+.B super + space
+ \- Launch dmenu
+.TP
+.B super + p
+ \- Launch rofi
+.TP
+.B super + [1..N]
+ \- Switch desktop
+.TP
+.B super + l
+ \- Resize window (grow/expand)
+.TP
+.B super + h
+ \- Resize window (shrink)
+.TP
+.B super + f
+ \- Toggle fullscreen
+.TP
+.B super + shift + [1..N]
+ \- Transfer window to a different desktop
+.TP
+.B super + shift + m
+ \- Toggle master layout
+.TP
+.B super + shift + s
+ \- Toggle stack layout
+.TP
+.B super + shift + d
+ \- Toggle default layout
+.TP
+.B super + shift + j/k
+ \- Traverse the stack
+.TP
+.B super + shift + f
+ \- Flip window/partition
+.TP
+.B super + shift + r
+ \- Hot-reload configuration
+.TP
+.B super + ←
+ \- Focus window on the left
+.TP
+.B super + ↑
+ \- Focus window above
+.TP
+.B super + →
+ \- Focus window on the right
+.TP
+.B super + ↓
+ \- Focus window below
+.TP
+.B shift + ←
+ \- Shift window to the left by 10px
+.TP
+.B shift + ↑
+ \- Shift window up by 10px
+.TP
+.B shift + →
+ \- Shift window to the right by 10px
+.TP
+.B shift + ↓
+ \- Shift window down by 10px
+.TP
+.B super + i
+ \- Increase window gaps by 5px
+.TP
+.B super + d
+ \- Decrease window gaps by 5px
+
+.SH EWMH SPECIFIC SETTINGS FOR POLYBAR
+To display the window name (CLASS_NAME):
+.nf
+[module/xwindow]
+type = internal/xwindow
+format = <label>
+label = %title%
+label-maxlen = 50
+label-empty = "[null]"
+.fi
+
+To display workspaces:
+.nf
+[module/ewmh]
+type = internal/xworkspaces
+label-active = %index%
+label-active-background = ${colors.bg}
+label-active-underline = ${colors.blue}
+label-active-padding = 1
+label-occupied = %index%
+label-occupied-padding = 1
+label-urgent = %index%!
+label-urgent-background = ${colors.red}
+label-urgent-padding = 1
+label-empty = %index%
+label-empty-foreground = ${colors.gray}
+label-empty-padding = 1
+label-separator = " "
+.fi
+
+.SH CONTRIBUTING
+To contribute to
+.B zwm
+or fix a bug, please submit a pull request on GitHub.
+
+.SH SEE ALSO
+.B polybar
+(1),
+.B bspwm
+(1),
+.B xprop
+(1)
