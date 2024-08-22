@@ -165,6 +165,8 @@ static int switch_desktop(const int);
 static int handle_tiled_window_request(xcb_window_t, desktop_t *);
 static int handle_floating_window_request(xcb_window_t, desktop_t *);
 static int handle_bar_request(xcb_window_t, desktop_t *);
+static int show_window(xcb_window_t win);
+static int hide_window(xcb_window_t win);
 // clang-format on
 
 static void
@@ -788,6 +790,7 @@ change_colors(node_t *root)
 
 	if (root->node_type != INTERNAL_NODE && root->client != NULL) {
 		if (win_focus(root->client->window, root->is_focused) != 0) {
+			_LOG_(ERROR, "cannot focus node");
 			return -1;
 		}
 	}
@@ -2822,6 +2825,56 @@ kill_window(xcb_window_t win)
 }
 
 int
+set_visibility(xcb_window_t win, bool is_visible)
+{
+	// zwm must NOT recieve events before mapping (showing) or unmapping
+	// (hiding) windows
+	// otherwise, it will recieve unmap/map notify and handle it as it
+	// should, this results in deleting or spanning the window that is
+	// meant to be hidden or shown
+	const uint32_t		 _off[] = {ROOT_EVENT_MASK &
+								   ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
+	const uint32_t		 _on[]	= {ROOT_EVENT_MASK};
+	xcb_generic_error_t *err;
+	xcb_void_cookie_t	 c;
+	int					 ret = 0;
+
+	// stop zwm from recieving events
+	c						 = xcb_change_window_attributes_checked(
+		   wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
+	err = xcb_request_check(wm->connection, c);
+	if (err != NULL) {
+		_LOG_(ERROR,
+			  "Cannot change root window %d attrs: error code %d",
+			  wm->root_window,
+			  err->error_code);
+		free(err);
+		return -1;
+	}
+
+	ret = is_visible ? show_window(win) : hide_window(win);
+	if (ret == -1) {
+		_LOG_(ERROR,
+			  "cannot set visibilty to %s",
+			  is_visible ? "true" : "false");
+	}
+
+	// subscribe for events again
+	c = xcb_change_window_attributes_checked(
+		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
+	err = xcb_request_check(wm->connection, c);
+	if (err != NULL) {
+		_LOG_(ERROR,
+			  "Cannot change root window %d attrs: error code %d",
+			  wm->root_window,
+			  err->error_code);
+		free(err);
+		return -1;
+	}
+	return 0;
+}
+
+static int
 show_window(xcb_window_t win)
 {
 	xcb_generic_error_t *err;
@@ -2830,6 +2883,27 @@ show_window(xcb_window_t win)
 	 * Mapped windows should be placed in NormalState, according to
 	 * the ICCCM.
 	 **/
+	const long			 data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
+	const xcb_atom_t	 wm_s	= get_atom("WM_STATE", wm->connection);
+	c	= xcb_change_property_checked(wm->connection,
+									  XCB_PROP_MODE_REPLACE,
+									  win,
+									  wm_s,
+									  wm_s,
+									  32,
+									  2,
+									  data);
+	err = xcb_request_check(wm->connection, c);
+
+	if (err != NULL) {
+		_LOG_(ERROR,
+			  "Cannot change window property %d: error code %d",
+			  win,
+			  err->error_code);
+		free(err);
+		return -1;
+	}
+
 	c	= xcb_map_window_checked(wm->connection, win);
 	err = xcb_request_check(wm->connection, c);
 
@@ -2841,34 +2915,10 @@ show_window(xcb_window_t win)
 		free(err);
 		return -1;
 	}
-
-	// set window property to NormalState
-	// XCB_ICCCM_WM_STATE_NORMAL
-	const long		 data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
-	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
-	c						= xcb_change_property_checked(wm->connection,
-									  XCB_PROP_MODE_REPLACE,
-									  win,
-									  wm_s,
-									  wm_s,
-									  32,
-									  2,
-									  data);
-	err						= xcb_request_check(wm->connection, c);
-
-	if (err != NULL) {
-		_LOG_(ERROR,
-			  "Cannot change window property %d: error code %d",
-			  win,
-			  err->error_code);
-		free(err);
-		return -1;
-	}
-
 	return 0;
 }
 
-int
+static int
 hide_window(xcb_window_t win)
 {
 	xcb_generic_error_t *err;
@@ -2880,22 +2930,9 @@ hide_window(xcb_window_t win)
 	 * communicate to pagers that the window should not be represented
 	 * as "onscreen."
 	 **/
-	c	= xcb_unmap_window_checked(wm->connection, win);
-	err = xcb_request_check(wm->connection, c);
-	if (err != NULL) {
-		_LOG_(ERROR,
-			  "Cannot hide window %d: error code %d",
-			  win,
-			  err->error_code);
-		free(err);
-		return -1;
-	}
-
-	// set window property to IconicState
-	// XCB_ICCCM_WM_STATE_ICONIC
-	const long		 data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
-	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
-	c						= xcb_change_property_checked(wm->connection,
+	const long			 data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
+	const xcb_atom_t	 wm_s	= get_atom("WM_STATE", wm->connection);
+	c	= xcb_change_property_checked(wm->connection,
 									  XCB_PROP_MODE_REPLACE,
 									  win,
 									  wm_s,
@@ -2903,7 +2940,7 @@ hide_window(xcb_window_t win)
 									  32,
 									  2,
 									  data);
-	err						= xcb_request_check(wm->connection, c);
+	err = xcb_request_check(wm->connection, c);
 
 	if (err != NULL) {
 		_LOG_(ERROR,
@@ -2914,6 +2951,16 @@ hide_window(xcb_window_t win)
 		return -1;
 	}
 
+	c	= xcb_unmap_window_checked(wm->connection, win);
+	err = xcb_request_check(wm->connection, c);
+	if (err != NULL) {
+		_LOG_(ERROR,
+			  "Cannot hide window %d: error code %d",
+			  win,
+			  err->error_code);
+		free(err);
+		return -1;
+	}
 	return 0;
 }
 
@@ -2969,6 +3016,7 @@ set_focus(node_t *n, bool flag)
 {
 	n->is_focused = flag;
 	if (win_focus(n->client->window, flag) != 0) {
+		_LOG_(ERROR, "cannot set focus");
 		return -1;
 	}
 
@@ -3023,24 +3071,6 @@ switch_desktop(const int nd)
 
 	update_focused_desktop(nd);
 
-	const uint32_t		 _off[] = {ROOT_EVENT_MASK &
-								   ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
-	const uint32_t		 _on[]	= {ROOT_EVENT_MASK};
-	xcb_generic_error_t *err;
-	xcb_void_cookie_t	 c;
-
-	c = xcb_change_window_attributes_checked(
-		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
-	err = xcb_request_check(wm->connection, c);
-	if (err != NULL) {
-		_LOG_(ERROR,
-			  "Cannot change root window %d attrs: error code %d",
-			  wm->root_window,
-			  err->error_code);
-		free(err);
-		return -1;
-	}
-
 	if (show_windows(cur_monitor->desktops[nd]->tree) != 0) {
 		return -1;
 	}
@@ -3052,18 +3082,6 @@ switch_desktop(const int nd)
 	set_active_window_name(XCB_NONE);
 	win_focus(focused_win, false);
 	focused_win = XCB_NONE;
-
-	c			= xcb_change_window_attributes_checked(
-		  wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
-	err = xcb_request_check(wm->connection, c);
-	if (err != NULL) {
-		_LOG_(ERROR,
-			  "Cannot change root window %d attrs: error code %d",
-			  wm->root_window,
-			  err->error_code);
-		free(err);
-		return -1;
-	}
 
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", nd + 1);

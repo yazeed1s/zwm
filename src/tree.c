@@ -1467,7 +1467,7 @@ hide_windows(node_t *cn)
 		return 0;
 
 	if (!IS_INTERNAL(cn) && cn->client != NULL) {
-		if (hide_window(cn->client->window) != 0) {
+		if (set_visibility(cn->client->window, false) != 0) {
 			return -1;
 		}
 
@@ -1493,7 +1493,7 @@ show_windows(node_t *cn)
 		return 0;
 
 	if (!IS_INTERNAL(cn) && cn->client != NULL) {
-		if (show_window(cn->client->window) != 0) {
+		if (set_visibility(cn->client->window, true) != 0) {
 			return -1;
 		}
 	}
@@ -1901,7 +1901,7 @@ transfer_node_wrapper(arg_t *arg)
 	xcb_window_t w =
 		get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window)
-		return -1;
+		return 0;
 
 	int d = get_focused_desktop_idx();
 	if (d == -1)
@@ -1912,6 +1912,7 @@ transfer_node_wrapper(arg_t *arg)
 	node_t	 *node = find_node_by_window_id(root, w);
 
 	if (d == i) {
+		_LOG_(INFO, "switch node to curr desktop... abort");
 		return 0;
 	}
 
@@ -1920,7 +1921,8 @@ transfer_node_wrapper(arg_t *arg)
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
 #endif
-	if (hide_window(node->client->window) != 0) {
+	if (set_visibility(node->client->window, false) != 0) {
+		_LOG_(ERROR, "cannot hide window %d", node->client->window);
 		return -1;
 	}
 	unlink_node(node, od);
@@ -1935,8 +1937,10 @@ transfer_node_wrapper(arg_t *arg)
 	nd->n_count++;
 
 	if (render_tree(od->tree) != 0) {
+		_LOG_(ERROR, "cannot render tree");
 		return -1;
 	}
+	// arrange_tree(nd->tree, nd->layout);
 	return 0;
 }
 
