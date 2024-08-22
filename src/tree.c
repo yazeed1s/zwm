@@ -1900,16 +1900,21 @@ transfer_node_wrapper(arg_t *arg)
 {
 	xcb_window_t w =
 		get_window_under_cursor(wm->connection, wm->root_window);
+	const int i = arg->idx;
+	int		  d = get_focused_desktop_idx();
+	
 	if (w == wm->root_window)
 		return 0;
 
-	int d = get_focused_desktop_idx();
 	if (d == -1)
 		return d;
 
-	const int i	   = arg->idx;
-	node_t	 *root = cur_monitor->desktops[d]->tree;
-	node_t	 *node = find_node_by_window_id(root, w);
+	if (is_tree_empty(cur_monitor->desktops[d]->tree)) {
+		return 0;
+	}
+
+	node_t *root = cur_monitor->desktops[d]->tree;
+	node_t *node = find_node_by_window_id(root, w);
 
 	if (d == i) {
 		_LOG_(INFO, "switch node to curr desktop... abort");
