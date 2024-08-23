@@ -10,6 +10,8 @@ LOCAL_TEST = -D__LTEST__=1
 TARGET = zwm
 PREFIX = /usr
 BINDIR = $(PREFIX)/bin
+MANDIR = $(PREFIX)/share/man/man1
+MANPAGE = zwm.1
 
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -23,9 +25,12 @@ clean:
 install: $(TARGET)
 	mkdir -p "$(DESTDIR)$(BINDIR)"
 	cp -pf $(TARGET) "$(DESTDIR)$(BINDIR)"
+	mkdir -p "$(DESTDIR)$(MANDIR)"
+	cp -pf $(MANPAGE) "$(DESTDIR)$(MANDIR)"
 
 uninstall:
-	rm -f "$(DESTDIR)$(BINDIR)"/$(TARGET)
+	rm -f "$(DESTDIR)$(BINDIR)/$(TARGET)"
+	rm -f "$(DESTDIR)$(MANDIR)/$(MANPAGE)"
 
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: clean $(TARGET)
