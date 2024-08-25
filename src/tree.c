@@ -303,6 +303,10 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 		node->is_master				 = false;
 		node->first_child->is_master = true;
 	}
+	if (node->is_focused) {
+		node->is_focused			  = false;
+		node->first_child->is_focused = true;
+	}
 
 	node->first_child->parent	 = node;
 	node->first_child->node_type = EXTERNAL_NODE;
@@ -1584,14 +1588,17 @@ horizontal_resize_wrapper(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	xcb_window_t w =
-		get_window_under_cursor(wm->connection, wm->root_window);
-	node_t *n = find_node_by_window_id(root, w);
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
-
+	// todo: if node was flipped, reize up or down instead
+	grab_pointer(wm->root_window,
+				 false); // steal the pointer and prevent it from sending
+						 // enter_notify events (which focuses the window
+						 // being under cursor as the resize happens);
 	horizontal_resize(n, arg->r);
 	render_tree(root);
+	ungrab_pointer();
 	return 0;
 }
 
@@ -1902,7 +1909,7 @@ transfer_node_wrapper(arg_t *arg)
 		get_window_under_cursor(wm->connection, wm->root_window);
 	const int i = arg->idx;
 	int		  d = get_focused_desktop_idx();
-	
+
 	if (w == wm->root_window)
 		return 0;
 

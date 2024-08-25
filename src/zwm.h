@@ -50,6 +50,8 @@ void 		 lower_window(xcb_window_t win);
 void         window_grab_buttons(xcb_window_t win);
 void 		 window_above(xcb_window_t, xcb_window_t);
 void 		 window_below(xcb_window_t, xcb_window_t);
+void         grab_pointer(xcb_window_t, bool);
+void         ungrab_pointer(void);
 int          set_visibility(xcb_window_t win, bool is_visible);
 int          exec_process(arg_t *arg);
 int 	     layout_handler(arg_t *arg);

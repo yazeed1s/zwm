@@ -112,6 +112,7 @@ static const _key__t keys_[] = {
 	{SUPER_MASK,              XK_Up,     cycle_win_wrapper,         &((arg_t){.d = UP})        },
 	{SUPER_MASK,              XK_Down,   cycle_win_wrapper,         &((arg_t){.d = DOWN})      },
 	{SUPER_MASK,              XK_l,      horizontal_resize_wrapper, &((arg_t){.r = GROW})      },
+	{SUPER_MASK,              XK_h,      horizontal_resize_wrapper, &((arg_t){.r = SHRINK})    },
 	{SUPER_MASK,              XK_f,      set_fullscreen_wrapper,    NULL                       },
 	{SUPER_MASK,              XK_s,      swap_node_wrapper,         NULL                       },
 	{SUPER_MASK | SHIFT_MASK, XK_1,      transfer_node_wrapper,     &((arg_t){.idx = 0})       },
@@ -622,12 +623,13 @@ shift_floating_window(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	xcb_window_t w =
-		get_window_under_cursor(wm->connection, wm->root_window);
-	if (w == wm->root_window)
-		return 0;
+	// xcb_window_t w =
+	// 	get_window_under_cursor(wm->connection, wm->root_window);
+	// if (w == wm->root_window)
+	// 	return 0;
 
-	node_t *n = find_node_by_window_id(root, w);
+	// node_t *n = find_node_by_window_id(root, w);
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
@@ -670,13 +672,14 @@ shift_floating_window(arg_t *arg)
 	case NONE: return 0;
 	}
 
+	grab_pointer(wm->root_window, false);
 	if (move_window(n->client->window, new_x, new_y) != 0) {
 		return -1;
 	}
 
 	n->rectangle.x = new_x;
 	n->rectangle.y = new_y;
-
+	ungrab_pointer();
 	return 0;
 }
 
@@ -2508,6 +2511,32 @@ ungrab_buttons_for_all(node_t *n)
 	ungrab_buttons_for_all(n->second_child);
 }
 
+void
+grab_pointer(xcb_window_t win, bool wants_events)
+{
+	xcb_grab_pointer_reply_t *reply;
+	xcb_grab_pointer_cookie_t cookie =
+		xcb_grab_pointer(wm->connection,
+						 wants_events,
+						 win,
+						 XCB_NONE,
+						 XCB_GRAB_MODE_SYNC,
+						 XCB_GRAB_MODE_ASYNC,
+						 XCB_NONE,
+						 XCB_NONE,
+						 XCB_CURRENT_TIME);
+	if ((reply = xcb_grab_pointer_reply(wm->connection, cookie, NULL))) {
+		if (reply->status != XCB_GRAB_STATUS_SUCCESS)
+			_LOG_(WARNING, "cannot grab the pointer\n");
+	}
+	free(reply);
+}
+
+void
+ungrab_pointer(void)
+{
+	xcb_ungrab_pointer(wm->connection, XCB_CURRENT_TIME);
+}
 static int
 grab_keys(xcb_conn_t *conn, xcb_window_t win)
 {
@@ -3391,6 +3420,7 @@ handle_first_window(client_t *client, desktop_t *d)
 	d->tree->client	   = client;
 	d->tree->rectangle = r;
 	d->n_count += 1;
+	set_focus(d->tree, true);
 
 	ewmh_update_client_list();
 	return tile(d->tree);
@@ -3833,6 +3863,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 				  n->client->window);
 			return -1;
 		}
+		n->is_focused = true;
 	} else if (IS_FULLSCREEN(n->client)) {
 		if (fullscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
