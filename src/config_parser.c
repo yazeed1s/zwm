@@ -73,54 +73,55 @@ static void
 free_tokens(char **, int);
 
 // clang-format off
-static conf_mapper_t _cmapper_[] = { 
- 	{"run", 					 exec_process}, 
- 	{"kill", 		    close_or_kill_wrapper}, 
- 	{"switch_desktop", switch_desktop_wrapper}, 
- 	{"resize", 		horizontal_resize_wrapper}, 
- 	{"fullscreen", 	   set_fullscreen_wrapper}, 
- 	{"swap", 				swap_node_wrapper}, 
- 	{"transfer_node", 	transfer_node_wrapper}, 
- 	{"layout", 				   layout_handler}, 
- 	{"traverse",       traverse_stack_wrapper}, 
+static conf_mapper_t _cmapper_[] = {
+ 	{"run", 					 exec_process},
+ 	{"kill", 		    close_or_kill_wrapper},
+ 	{"switch_desktop", switch_desktop_wrapper},
+ 	{"resize", 		horizontal_resize_wrapper},
+ 	{"fullscreen", 	   set_fullscreen_wrapper},
+ 	{"swap", 				swap_node_wrapper},
+ 	{"transfer_node", 	transfer_node_wrapper},
+ 	{"layout", 				   layout_handler},
+ 	{"traverse",       traverse_stack_wrapper},
 	{"flip", 	            flip_node_wrapper},
 	{"cycle_window", 	    cycle_win_wrapper},
 	{"reload_config",   reload_config_wrapper},
 	{"cycle_desktop",   cycle_desktop_wrapper},
 	{"shift_window", 	shift_floating_window},
 	{"gap_handler", 			  gap_handler},
-}; 
+	{"change_state",             change_state}
+};
 
-static key_mapper_t	 _kmapper_[] = { 
+static key_mapper_t	 _kmapper_[] = {
  	{"0", 0x0030}, {"1", 0x0031},
 	{"2", 0x0032}, {"3", 0x0033},
-	{"4", 0x0034}, {"5", 0x0035}, 
+	{"4", 0x0034}, {"5", 0x0035},
  	{"6", 0x0036}, {"7", 0x0037},
 	{"8", 0x0038}, {"9", 0x0039},
-	{"a", 0x0061}, {"b", 0x0062}, 
+	{"a", 0x0061}, {"b", 0x0062},
 	{"c", 0x0063}, {"d", 0x0064},
 	{"e", 0x0065}, {"f", 0x0066},
-	{"g", 0x0067}, {"h", 0x0068}, 
+	{"g", 0x0067}, {"h", 0x0068},
  	{"i", 0x0069}, {"j", 0x006a},
 	{"k", 0x006b}, {"l", 0x006c},
-	{"m", 0x006d}, {"n", 0x006e}, 
+	{"m", 0x006d}, {"n", 0x006e},
 	{"o", 0x006f}, {"p", 0x0070},
 	{"q", 0x0071}, {"r", 0x0072},
-	{"s", 0x0073}, {"t", 0x0074}, 
+	{"s", 0x0073}, {"t", 0x0074},
 	{"u", 0x0075}, {"v", 0x0076},
 	{"w", 0x0077}, {"x", 0x0078},
-	{"y", 0x0079}, {"z", 0x007a}, 
+	{"y", 0x0079}, {"z", 0x007a},
 	{"space", 	   	     0x0020},
 	{"return", 	         0xff0d},
 	{"left", 	   	     0xff51},
 	{"up", 	   	         0xff52},
-	{"right", 	         0xff53}, 
-	{"down", 	         0xff54}, 
- 	{"super",             SUPER}, 
- 	{"alt",                 ALT}, 
- 	{"ctrl",    		   CTRL}, 
- 	{"shift", 		      SHIFT}, 
-    {"sup+sh",      SUPER|SHIFT}, 
+	{"right", 	         0xff53},
+	{"down", 	         0xff54},
+ 	{"super",             SUPER},
+ 	{"alt",                 ALT},
+ 	{"ctrl",    		   CTRL},
+ 	{"shift", 		      SHIFT},
+    {"sup+sh",      SUPER|SHIFT},
 };
 // clang-format on
 
@@ -307,6 +308,7 @@ const char *content =
     ";   - reload_config: Reloads the configuration file without restarting ZWM.\n"
 	";   - shift_window: Shift floating window position to the specified direction (up, down, left, right).\n"
 	";   - gap_handler: Increase or decrease window gaps (GROW, SHRINK).\n"
+	";   - change_state: Set window state (FLAOTING, TILED).\n"
     "\n"
     "; Define key bindings\n"
     "\n"
@@ -334,6 +336,10 @@ const char *content =
     "; change the gaps between windows\n"
     "bind = super + i -> func(gap_handler:grow)\n"
     "bind = super + d -> func(gap_handler:shrink)\n"
+    "\n"
+    "; change window state\n"
+    "bind = shift + t -> func(change_state:tile)\n"
+    "bind = shift + f -> func(change_state:float)\n"
     "\n"
     "; toggle fullscreen mode\n"
     "bind = super + f -> func(fullscreen)\n"
@@ -760,6 +766,12 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 			key->arg->d = UP;
 		} else if (strcmp(arg, "down") == 0) {
 			key->arg->d = DOWN;
+		}
+	} else if (strcmp(func, "change_state") == 0) {
+		if (strcmp(arg, "float") == 0) {
+			key->arg->s = FLOATING;
+		} else if (strcmp(arg, "tile") == 0) {
+			key->arg->s = TILED;
 		}
 	}
 }

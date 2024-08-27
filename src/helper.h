@@ -39,6 +39,12 @@
 #define IS_INTERNAL(n)	 (n->node_type == INTERNAL_NODE)
 #define IS_ROOT(n)		 (n->node_type == ROOT_NODE)
 
+#define _FREE_(ptr)                                                       \
+	do {                                                                  \
+		free(ptr);                                                        \
+		ptr = NULL;                                                       \
+	} while (0)
+
 #define _LOG_(level, format, ...)                                         \
 	do {                                                                  \
 		log_message(level,                                                \
