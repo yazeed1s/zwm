@@ -241,6 +241,7 @@ typedef struct {
 	resize_t	r;
 	layout_t	t;
 	direction_t d;
+	state_t     s;
 } arg_t;
 
 typedef struct {

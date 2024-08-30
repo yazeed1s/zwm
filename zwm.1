@@ -44,9 +44,15 @@ Key bindings:
 .nf
 bind = super + return -> run("alacritty")
 bind = super + space -> run("dmenu_run")
-bind = super + p -> run(["rofi", "-show", "drun"])
+bind = super + p -> run(["rofi","-show", "drun"])
 bind = super + w -> func(kill)
 bind = super + 1 -> func(switch_desktop:1)
+bind = super + 2 -> func(switch_desktop:2)
+bind = super + 3 -> func(switch_desktop:3)
+bind = super + 4 -> func(switch_desktop:4)
+bind = super + 5 -> func(switch_desktop:5)
+bind = super + 6 -> func(switch_desktop:6)
+bind = super + 7 -> func(switch_desktop:7)
 bind = super + l -> func(resize:grow)
 bind = super + h -> func(resize:shrink)
 bind = super + i -> func(gap_handler:grow)
@@ -54,13 +60,24 @@ bind = super + d -> func(gap_handler:shrink)
 bind = super + f -> func(fullscreen)
 bind = super + s -> func(swap)
 bind = super + up -> func(cycle_window:up)
-bind = super + down -> func(cycle_window:down)
-bind = super + left -> func(cycle_window:left)
 bind = super + right -> func(cycle_window:right)
+bind = super + left -> func(cycle_window:left)
+bind = super + down -> func(cycle_window:down)
+bind = shift + up -> func(shift_window:up)
+bind = shift + right -> func(shift_window:right)
+bind = shift + left -> func(shift_window:left)
+bind = shift + down -> func(shift_window:down)
+bind = shift + t -> func(change_state:tile)
+bind = shift + f -> func(change_state:float)
 bind = super|shift + left -> func(cycle_desktop:left)
 bind = super|shift + right -> func(cycle_desktop:right)
-bind = shift + up -> func(shift_window:up)
-bind = shift + down -> func(shift_window:down)
+bind = super|shift + 1 -> func(transfer_node:1)
+bind = super|shift + 2 -> func(transfer_node:2)
+bind = super|shift + 3 -> func(transfer_node:3)
+bind = super|shift + 4 -> func(transfer_node:4)
+bind = super|shift + 5 -> func(transfer_node:5)
+bind = super|shift + 6 -> func(transfer_node:6)
+bind = super|shift + 7 -> func(transfer_node:7)
 bind = super|shift + m -> func(layout:master)
 bind = super|shift + s -> func(layout:stack)
 bind = super|shift + d -> func(layout:default)
@@ -140,6 +157,12 @@ bind = super|shift + r -> func(reload_config)
 .TP
 .B shift + ↓
  \- Shift window down by 10px
+.TP
+.B shift + t
+ \- Tile window
+.TP
+.B shift + f
+ \- Float window
 .TP
 .B super + i
  \- Increase window gaps by 5px

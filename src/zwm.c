@@ -137,6 +137,9 @@ static const _key__t keys_[] = {
 	{SHIFT_MASK,              XK_Down,   shift_floating_window,     &((arg_t){.d = DOWN})      },
     {SUPER_MASK,              XK_i,      gap_handler,               &((arg_t){.r = GROW})      },
     {SUPER_MASK,              XK_d,      gap_handler,               &((arg_t){.r = SHRINK})    },
+	{SHIFT_MASK,              XK_f,   	 change_state,              &((arg_t){.s = FLOATING})  },
+	{SHIFT_MASK,              XK_t,   	 change_state,              &((arg_t){.s = TILED})  },
+
 };
 
 static const uint32_t buttons_[] = {
@@ -168,6 +171,7 @@ static int handle_floating_window_request(xcb_window_t, desktop_t *);
 static int handle_bar_request(xcb_window_t, desktop_t *);
 static int show_window(xcb_window_t win);
 static int hide_window(xcb_window_t win);
+static xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *conn);
 // clang-format on
 
 static void
@@ -251,6 +255,110 @@ layout_handler(arg_t *arg)
 		return 0;
 	apply_layout(d, arg->t);
 	return render_tree(d->tree);
+}
+
+int
+change_state(arg_t *arg)
+{
+	xcb_window_t w =
+		get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == XCB_NONE)
+		return -1;
+
+	int		idx	 = get_focused_desktop_idx();
+	node_t *root = cur_monitor->desktops[idx]->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = find_node_by_window_id(root, w);
+	if (n == NULL)
+		return -1;
+
+	if (IS_ROOT(n))
+		return 0;
+
+	state_t state  = arg->s;
+	node_t *parent = n->parent;
+	if (state == TILED) {
+		// n->floating_rectangle = n->rectangle;
+		n->client->state = TILED;
+		if (n->rectangle.width >= n->rectangle.height) {
+			parent->first_child->rectangle.x = parent->rectangle.x;
+			parent->first_child->rectangle.y = parent->rectangle.y;
+			parent->first_child->rectangle.width =
+				(parent->rectangle.width -
+				 (conf.window_gap - conf.border_width)) /
+				2;
+			parent->first_child->rectangle.height =
+				parent->rectangle.height;
+
+			parent->second_child->rectangle.x =
+				(int16_t)(parent->rectangle.x +
+						  parent->first_child->rectangle.width +
+						  conf.window_gap + conf.border_width);
+			parent->second_child->rectangle.y = parent->rectangle.y;
+			parent->second_child->rectangle.width =
+				parent->rectangle.width -
+				parent->first_child->rectangle.width - conf.window_gap -
+				conf.border_width;
+			parent->second_child->rectangle.height =
+				parent->rectangle.height;
+		} else {
+			parent->first_child->rectangle.x	 = parent->rectangle.x;
+			parent->first_child->rectangle.y	 = parent->rectangle.y;
+			parent->first_child->rectangle.width = parent->rectangle.width;
+			parent->first_child->rectangle.height =
+				(parent->rectangle.height -
+				 (conf.window_gap - conf.border_width)) /
+				2;
+
+			parent->second_child->rectangle.x = parent->rectangle.x;
+			parent->second_child->rectangle.y =
+				(int16_t)(parent->rectangle.y +
+						  parent->first_child->rectangle.height +
+						  conf.window_gap + conf.border_width);
+			parent->second_child->rectangle.width =
+				parent->rectangle.width;
+			parent->second_child->rectangle.height =
+				parent->rectangle.height -
+				parent->first_child->rectangle.height - conf.window_gap -
+				conf.border_width;
+		}
+		if (IS_INTERNAL(parent->second_child)) {
+			resize_subtree(parent->second_child);
+		}
+		if (IS_INTERNAL(parent->first_child)) {
+			resize_subtree(parent->first_child);
+		}
+	} else if (state == FLOATING) {
+		xcb_get_geometry_reply_t *g =
+			get_geometry(n->client->window, wm->connection);
+		int h  = g->height / 2;
+		int wi = g->width / 2;
+		int x  = cur_monitor->rectangle.x +
+				(cur_monitor->rectangle.width / 2) - (wi / 2);
+		int y = cur_monitor->rectangle.y +
+				(cur_monitor->rectangle.height / 2) - (h / 2);
+		rectangle_t rc		  = {.x = x, .y = y, .width = wi, .height = h};
+		n->floating_rectangle = rc;
+		free(g);
+		n->client->state = FLOATING;
+		if (parent) {
+			if (parent->first_child == n) {
+				parent->second_child->rectangle = parent->rectangle;
+				if (IS_INTERNAL(parent->second_child)) {
+					resize_subtree(parent->second_child);
+				}
+			} else {
+				parent->first_child->rectangle = parent->rectangle;
+				if (IS_INTERNAL(parent->first_child)) {
+					resize_subtree(parent->first_child);
+				}
+			}
+		}
+	}
+
+	return render_tree(root);
 }
 
 static xcb_ewmh_connection_t *
@@ -637,8 +745,8 @@ shift_floating_window(arg_t *arg)
 		return 0;
 
 	const int16_t pxl			 = 10;
-	int16_t		  new_x			 = n->rectangle.x;
-	int16_t		  new_y			 = n->rectangle.y;
+	int16_t		  new_x			 = n->floating_rectangle.x;
+	int16_t		  new_y			 = n->floating_rectangle.y;
 	int16_t		  monitor_x		 = cur_monitor->rectangle.x;
 	int16_t		  monitor_y		 = cur_monitor->rectangle.y;
 	int16_t		  monitor_width	 = cur_monitor->rectangle.width;
@@ -653,7 +761,8 @@ shift_floating_window(arg_t *arg)
 		break;
 	case RIGHT:
 		new_x += pxl;
-		if (new_x + n->rectangle.width > monitor_x + monitor_width) {
+		if (new_x + n->floating_rectangle.width >
+			monitor_x + monitor_width) {
 			return 0;
 		}
 		break;
@@ -665,7 +774,8 @@ shift_floating_window(arg_t *arg)
 		break;
 	case DOWN:
 		new_y += pxl;
-		if (new_y + n->rectangle.height > monitor_y + monitor_height) {
+		if (new_y + n->floating_rectangle.height >
+			monitor_y + monitor_height) {
 			return 0;
 		}
 		break;
@@ -677,8 +787,8 @@ shift_floating_window(arg_t *arg)
 		return -1;
 	}
 
-	n->rectangle.x = new_x;
-	n->rectangle.y = new_y;
+	n->floating_rectangle.x = new_x;
+	n->floating_rectangle.y = new_y;
 	ungrab_pointer();
 	return 0;
 }
@@ -2307,10 +2417,18 @@ tile(node_t *node)
 		return -1;
 	}
 
-	const uint16_t width  = node->rectangle.width;
-	const uint16_t height = node->rectangle.height;
-	const int16_t  x	  = node->rectangle.x;
-	const int16_t  y	  = node->rectangle.y;
+	const uint16_t width  = node->client->state == FLOATING
+								? node->floating_rectangle.width
+								: node->rectangle.width;
+	const uint16_t height = node->client->state == FLOATING
+								? node->floating_rectangle.height
+								: node->rectangle.height;
+	const int16_t  x	  = node->client->state == FLOATING
+								? node->floating_rectangle.x
+								: node->rectangle.x;
+	const int16_t  y	  = node->client->state == FLOATING
+								? node->floating_rectangle.y
+								: node->rectangle.y;
 
 	if (resize_window(node->client->window, width, height) != 0 ||
 		move_window(node->client->window, x, y) != 0) {
