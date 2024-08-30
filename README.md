@@ -130,26 +130,33 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 
 ## Installation
 
-### Arch Linux (AUR)
-
-```
+#### Arch Linux (AUR)
+```bash
 yay -S zwm
 ```
 
-### Build from source
+#### Void Linux (XBPS-SRC)
 
-#### Dependencies
-
--   gcc
--   libxcb
--   xcb-util
--   xcb-util-keysyms
--   xcb-util-wm (ewmh,icccm)
--   lxcb-randr
--   lxcb-xinerama
--   lxcb-cursor
-
+Assuming you have [void-packages](https://github.com/void-linux/void-packages)
+```bash
+git clone https://github.com/elbachir-one/void-templates
+cp void-templates/zwm/ void-packages/srcpkgs/  # Copying the zwm/ directory that has the template
+cd void-packages/
+./xbps-src pkg zwm
+sudo xbps-install -R hostdir/binpkgs zwm
 ```
+
+#### Build from source
+##### Dependencies
+- gcc
+- libxcb
+- xcb-util
+- xcb-util-keysyms
+- xcb-util-wm (ewmh,icccm)
+- lxcb-randr 
+- lxcb-xinerama 
+- lxcb-cursor
+```bash
 git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && sudo make install
 ```
