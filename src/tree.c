@@ -224,7 +224,8 @@ static void
 split_node(node_t *n, node_t *nd)
 {
 	if (IS_FLOATING(nd->client)) {
-		n->first_child->rectangle = n->rectangle;
+		n->first_child->rectangle = n->first_child->floating_rectangle =
+			n->rectangle;
 	} else {
 		if (n->rectangle.width >= n->rectangle.height) {
 			n->first_child->rectangle.x = n->rectangle.x;
@@ -908,8 +909,6 @@ default_layout(node_t *root)
 		return;
 
 	rectangle_t	   r = {0};
-	// const uint16_t w = wm->screen->width_in_pixels;
-	// const uint16_t h = wm->screen->height_in_pixels;
 	uint16_t	   w = cur_monitor->rectangle.width;
 	uint16_t	   h = cur_monitor->rectangle.height;
 	const uint16_t x = cur_monitor->rectangle.x;
@@ -1062,8 +1061,6 @@ static void
 stack_layout(node_t *root)
 {
 	rectangle_t	   r = {0};
-	// const uint16_t w = wm->screen->width_in_pixels;
-	// const uint16_t h = wm->screen->height_in_pixels;
 	uint16_t	   w = cur_monitor->rectangle.width;
 	uint16_t	   h = cur_monitor->rectangle.height;
 	const uint16_t x = cur_monitor->rectangle.x;
