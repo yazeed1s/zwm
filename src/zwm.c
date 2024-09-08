@@ -270,7 +270,9 @@ change_state(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	node_t *n = find_node_by_window_id(root, w);
+	/* node_t *n = find_node_by_window_id(root, w); */
+	node_t *n = get_focused_node(root);
+
 	if (n == NULL)
 		return -1;
 
@@ -708,7 +710,9 @@ swap_node_wrapper()
 	if (w == wm->root_window) {
 		return 0;
 	}
-	node_t *n = find_node_by_window_id(root, w);
+	/* node_t *n = find_node_by_window_id(root, w); */
+	node_t *n = get_focused_node(root);
+
 	if (n == NULL)
 		return -1;
 
@@ -812,7 +816,8 @@ set_fullscreen_wrapper()
 	if (w == wm->root_window) {
 		return 0;
 	}
-	node_t *n = find_node_by_window_id(root, w);
+	/* node_t *n = find_node_by_window_id(root, w); */
+	node_t *n = get_focused_node(root);
 	n->client->state == FULLSCREEN ? set_fullscreen(n, false)
 								   : set_fullscreen(n, true);
 	return 0;
@@ -1219,8 +1224,11 @@ flip_node_wrapper()
 	if (w == wm->root_window)
 		return 0;
 
-	node_t *node = find_node_by_window_id(
-		cur_monitor->desktops[get_focused_desktop_idx()]->tree, w);
+	/* node_t *node = find_node_by_window_id( */
+	/* 	cur_monitor->desktops[get_focused_desktop_idx()]->tree, w); */
+
+	node_t *node = get_focused_node(
+		cur_monitor->desktops[get_focused_desktop_idx()]->tree);
 	if (node == NULL)
 		return -1;
 
@@ -1277,7 +1285,9 @@ traverse_stack_wrapper(arg_t *arg)
 		return i;
 
 	node_t *root = cur_monitor->desktops[i]->tree;
-	node_t *node = find_node_by_window_id(root, w);
+	/* node_t *node = find_node_by_window_id(root, w); */
+
+	node_t *node = get_focused_node(root);
 	node_t *n	 = d == UP ? next_node(node) : prev_node(node);
 
 	if (n == NULL) {
@@ -2219,7 +2229,7 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 
 	if (err) {
 		_LOG_(ERROR,
-			  "Error resizing window (ID %u): %d",
+			  "Error resizing window (ID %u): %s",
 			  win,
 			  err->error_code);
 		free(err);
@@ -2417,16 +2427,16 @@ tile(node_t *node)
 		return -1;
 	}
 
-	const uint16_t width  = node->client->state == FLOATING
+	const uint16_t width  = IS_FLOATING(node->client)
 								? node->floating_rectangle.width
 								: node->rectangle.width;
-	const uint16_t height = node->client->state == FLOATING
+	const uint16_t height = IS_FLOATING(node->client)
 								? node->floating_rectangle.height
 								: node->rectangle.height;
-	const int16_t  x	  = node->client->state == FLOATING
+	const int16_t  x	  = IS_FLOATING(node->client)
 								? node->floating_rectangle.x
 								: node->rectangle.x;
-	const int16_t  y	  = node->client->state == FLOATING
+	const int16_t  y	  = IS_FLOATING(node->client)
 								? node->floating_rectangle.y
 								: node->rectangle.y;
 
@@ -2443,7 +2453,7 @@ tile(node_t *node)
 			  "in mapping window %d: error code %d",
 			  node->client->window,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -2496,7 +2506,7 @@ display_client(rectangle_t r, xcb_window_t win)
 			  "in mapping window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -2517,7 +2527,7 @@ get_cursor_axis(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	int16_t x = p_reply->root_x;
-	free(p_reply);
+	_FREE_(p_reply);
 
 	return x;
 }
@@ -2535,7 +2545,7 @@ get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	xcb_window_t x = p_reply->child;
-	free(p_reply);
+	_FREE_(p_reply);
 
 	return x;
 }
@@ -2605,7 +2615,7 @@ window_ungrab_buttons(xcb_window_t win)
 			  "in ungrab buttons for window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return;
 	}
 }
@@ -2647,7 +2657,7 @@ grab_pointer(xcb_window_t win, bool wants_events)
 		if (reply->status != XCB_GRAB_STATUS_SUCCESS)
 			_LOG_(WARNING, "cannot grab the pointer\n");
 	}
-	free(reply);
+	_FREE_(reply);
 }
 
 void
@@ -2677,11 +2687,11 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 									 *key,
 									 XCB_GRAB_MODE_ASYNC,
 									 XCB_GRAB_MODE_ASYNC);
-			free(key);
+			_FREE_(key);
 			xcb_generic_error_t *err = xcb_request_check(conn, cookie);
 			if (err != NULL) {
 				_LOG_(ERROR, "error grabbing key %d\n", err->error_code);
-				free(err);
+				_FREE_(err);
 				return -1;
 			}
 			current = current->next;
@@ -2705,11 +2715,11 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 								 *key,
 								 XCB_GRAB_MODE_ASYNC,
 								 XCB_GRAB_MODE_ASYNC);
-		free(key);
+		_FREE_(key);
 		xcb_generic_error_t *err = xcb_request_check(conn, cookie);
 		if (err != NULL) {
 			_LOG_(ERROR, "error grabbing key %d\n", err->error_code);
-			free(err);
+			_FREE_(err);
 			return -1;
 		}
 	}
@@ -2729,7 +2739,7 @@ get_atom(char *atom_name, xcb_conn_t *conn)
 	rep = xcb_intern_atom_reply(conn, atom_cookie, NULL);
 	if (NULL != rep) {
 		atom = rep->atom;
-		free(rep);
+		_FREE_(rep);
 		return atom;
 	}
 	return 0;
@@ -2754,13 +2764,13 @@ send_client_message(xcb_window_t win,
 	xcb_generic_error_t *err = xcb_request_check(conn, c);
 	if (err != NULL) {
 		_LOG_(ERROR, "error sending event: %d\n", err->error_code);
-		free(e);
-		free(err);
+		_FREE_(e);
+		_FREE_(err);
 		return -1;
 	}
 
 	xcb_flush(conn);
-	free(e);
+	_FREE_(e);
 	return 0;
 }
 
@@ -2811,7 +2821,7 @@ close_or_kill(xcb_window_t win)
 			  "error closing window: %d, error: %d\n",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -2830,7 +2840,7 @@ ungrab_keys(xcb_conn_t *conn, xcb_window_t win)
 	xcb_generic_error_t *err = xcb_request_check(conn, cookie);
 	if (err != NULL) {
 		_LOG_(ERROR, "error ungrabbing keys: %d\n", err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 }
 
@@ -2848,7 +2858,7 @@ map_floating(xcb_window_t x)
 	rc.x	  = g->x;
 	rc.y	  = g->y;
 
-	free(g);
+	_FREE_(g);
 	resize_window(x, rc.width, rc.height);
 	move_window(x, rc.x, rc.y);
 	xcb_map_window(wm->connection, x);
@@ -2950,7 +2960,7 @@ kill_window(xcb_window_t win)
 			  "Error in unmapping window %d: error code %d",
 			  c->window,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -2995,7 +3005,7 @@ set_visibility(xcb_window_t win, bool is_visible)
 			  "Cannot change root window %d attrs: error code %d",
 			  wm->root_window,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -3015,7 +3025,7 @@ set_visibility(xcb_window_t win, bool is_visible)
 			  "Cannot change root window %d attrs: error code %d",
 			  wm->root_window,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -3047,7 +3057,7 @@ show_window(xcb_window_t win)
 			  "Cannot change window property %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -3059,7 +3069,7 @@ show_window(xcb_window_t win)
 			  "Cannot hide window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -3094,7 +3104,7 @@ hide_window(xcb_window_t win)
 			  "Cannot change window property %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -3105,7 +3115,7 @@ hide_window(xcb_window_t win)
 			  "Cannot hide window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -3170,7 +3180,9 @@ set_focus(node_t *n, bool flag)
 	flag ? raise_window(n->client->window)
 		 : lower_window(n->client->window);
 
-	return 0;
+	int r = set_active_window_name(n->client->window);
+
+	return r;
 }
 
 int
@@ -3186,7 +3198,7 @@ switch_desktop_wrapper(arg_t *arg)
 	node_t *tree = cur_monitor->desktops[arg->idx]->tree;
 	if (cur_monitor->desktops[arg->idx]->layout == STACK) {
 		if (cur_monitor->desktops[arg->idx]->top_w == XCB_NONE) {
-			_LOG_(ERROR, "Top window is empty");
+			_LOG_(ERROR, "top window is empty");
 			goto out;
 		}
 		// restack(tree);
@@ -3263,12 +3275,46 @@ log_monitors(void)
 	}
 }
 
+void
+fill_root_rectangle(rectangle_t *r)
+{
+	const uint16_t w = cur_monitor->rectangle.width;
+	const uint16_t h = cur_monitor->rectangle.height;
+	const uint16_t x = cur_monitor->rectangle.x;
+	const uint16_t y = cur_monitor->rectangle.y;
+	if (wm->bar != NULL && cur_monitor == prim_monitor) {
+		(*r).x		= x + conf.window_gap;
+		(*r).y		= y + wm->bar->rectangle.height + conf.window_gap;
+		(*r).width	= w - 2 * conf.window_gap - 2 * conf.border_width;
+		(*r).height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
+					  2 * conf.border_width;
+	} else {
+		(*r).x		= x + conf.window_gap;
+		(*r).y		= y + conf.window_gap;
+		(*r).width	= w - 2 * conf.window_gap - 2 * conf.border_width;
+		(*r).height = h - 2 * conf.window_gap - 2 * conf.border_width;
+	}
+}
+
+static void
+fill_floating_rectangle(xcb_get_geometry_reply_t *geometry, rectangle_t *r)
+{
+	int x = cur_monitor->rectangle.x + (cur_monitor->rectangle.width / 2) -
+			(geometry->width / 2);
+	int y = cur_monitor->rectangle.y +
+			(cur_monitor->rectangle.height / 2) - (geometry->height / 2);
+	(*r).x		= x;
+	(*r).y		= y;
+	(*r).width	= geometry->width;
+	(*r).height = geometry->height;
+}
+
 int
 cycle_desktop_wrapper(arg_t *arg)
 {
 	int current = get_focused_desktop_idx();
 	if (current == -1) {
-		_LOG_(ERROR, "Cannot find current desktop");
+		_LOG_(ERROR, "cnnot find current desktop");
 		return -1;
 	}
 
@@ -3289,8 +3335,8 @@ set_active_window_name(xcb_window_t win)
 		xcb_request_check(wm->connection, aw_cookie);
 
 	if (err) {
-		_LOG_(ERROR, "Error setting active window: %d\n", err->error_code);
-		free(err);
+		_LOG_(ERROR, "cannot setting active window: %d\n", err->error_code);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -3310,7 +3356,7 @@ set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 			  "in changing property window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -3330,7 +3376,7 @@ should_manage(xcb_window_t win, xcb_conn_t *conn)
 	}
 
 	bool manage = !attr_reply->override_redirect;
-	free(attr_reply);
+	_FREE_(attr_reply);
 	return manage;
 }
 
@@ -3358,6 +3404,23 @@ apply_floating_hints(xcb_window_t win)
 			// window should be floated
 			return 0;
 		}
+	}
+	return -1;
+}
+
+static int
+find_desktop_by_window(xcb_window_t win)
+{
+	monitor_t *curr = head_monitor;
+	while (curr != NULL) {
+		for (int i = 0; i < cur_monitor->n_of_desktops; i++) {
+			desktop_t *d = cur_monitor->desktops[i];
+			node_t	  *n = find_node_by_window_id(d->tree, win);
+			if (n != NULL) {
+				return d->id;
+			}
+		}
+		curr = curr->next;
 	}
 	return -1;
 }
@@ -3484,7 +3547,7 @@ window_exists(xcb_conn_t *conn, xcb_window_t win)
 		return false;
 	}
 
-	free(tree_reply);
+	_FREE_(tree_reply);
 	return true;
 }
 
@@ -3510,24 +3573,16 @@ is_transient(xcb_window_t win)
 static int
 handle_first_window(client_t *client, desktop_t *d)
 {
-	rectangle_t	   r = {0};
-	const uint16_t w = cur_monitor->rectangle.width;
-	const uint16_t h = cur_monitor->rectangle.height;
-	const uint16_t x = cur_monitor->rectangle.x;
-	const uint16_t y = cur_monitor->rectangle.y;
-
-	if (wm->bar != NULL && cur_monitor == prim_monitor) {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-				   2 * conf.border_width;
-	} else {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
-	}
+#ifdef _DEBUG__
+	char *name = win_name(client->window);
+	_LOG_(DEBUG,
+		  "handling first ever window %s id %d",
+		  name,
+		  client->window);
+	_FREE_(name);
+#endif
+	rectangle_t r = {0};
+	fill_root_rectangle(&r);
 
 	if (client == NULL) {
 		_LOG_(ERROR, "client is null");
@@ -3547,33 +3602,39 @@ handle_first_window(client_t *client, desktop_t *d)
 static int
 handle_subsequent_window(client_t *client, desktop_t *d)
 {
+#ifdef _DEBUG__
+	char *name = win_name(client->window);
+	_LOG_(DEBUG, "handling tiled window %s id %d", name, client->window);
+	_FREE_(name);
+#endif
+
 	xcb_window_t wi =
 		get_window_under_cursor(wm->connection, wm->root_window);
 	node_t *n = NULL;
-	if (wi == wm->root_window || wi == 0) {
-		return 0;
-	}
-
+	/* if (wi == wm->root_window || wi == 0) { */
+	/* 	return 0; */
+	/* } */
 	if (wm->bar != NULL && wi == wm->bar->window) {
 		n = find_left_leaf(d->tree);
 	} else {
-		n = find_node_by_window_id(d->tree, wi);
+		/* n = find_node_by_window_id(d->tree, wi); */
+		n = get_focused_node(d->tree);
 		if (n == NULL || n->client == NULL) {
-			char *name = win_name(wi);
-			_LOG_(INFO, "cannot find win under cursor %s:%d", wi);
-			free(name);
+			_LOG_(ERROR, "cannot find focused node");
 			return 0;
 		}
 	}
 
-	if (n->client->state == FLOATING) {
-		_LOG_(ERROR, "node under cursor is floating %d", wi);
+	if (IS_FLOATING(n->client) && !IS_ROOT(n)) {
+		_LOG_(INFO, "node under cursor is floating %d", wi);
 		n = find_left_leaf(d->tree);
-		if (n == NULL)
+		if (n == NULL) {
+			_LOG_(ERROR, "ret here");
 			return 0;
+		}
 	}
 
-	if (n->client->state == FULLSCREEN) {
+	if (IS_FULLSCREEN(n->client)) {
 		set_fullscreen(n, false);
 	}
 
@@ -3606,51 +3667,65 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 static int
 handle_floating_window(client_t *client, desktop_t *d)
 {
-	xcb_window_t wi =
-		get_window_under_cursor(wm->connection, wm->root_window);
+#ifdef _DEBUG__
+	char *name = win_name(client->window);
+	_LOG_(
+		DEBUG, "handling floating window %s id %d", name, client->window);
+	_FREE_(name);
+#endif
 
-	if (wi == wm->root_window || wi == 0) {
-		free(client);
-		return 0;
+	xcb_get_geometry_reply_t *g = NULL;
+	if (is_tree_empty(d->tree)) {
+		d->tree			= init_root();
+		d->tree->client = client;
+		g				= get_geometry(client->window, wm->connection);
+		if (g == NULL) {
+			_LOG_(ERROR, "cannot get %d geometry", client->window);
+			return -1;
+		}
+		fill_floating_rectangle(g, &d->tree->floating_rectangle);
+		fill_root_rectangle(&d->tree->rectangle);
+		_FREE_(g);
+		d->n_count += 1;
+		ewmh_update_client_list();
+		set_focus(d->tree, true);
+		return tile(d->tree);
+	} else {
+		xcb_window_t wi =
+			get_window_under_cursor(wm->connection, wm->root_window);
+		if (wi == wm->root_window || wi == 0) {
+			free(client);
+			return 0;
+		}
+		/* node_t *n = find_node_by_window_id(d->tree, wi); */
+		node_t *n = get_focused_node(d->tree);
+		n		  = n == NULL ? find_left_leaf(d->tree) : n;
+		if (n == NULL || n->client == NULL) {
+			_FREE_(client);
+			_LOG_(ERROR, "cannot find node with window id %d", wi);
+			return -1;
+		}
+
+		node_t *new_node = create_node(client);
+		if (new_node == NULL) {
+			_FREE_(client);
+			_LOG_(ERROR, "new node is null");
+			return -1;
+		}
+
+		g = get_geometry(client->window, wm->connection);
+		if (g == NULL) {
+			_LOG_(ERROR, "cannot get %d geometry", client->window);
+			return -1;
+		}
+		fill_floating_rectangle(g, &new_node->floating_rectangle);
+		new_node->rectangle = new_node->floating_rectangle;
+		_FREE_(g);
+		insert_node(n, new_node, d->layout);
+		d->n_count += 1;
+		ewmh_update_client_list();
+		return render_tree(d->tree);
 	}
-
-	node_t *n = find_node_by_window_id(d->tree, wi);
-
-	n		  = n == NULL ? find_left_leaf(d->tree) : n;
-	if (n == NULL || n->client == NULL) {
-		free(client);
-		_LOG_(ERROR, "cannot find node with window id %d", wi);
-		return -1;
-	}
-
-	node_t *new_node = create_node(client);
-	if (new_node == NULL) {
-		free(client);
-		_LOG_(ERROR, "new node is null");
-		return -1;
-	}
-
-	xcb_get_geometry_reply_t *g =
-		get_geometry(client->window, wm->connection);
-	if (g == NULL) {
-		_LOG_(ERROR, "cannot get %d geometry", client->window);
-		return -1;
-	}
-
-	int x = cur_monitor->rectangle.x + (cur_monitor->rectangle.width / 2) -
-			(g->width / 2);
-	int y = cur_monitor->rectangle.y +
-			(cur_monitor->rectangle.height / 2) - (g->height / 2);
-	rectangle_t rc = {
-		.x = x, .y = y, .width = g->width, .height = g->height};
-	new_node->rectangle = new_node->floating_rectangle = rc;
-	free(g);
-
-	insert_node(n, new_node, d->layout);
-	d->n_count += 1;
-	ewmh_update_client_list();
-
-	return render_tree(d->tree);
 }
 
 static int
@@ -3706,7 +3781,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 		if (n == NULL || n->client == NULL) {
 			char *name = win_name(win);
 			_LOG_(INFO, "cannot find win  %s:%d", win);
-			free(name);
+			_FREE_(name);
 			return 0;
 		}
 
@@ -3737,7 +3812,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 			rectangle_t rc = {
 				.x = x, .y = y, .width = g->width, .height = g->height};
 			new_node->rectangle = new_node->floating_rectangle = rc;
-			free(g);
+			_FREE_(g);
 		}
 		insert_node(n, new_node, d->layout);
 		d->n_count += 1;
@@ -3843,8 +3918,8 @@ handle_floating_window_request(xcb_window_t win, desktop_t *d)
 {
 #ifdef _DEBUG__
 	char *name = win_name(win);
-	_LOG_(DEBUG, "Window %s id %d is floating", name, win);
-	free(name);
+	_LOG_(DEBUG, "window %s id %d is floating", name, win);
+	_FREE_(name);
 #endif
 	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 	if (client == NULL) {
@@ -3881,7 +3956,7 @@ handle_bar_request(xcb_window_t win, desktop_t *d)
 
 	wm->bar->rectangle = (rectangle_t){
 		.height = g->height, .width = g->width, .x = g->x, .y = g->y};
-	free(g);
+	_FREE_(g);
 
 	if (!is_tree_empty(d->tree)) {
 		d->tree->rectangle.height = cur_monitor->rectangle.height -
@@ -3913,7 +3988,7 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 #ifdef _DEBUG__
 	char *name = win_name(win);
 	_LOG_(DEBUG, "recieved enter notify for %d, name %s ", win, name);
-	free(name);
+	_FREE_(name);
 #endif
 
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
@@ -4018,7 +4093,7 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 #ifdef _DEBUG__
 	char *name = win_name(win);
 	_LOG_(DEBUG, "recieved leave notify for %d, name %s ", win, name);
-	free(name);
+	_FREE_(name);
 #endif
 
 	if (wm->bar != NULL && win == wm->bar->window) {
@@ -4059,7 +4134,7 @@ handle_leave_notify(const xcb_leave_notify_event_t *ev)
 
 	if (set_focus(n, false) != 0) {
 		_LOG_(ERROR,
-			  "Failed to change border attr for window %d\n",
+			  "failed to change border attr for window %d\n",
 			  client->window);
 		return -1;
 	}
@@ -4115,6 +4190,9 @@ handle_state(node_t		 *n,
 			 xcb_atom_t	  state_,
 			 unsigned int action)
 {
+	if (n == NULL)
+		return -1;
+
 	char *name = win_name(n->client->window);
 
 	if (state == wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
@@ -4124,18 +4202,18 @@ handle_state(node_t		 *n,
 			  n->client->window,
 			  name);
 		if (action == XCB_EWMH_WM_STATE_ADD) {
-			free(name);
+			_FREE_(name);
 			return set_fullscreen(n, true);
 		} else if (action == XCB_EWMH_WM_STATE_REMOVE) {
 			/* if (n->client->state == FULLSCREEN) { */
-			free(name);
+			_FREE_(name);
 			return set_fullscreen(n, false);
 			/* } */
 		} else if (action == XCB_EWMH_WM_STATE_TOGGLE) {
 			uint32_t mode = (n->client->state == FULLSCREEN)
 								? XCB_EWMH_WM_STATE_REMOVE
 								: XCB_EWMH_WM_STATE_ADD;
-			free(name);
+			_FREE_(name);
 			return set_fullscreen(n, mode == XCB_EWMH_WM_STATE_ADD);
 		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
@@ -4166,7 +4244,7 @@ handle_state(node_t		 *n,
 			  n->client->window,
 			  name);
 	}
-	free(name);
+	_FREE_(name);
 	return 0;
 }
 
@@ -4180,7 +4258,7 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 		  "recieved client message for %d, name %s ",
 		  client_message->window,
 		  name);
-	free(name);
+	_FREE_(name);
 #endif
 
 	if (client_message->format != 32) {
@@ -4194,8 +4272,7 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 	node_t *root = cur_monitor->desktops[d]->tree;
 
 	node_t *n	 = find_node_by_window_id(root, client_message->window);
-	if (n == NULL)
-		return 0;
+	// node_t reciever fonctions will perform the null check for n
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "received data32 for win %d:\n", client_message->window);
 	for (ulong i = 0; i < LEN(client_message->data.data32); i++) {
@@ -4206,10 +4283,12 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 	char *s = win_name(client_message->window);
 	if (client_message->type == wm->ewmh->_NET_CURRENT_DESKTOP) {
 		uint32_t nd = client_message->data.data32[0];
+		_LOG_(INFO, "recieved desktop change to %d", nd);
 		if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
 			return -1;
 		}
 		if (switch_desktop(nd) != 0) {
+			_FREE_(s);
 			return -1;
 		}
 	} else if (client_message->type == wm->ewmh->_NET_CLOSE_WINDOW) {
@@ -4225,6 +4304,14 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 			  "wm_state _NET_ACTIVE_WINDOW for %d name %s",
 			  client_message->window,
 			  s);
+		int di = find_desktop_by_window(client_message->window);
+		if (di == -1)
+			goto out;
+
+		if (switch_desktop(di) != 0) {
+			_FREE_(s);
+			return -1;
+		}
 	} else if (client_message->type ==
 			   wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
 		_LOG_(INFO,
@@ -4253,7 +4340,8 @@ handle_client_message(const xcb_client_message_event_t *client_message)
 	// TODO: ewmh->_NET_WM_DESKTOP
 	// TODO: ewmh->_NET_WM_STATE_FULLSCREEN
 	// TODO: ewmh->_NET_ACTIVE_WINDOW
-	free(s);
+out:
+	_FREE_(s);
 	return 0;
 }
 
@@ -4268,7 +4356,7 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 #ifdef _DEBUG__
 	char *s = win_name(win);
 	_LOG_(DEBUG, "recieved unmap notify for %d, name %s ", win, s);
-	free(s);
+	_FREE_(s);
 #endif
 
 	if (wm->bar != NULL && wm->bar->window == win) {
@@ -4278,14 +4366,13 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 
 		if (err != NULL) {
 			_LOG_(ERROR,
-				  "Error in unmapping window %d: error code %d",
+				  "in unmapping window %d: error code %d",
 				  win,
 				  err->error_code);
-			free(err);
+			_FREE_(err);
 			return -1;
 		}
-		free(wm->bar);
-		wm->bar = NULL;
+		_FREE_(wm->bar);
 		return 0;
 	}
 
@@ -4297,7 +4384,7 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);
-		free(name);
+		_FREE_(name);
 #endif
 		return 0;
 	}
@@ -4408,7 +4495,7 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 #ifdef _DEBUG__
 	char *s = win_name(win);
 	_LOG_(DEBUG, "recieved destroy notify for %d, name %s ", win, s);
-	free(s);
+	_FREE_(s);
 #endif
 
 	if (wm->bar != NULL && wm->bar->window == win) {
@@ -4418,14 +4505,13 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 
 		if (err != NULL) {
 			_LOG_(ERROR,
-				  "Error in unmapping window %d: error code %d",
+				  "in unmapping window %d: error code %d",
 				  win,
 				  err->error_code);
-			free(err);
+			_FREE_(err);
 			return -1;
 		}
-		free(wm->bar);
-		wm->bar = NULL;
+		_FREE_(wm->bar);
 		return 0;
 	}
 
@@ -4437,7 +4523,7 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);
-		free(name);
+		_FREE_(name);
 #endif
 		return 0;
 	}
@@ -4478,7 +4564,7 @@ handle_button_press_event(const xcb_button_press_event_t *ev)
 		  "RCIEVED BUTTON PRESS EVENT window %d, window name %s",
 		  ev->event,
 		  name);
-	free(name);
+	_FREE_(name);
 #endif
 	/* bool replay = false; */
 	/* for (unsigned int i = 0; i < LEN(buttons_); i++) { */
@@ -4590,11 +4676,11 @@ log_children(xcb_conn_t *conn, xcb_window_t root_window)
 	xcb_query_tree_reply_t *tree_reply =
 		xcb_query_tree_reply(conn, tree_cookie, NULL);
 	if (tree_reply == NULL) {
-		_LOG_(ERROR, "Failed to query tree reply\n");
+		_LOG_(ERROR, "failed to query tree reply\n");
 		return;
 	}
 
-	_LOG_(DEBUG, "Children of root window:\n");
+	_LOG_(DEBUG, "children of root window:\n");
 	xcb_window_t *children = xcb_query_tree_children(tree_reply);
 	const int num_children = xcb_query_tree_children_length(tree_reply);
 	for (int i = 0; i < num_children; ++i) {
@@ -4603,15 +4689,15 @@ log_children(xcb_conn_t *conn, xcb_window_t root_window)
 			xcb_icccm_get_wm_name(conn, children[i]);
 		uint8_t wr = xcb_icccm_get_wm_name_reply(conn, cn, &t_reply, NULL);
 		if (wr == 1) {
-			_LOG_(DEBUG, "Child %d: %s\n", i + 1, t_reply.name);
+			_LOG_(DEBUG, "child %d: %s\n", i + 1, t_reply.name);
 			xcb_icccm_get_text_property_reply_wipe(&t_reply);
 		} else {
 			_LOG_(
-				DEBUG, "Failed to get window name for child %d\n", i + 1);
+				DEBUG, "failed to get window name for child %d\n", i + 1);
 		}
 	}
 
-	free(tree_reply);
+	_FREE_(tree_reply);
 }
 
 static void
@@ -4623,7 +4709,7 @@ parse_args(int argc, char **argv)
 		if (argc >= 2) {
 			c = argv[2];
 		} else {
-			_LOG_(ERROR, "Missing argument after -r/--run\n");
+			_LOG_(ERROR, "missing argument after -r/--run\n");
 		}
 	}
 	exec_process(&((arg_t){.argc = 1, .cmd = (char *[]){c}}));
@@ -4640,7 +4726,7 @@ event_loop(wm_t *w)
 				(xcb_map_request_event_t *)event;
 			if (handle_map_request(map_request) != 0) {
 				_LOG_(ERROR,
-					  "Failed to handle MAP_REQUEST for window %d\n",
+					  "failed to handle MAP_REQUEST for window %d\n",
 					  map_request->window);
 			}
 			break;
@@ -4650,7 +4736,7 @@ event_loop(wm_t *w)
 				(xcb_unmap_notify_event_t *)event;
 			if (handle_unmap_notify(unmap_notify) != 0) {
 				_LOG_(ERROR,
-					  "Failed to handle XCB_UNMAP_NOTIFY for "
+					  "failed to handle XCB_UNMAP_NOTIFY for "
 					  "window %d\n",
 					  unmap_notify->window);
 			}
@@ -4661,7 +4747,7 @@ event_loop(wm_t *w)
 				(xcb_destroy_notify_event_t *)event;
 			if (handle_destroy_notify(destroy_notify) != 0) {
 				_LOG_(ERROR,
-					  "Failed to handle XCB_DESTROY_NOTIFY for "
+					  "failed to handle XCB_DESTROY_NOTIFY for "
 					  "window %d\n",
 					  destroy_notify->window);
 			}
@@ -4701,7 +4787,7 @@ event_loop(wm_t *w)
 				(xcb_enter_notify_event_t *)event;
 			if (handle_enter_notify(enter_event) != 0) {
 				_LOG_(ERROR,
-					  "Failed to handle XCB_ENTER_NOTIFY for "
+					  "failed to handle XCB_ENTER_NOTIFY for "
 					  "window %d\n",
 					  enter_event->event);
 			}
@@ -4779,8 +4865,7 @@ cleanup(int sig)
 	free_keys();
 	free_rules();
 	free_monitors(); // frees desktops and trees as well
-	free(wm);
-	wm = NULL;
+	_FREE_(wm);
 	_LOG_(INFO, "ZWM exits with signal number %d", sig);
 
 	// uncommenting the following line *exit(sig)* prevents the os
@@ -4804,12 +4889,12 @@ main(int argc, char **argv)
 
 	wm = init_wm();
 	if (wm == 0x00) {
-		_LOG_(ERROR, "Failed to initialize window manager\n");
+		_LOG_(ERROR, "failed to initialize window manager\n");
 		exit(EXIT_FAILURE);
 	}
 
 	if (!setup_wm()) {
-		_LOG_(ERROR, "Failed to setup window manager\n");
+		_LOG_(ERROR, "failed to setup window manager\n");
 		exit(EXIT_FAILURE);
 	}
 
