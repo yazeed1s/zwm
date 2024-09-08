@@ -221,23 +221,24 @@ set_cursor(int cursor_id)
 }
 
 // caller must free
-char *
-win_name(xcb_window_t win)
-{
-	xcb_icccm_get_text_property_reply_t t_reply;
-	xcb_get_property_cookie_t			cn =
-		xcb_icccm_get_wm_name(wm->connection, win);
-	const uint8_t wr =
-		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
-	if (wr == 1) {
-		char *str = (char *)malloc(t_reply.name_len * sizeof(char));
-		if (str == NULL)
-			return NULL;
-		strncpy(str, t_reply.name, t_reply.name_len);
-		xcb_icccm_get_text_property_reply_wipe(&t_reply);
-		return str;
-	}
-	return NULL;
+char *win_name(xcb_window_t win) {
+    xcb_icccm_get_text_property_reply_t t_reply;
+    xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(wm->connection, win);
+    const uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+
+    if (wr == 1) {
+        char *str = (char *)malloc(t_reply.name_len + 1);
+        if (str == NULL)
+            return NULL;
+
+        strncpy(str, (char *)t_reply.name, t_reply.name_len);
+        str[t_reply.name_len] = '\0';
+
+        xcb_icccm_get_text_property_reply_wipe(&t_reply);
+        return str;
+    }
+
+    return NULL;
 }
 
 int
