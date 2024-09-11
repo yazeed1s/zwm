@@ -228,10 +228,10 @@ static void
 split_node(node_t *n, node_t *nd)
 {
 	if (IS_FLOATING(nd->client)) {
-		if (!IS_FLOATING(n->first_child->client)) {
-			n->first_child->rectangle =
-				n->first_child->floating_rectangle = n->rectangle;
-		}
+		// if (!IS_FLOATING(n->first_child->client)) {
+		n->first_child->rectangle = n->first_child->floating_rectangle =
+			n->rectangle;
+		// }
 	} else {
 		if (n->rectangle.width >= n->rectangle.height) {
 			n->first_child->rectangle.x = n->rectangle.x;
@@ -304,7 +304,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 		node->node_type = INTERNAL_NODE;
 
 	bool move_rect = false;
-	if (IS_ROOT(node) && IS_FLOATING(node->client)) {
+	if (IS_FLOATING(node->client)) {
 		move_rect = true;
 	}
 

@@ -816,8 +816,12 @@ set_fullscreen_wrapper()
 	if (w == wm->root_window) {
 		return 0;
 	}
-	/* node_t *n = find_node_by_window_id(root, w); */
-	node_t *n = get_focused_node(root);
+	node_t *n = find_node_by_window_id(root, w);
+	/* node_t *n = get_focused_node(root); */
+	if(n == NULL) {
+		_LOG_(ERROR, "cannot find focused node");
+		return -1;
+	}
 	n->client->state == FULLSCREEN ? set_fullscreen(n, false)
 								   : set_fullscreen(n, true);
 	return 0;
@@ -3180,9 +3184,9 @@ set_focus(node_t *n, bool flag)
 	flag ? raise_window(n->client->window)
 		 : lower_window(n->client->window);
 
-	int r = set_active_window_name(n->client->window);
+	/* int r = set_active_window_name(n->client->window); */
 
-	return r;
+	return 0;
 }
 
 int
@@ -3699,7 +3703,7 @@ handle_floating_window(client_t *client, desktop_t *d)
 		}
 		/* node_t *n = find_node_by_window_id(d->tree, wi); */
 		node_t *n = get_focused_node(d->tree);
-		n		  = n == NULL ? find_left_leaf(d->tree) : n;
+		/* n		  = n == NULL ? find_left_leaf(d->tree) : n; */
 		if (n == NULL || n->client == NULL) {
 			_FREE_(client);
 			_LOG_(ERROR, "cannot find node with window id %d", wi);
