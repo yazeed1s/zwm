@@ -1147,10 +1147,11 @@ parse_rule(char *value, rule_t *rule)
 }
 
 static int
-parse_config_line(char *key, char *value, config_t *c)
+parse_config_line(char *key, char *value, config_t *c, bool reload)
 {
 	if (strcmp(key, "exec") == 0) {
-		handle_exec_cmd(value);
+		if(!reload)
+			handle_exec_cmd(value);
 	} else if (strcmp(key, "border_width") == 0) {
 		c->border_width = atoi(value);
 	} else if (strcmp(key, "active_border_color") == 0) {
@@ -1203,7 +1204,7 @@ parse_config_line(char *key, char *value, config_t *c)
 }
 
 static int
-parse_config(const char *filename, config_t *c)
+parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
@@ -1236,7 +1237,7 @@ parse_config(const char *filename, config_t *c)
 			  value);
 #endif
 
-		if (parse_config_line(key, value, c) != 0) {
+		if (parse_config_line(key, value, c, reload) != 0) {
 			fclose(file);
 			return -1;
 		}
@@ -1285,7 +1286,7 @@ int
 reload_config(config_t *c)
 {
 	const char *filename = CONF_PATH;
-	return parse_config(filename, c);
+	return parse_config(filename, c, true);
 }
 
 int
@@ -1295,5 +1296,5 @@ load_config(config_t *c)
 	if (!file_exists(filename)) {
 		write_default_config(filename, c);
 	}
-	return parse_config(filename, c);
+	return parse_config(filename, c, false);
 }
