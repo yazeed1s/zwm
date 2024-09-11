@@ -818,7 +818,7 @@ set_fullscreen_wrapper()
 	}
 	node_t *n = find_node_by_window_id(root, w);
 	/* node_t *n = get_focused_node(root); */
-	if(n == NULL) {
+	if (n == NULL) {
 		_LOG_(ERROR, "cannot find focused node");
 		return -1;
 	}
@@ -968,7 +968,7 @@ apply_monitor_layout_changes(monitor_t *m)
 					uint16_t	   master_width = w * ratio;
 					uint16_t	   r_width = (uint16_t)(w * (1 - ratio));
 					if (ms == NULL) {
-						ms = find_left_leaf(tree);
+						ms = find_any_leaf(tree);
 						if (ms == NULL) {
 							return;
 						}
@@ -3339,7 +3339,8 @@ set_active_window_name(xcb_window_t win)
 		xcb_request_check(wm->connection, aw_cookie);
 
 	if (err) {
-		_LOG_(ERROR, "cannot setting active window: %d\n", err->error_code);
+		_LOG_(
+			ERROR, "cannot setting active window: %d\n", err->error_code);
 		_FREE_(err);
 		return -1;
 	}
@@ -3619,7 +3620,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	/* 	return 0; */
 	/* } */
 	if (wm->bar != NULL && wi == wm->bar->window) {
-		n = find_left_leaf(d->tree);
+		n = find_any_leaf(d->tree);
 	} else {
 		/* n = find_node_by_window_id(d->tree, wi); */
 		n = get_focused_node(d->tree);
@@ -3631,7 +3632,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	if (IS_FLOATING(n->client) && !IS_ROOT(n)) {
 		_LOG_(INFO, "node under cursor is floating %d", wi);
-		n = find_left_leaf(d->tree);
+		n = find_any_leaf(d->tree);
 		if (n == NULL) {
 			_LOG_(ERROR, "ret here");
 			return 0;
@@ -3701,9 +3702,9 @@ handle_floating_window(client_t *client, desktop_t *d)
 			free(client);
 			return 0;
 		}
-		/* node_t *n = find_node_by_window_id(d->tree, wi); */
-		node_t *n = get_focused_node(d->tree);
-		/* n		  = n == NULL ? find_left_leaf(d->tree) : n; */
+		node_t *n = find_node_by_window_id(d->tree, wi);
+		// node_t *n = get_focused_node(d->tree);
+		n		  = n == NULL ? find_any_leaf(d->tree) : n;
 		if (n == NULL || n->client == NULL) {
 			_FREE_(client);
 			_LOG_(ERROR, "cannot find node with window id %d", wi);
@@ -3781,7 +3782,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 		ewmh_update_client_list();
 	} else {
 		node_t *n = NULL;
-		n		  = find_left_leaf(d->tree);
+		n		  = find_any_leaf(d->tree);
 		if (n == NULL || n->client == NULL) {
 			char *name = win_name(win);
 			_LOG_(INFO, "cannot find win  %s:%d", win);

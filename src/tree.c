@@ -212,7 +212,7 @@ static void
 insert_floating_node(node_t *node, desktop_t *d)
 {
 	assert(IS_FLOATING(node->client));
-	node_t *n = find_left_leaf(d->tree);
+	node_t *n = find_any_leaf(d->tree);
 	if (n == NULL)
 		return;
 
@@ -997,7 +997,7 @@ master_layout(node_t *root, node_t *n)
 		wm->bar == NULL ? 0 : wm->bar->rectangle.height;
 
 	if (n == NULL) {
-		n = find_left_leaf(root);
+		n = find_any_leaf(root);
 		if (n == NULL) {
 			return;
 		}
@@ -1111,13 +1111,13 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case MASTER: {
-		/* xcb_window_t win = */
-		/* 	get_window_under_cursor(wm->connection, wm->root_window); */
-		/* if (win == XCB_NONE || win == wm->root_window) { */
-		/* 	return; */
-		/* } */
-		/* node_t *n = find_node_by_window_id(root, win); */
-		node_t *n = get_focused_node(root);
+		 xcb_window_t win = 
+		 	get_window_under_cursor(wm->connection, wm->root_window); 
+		 if (win == XCB_NONE || win == wm->root_window) { 
+		 	return; 
+		 } 
+		 node_t *n = find_node_by_window_id(root, win); 
+		/* node_t *n = get_focused_node(root); */
 		if (n == NULL) {
 			return;
 		}
@@ -1125,14 +1125,14 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case STACK: {
-		/* 	xcb_window_t win = */
-		/* 		get_window_under_cursor(wm->connection, wm->root_window);
-		 */
-		/* 	if (win == XCB_NONE || win == wm->root_window) { */
-		/* 		return; */
-		/* 	} */
-		/* 	node_t *n = find_node_by_window_id(root, win); */
-		node_t *n = get_focused_node(root);
+			xcb_window_t win = 
+				get_window_under_cursor(wm->connection, wm->root_window);
+		 
+			if (win == XCB_NONE || win == wm->root_window) { 
+				return; 
+			} 
+		node_t *n = find_node_by_window_id(root, win); 
+		/* node_t *n = get_focused_node(root); */
 		if (n == NULL) {
 			return;
 		}
@@ -1766,6 +1766,32 @@ find_left_leaf(node_t *root)
 	return find_left_leaf(root->second_child);
 }
 
+node_t *
+find_any_leaf(node_t *root)
+{
+	if (root == NULL)
+		return NULL;
+
+	if ((root->node_type != INTERNAL_NODE || root->parent == NULL) &&
+		root->client != NULL && !IS_FLOATING(root->client)) {
+		return root;
+	}
+
+	node_t *f = find_any_leaf(root->first_child);
+	if (f != NULL && f->client != NULL &&
+		!IS_FLOATING(f->client)) {
+		return f;
+	}
+
+	node_t *s = find_any_leaf(root->second_child);
+	if (s != NULL && s->client != NULL &&
+		!IS_FLOATING(s->client)) {
+		return s;
+	}
+
+	return NULL;
+}
+
 void
 unlink_node(node_t *node, desktop_t *d)
 {
@@ -2010,7 +2036,7 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree->first_child->parent	 = d->tree->second_child->parent =
 			d->tree;
 	} else {
-		node_t *leaf = find_left_leaf(d->tree);
+		node_t *leaf = find_any_leaf(d->tree);
 		if (leaf == NULL) {
 			return;
 		}
