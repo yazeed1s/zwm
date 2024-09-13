@@ -39,7 +39,12 @@
 #define LOG_DIR		 "/.local/share/xorg"
 #define LOG_FILE	 "zwm.log"
 #define MAX_PATH_LEN (2 << 7)
+#ifdef _DEBUG__
+#define MAX_LOG_SIZE (2 << 15) // ~64kb
+#else
 #define MAX_LOG_SIZE (2 << 12) // ~8kb
+#endif
+
 
 void
 log_message(log_level_t level, const char *format, ...)

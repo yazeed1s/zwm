@@ -505,7 +505,7 @@ split_string(const char *str, char delimiter, int *count)
 	char *str_copy = strdup(str);
 	if (str_copy == NULL) {
 		_LOG_(ERROR, "failed to duplicate string");
-		free(tokens);
+		_FREE_(tokens);
 		return NULL;
 	}
 
@@ -516,7 +516,7 @@ split_string(const char *str, char delimiter, int *count)
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
-			free(str_copy);
+			_FREE_(str_copy);
 			free_tokens(tokens, i);
 			return NULL;
 		}
@@ -526,7 +526,7 @@ split_string(const char *str, char delimiter, int *count)
 	tokens[i] = NULL;
 
 	*count	  = i;
-	free(str_copy);
+	_FREE_(str_copy);
 	return tokens;
 }
 
@@ -536,13 +536,11 @@ free_tokens(char **tokens, int count)
 	if (tokens != NULL) {
 		for (int i = 0; i < count; i++) {
 			if (tokens[i] != NULL) {
-				free(tokens[i]);
-				tokens[i] = NULL;
+				_FREE_(tokens[i]);
 			}
 		}
 	}
-	free(tokens);
-	tokens = NULL;
+	_FREE_(tokens);
 }
 
 static bool
@@ -635,16 +633,13 @@ err_cleanup(conf_key_t *k)
 		if (k->arg != NULL) {
 			if (k->arg->cmd != NULL) {
 				for (int i = 0; i < k->arg->argc; i++) {
-					free(k->arg->cmd[i]);
-					k->arg->cmd[i] = NULL;
+					_FREE_(k->arg->cmd[i]);
 				}
-				free(k->arg->cmd);
+				_FREE_(k->arg->cmd);
 			}
-			free(k->arg);
-			k->arg = NULL;
+			_FREE_(k->arg);
 		}
-		free(k);
-		k = NULL;
+		_FREE_(k);
 	}
 }
 
@@ -827,9 +822,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			_LOG_(ERROR,
 				  "failed to split string or incorrect count for %s\n",
 				  func_param);
-			free(func_param);
+			_FREE_(func_param);
 			if (s != NULL)
-				free(s);
+				_FREE_(s);
 			return -1;
 		}
 
@@ -838,8 +833,8 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		ptr		= str_to_func(f);
 		if (ptr == NULL) {
 			_LOG_(ERROR, "failed to find function pointer for %s", f);
-			free(func_param);
-			free(s);
+			_FREE_(func_param);
+			_FREE_(s);
 			return -1;
 		}
 		key->mod		  = _mod;
@@ -848,9 +843,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 
 		set_key_args(key, f, a);
 		free_tokens(s, count);
-		free(f);
-		free(a);
-		free(func_param);
+		_FREE_(f);
+		_FREE_(a);
+		_FREE_(func_param);
 		return 0;
 	}
 
@@ -861,12 +856,12 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			_LOG_(ERROR,
 				  "failed to find run func pointer for %s",
 				  func_param);
-			free(func_param);
+			_FREE_(func_param);
 			return -1;
 		}
 		build_run_func(func_param, key, _mod, _keysym);
 		key->function_ptr = ptr;
-		free(func_param);
+		_FREE_(func_param);
 		return 0;
 	}
 
@@ -874,14 +869,14 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	ptr = str_to_func(func_param);
 	if (ptr == NULL) {
 		_LOG_(ERROR, "failed to find function pointer for %s", func_param);
-		free(func_param);
+		_FREE_(func_param);
 		return -1;
 	}
 
 	key->mod		  = _mod;
 	key->keysym		  = _keysym;
 	key->function_ptr = ptr;
-	free(func_param);
+	_FREE_(func_param);
 	return 0;
 }
 
@@ -1092,9 +1087,9 @@ construct_rule(char *class,
 		rule->win_name,
 		rule->state == TILED ? "TILED" : "FLOATED",
 		rule->desktop_id);
-	free(c);
-	free(s);
-	free(d);
+	_FREE_(c);
+	_FREE_(s);
+	_FREE_(d);
 
 	return 0;
 }
@@ -1152,10 +1147,11 @@ parse_rule(char *value, rule_t *rule)
 }
 
 static int
-parse_config_line(char *key, char *value, config_t *c)
+parse_config_line(char *key, char *value, config_t *c, bool reload)
 {
 	if (strcmp(key, "exec") == 0) {
-		handle_exec_cmd(value);
+		if(!reload)
+			handle_exec_cmd(value);
 	} else if (strcmp(key, "border_width") == 0) {
 		c->border_width = atoi(value);
 	} else if (strcmp(key, "active_border_color") == 0) {
@@ -1184,7 +1180,7 @@ parse_config_line(char *key, char *value, config_t *c)
 			return -1;
 		}
 		if (parse_rule(value, rule) != 0) {
-			free(rule);
+			_FREE_(rule);
 			_LOG_(ERROR, "Error while parsing rule %s\n", value);
 			return -1;
 		}
@@ -1208,7 +1204,7 @@ parse_config_line(char *key, char *value, config_t *c)
 }
 
 static int
-parse_config(const char *filename, config_t *c)
+parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
@@ -1241,7 +1237,7 @@ parse_config(const char *filename, config_t *c)
 			  value);
 #endif
 
-		if (parse_config_line(key, value, c) != 0) {
+		if (parse_config_line(key, value, c, reload) != 0) {
 			fclose(file);
 			return -1;
 		}
@@ -1274,18 +1270,14 @@ free_keys(void)
 				for (int j = 0; j < current->arg->argc; j++) {
 					if (current->arg->cmd != NULL &&
 						current->arg->cmd[j] != NULL) {
-						free(current->arg->cmd[j]);
-						current->arg->cmd[j] = NULL;
+						_FREE_(current->arg->cmd[j]);
 					}
 				}
-				free(current->arg->cmd);
-				current->arg->cmd = NULL;
+				_FREE_(current->arg->cmd);
 			}
-			free(current->arg);
-			current->arg = NULL;
+			_FREE_(current->arg);
 		}
-		free(current);
-		current = next;
+		_FREE_(current);
 	}
 	key_head = NULL;
 }
@@ -1294,7 +1286,7 @@ int
 reload_config(config_t *c)
 {
 	const char *filename = CONF_PATH;
-	return parse_config(filename, c);
+	return parse_config(filename, c, true);
 }
 
 int
@@ -1304,5 +1296,5 @@ load_config(config_t *c)
 	if (!file_exists(filename)) {
 		write_default_config(filename, c);
 	}
-	return parse_config(filename, c);
+	return parse_config(filename, c, false);
 }
