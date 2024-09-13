@@ -271,8 +271,8 @@ change_state(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	/* node_t *n = find_node_by_window_id(root, w); */
-	node_t *n = get_focused_node(root);
+	node_t *n = find_node_by_window_id(root, w);
+	/* node_t *n = get_focused_node(root); */
 
 	if (n == NULL)
 		return -1;
@@ -284,6 +284,7 @@ change_state(arg_t *arg)
 	node_t *parent = n->parent;
 	if (state == TILED) {
 		// n->floating_rectangle = n->rectangle;
+		if (IS_TILED(n->client)) return 0;
 		n->client->state = TILED;
 		if (n->rectangle.width >= n->rectangle.height) {
 			parent->first_child->rectangle.x = parent->rectangle.x;
@@ -334,6 +335,7 @@ change_state(arg_t *arg)
 			resize_subtree(parent->first_child);
 		}
 	} else if (state == FLOATING) {
+		if (IS_FLOATING(n->client)) return 0;
 		xcb_get_geometry_reply_t *g =
 			get_geometry(n->client->window, wm->connection);
 		int h  = g->height / 2;
