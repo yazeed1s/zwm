@@ -221,24 +221,28 @@ set_cursor(int cursor_id)
 }
 
 // caller must free
-char *win_name(xcb_window_t win) {
-    xcb_icccm_get_text_property_reply_t t_reply;
-    xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(wm->connection, win);
-    const uint8_t wr = xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+char *
+win_name(xcb_window_t win)
+{
+	xcb_icccm_get_text_property_reply_t t_reply;
+	xcb_get_property_cookie_t			cn =
+		xcb_icccm_get_wm_name(wm->connection, win);
+	const uint8_t wr =
+		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
 
-    if (wr == 1) {
-        char *str = (char *)malloc(t_reply.name_len + 1);
-        if (str == NULL)
-            return NULL;
+	if (wr == 1) {
+		char *str = (char *)malloc(t_reply.name_len + 1);
+		if (str == NULL)
+			return NULL;
 
-        strncpy(str, (char *)t_reply.name, t_reply.name_len);
-        str[t_reply.name_len] = '\0';
+		strncpy(str, (char *)t_reply.name, t_reply.name_len);
+		str[t_reply.name_len] = '\0';
 
-        xcb_icccm_get_text_property_reply_wipe(&t_reply);
-        return str;
-    }
+		xcb_icccm_get_text_property_reply_wipe(&t_reply);
+		return str;
+	}
 
-    return NULL;
+	return NULL;
 }
 
 int
@@ -284,7 +288,8 @@ change_state(arg_t *arg)
 	node_t *parent = n->parent;
 	if (state == TILED) {
 		// n->floating_rectangle = n->rectangle;
-		if (IS_TILED(n->client)) return 0;
+		if (IS_TILED(n->client))
+			return 0;
 		n->client->state = TILED;
 		if (n->rectangle.width >= n->rectangle.height) {
 			parent->first_child->rectangle.x = parent->rectangle.x;
@@ -335,7 +340,8 @@ change_state(arg_t *arg)
 			resize_subtree(parent->first_child);
 		}
 	} else if (state == FLOATING) {
-		if (IS_FLOATING(n->client)) return 0;
+		if (IS_FLOATING(n->client))
+			return 0;
 		xcb_get_geometry_reply_t *g =
 			get_geometry(n->client->window, wm->connection);
 		int h  = g->height / 2;
@@ -1028,6 +1034,16 @@ apply_monitor_layout_changes(monitor_t *m)
 				}
 			}
 		}
+	}
+}
+
+static void
+arrange_trees(void)
+{
+	monitor_t *current_monitor = head_monitor;
+	while (current_monitor != NULL) {
+		apply_monitor_layout_changes(current_monitor);
+		current_monitor = current_monitor->next;
 	}
 }
 
@@ -2238,7 +2254,7 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 		_LOG_(ERROR,
 			  "Error resizing window (ID %u): %s",
 			  win,
-			  err->error_code);
+			  strerror(err->error_code));
 		free(err);
 		return -1;
 	}
@@ -2331,6 +2347,23 @@ win_focus(xcb_window_t win, bool set_focus)
 
 	xcb_flush(wm->connection);
 	return 0;
+}
+
+static void
+hide_bar(xcb_window_t win)
+{
+	xcb_void_cookie_t	 cookie = xcb_unmap_window(wm->connection, win);
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	if (err != NULL) {
+		_LOG_(ERROR,
+			  "in unmapping window %d: error code %d",
+			  win,
+			  err->error_code);
+		_FREE_(err);
+		return;
+	}
+	_FREE_(wm->bar);
+	arrange_trees();
 }
 
 // TODO: rewrite this
@@ -3965,24 +3998,11 @@ handle_bar_request(xcb_window_t win, desktop_t *d)
 	wm->bar->rectangle = (rectangle_t){
 		.height = g->height, .width = g->width, .x = g->x, .y = g->y};
 	_FREE_(g);
-
-	if (!is_tree_empty(d->tree)) {
-		d->tree->rectangle.height = cur_monitor->rectangle.height -
-									conf.window_gap -
-									wm->bar->rectangle.height - 5;
-		d->tree->rectangle.y = wm->bar->rectangle.height + 5;
-		resize_subtree(d->tree);
-		if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
-			return -1;
-		}
-		return render_tree(d->tree);
-	}
-
+	arrange_trees();
 	if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
 		return -1;
 	}
-
-	return 0;
+	return render_tree(d->tree);
 }
 
 static int
@@ -4367,26 +4387,15 @@ handle_unmap_notify(xcb_unmap_notify_event_t *ev)
 	_FREE_(s);
 #endif
 
-	if (wm->bar != NULL && wm->bar->window == win) {
-		xcb_void_cookie_t cookie = xcb_unmap_window(wm->connection, win);
-		xcb_generic_error_t *err =
-			xcb_request_check(wm->connection, cookie);
-
-		if (err != NULL) {
-			_LOG_(ERROR,
-				  "in unmapping window %d: error code %d",
-				  win,
-				  err->error_code);
-			_FREE_(err);
-			return -1;
-		}
-		_FREE_(wm->bar);
-		return 0;
-	}
-
 	node_t *root = cur_monitor->desktops[idx]->tree;
 	if (root == NULL)
 		return 0;
+
+	if (wm->bar != NULL && wm->bar->window == win) {
+		hide_bar(win);
+		render_tree(root);
+		return 0;
+	}
 
 	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
@@ -4506,26 +4515,15 @@ handle_destroy_notify(const xcb_destroy_notify_event_t *ev)
 	_FREE_(s);
 #endif
 
-	if (wm->bar != NULL && wm->bar->window == win) {
-		xcb_void_cookie_t cookie = xcb_unmap_window(wm->connection, win);
-		xcb_generic_error_t *err =
-			xcb_request_check(wm->connection, cookie);
-
-		if (err != NULL) {
-			_LOG_(ERROR,
-				  "in unmapping window %d: error code %d",
-				  win,
-				  err->error_code);
-			_FREE_(err);
-			return -1;
-		}
-		_FREE_(wm->bar);
-		return 0;
-	}
-
 	node_t *root = cur_monitor->desktops[idx]->tree;
 	if (root == NULL)
 		return 0;
+
+	if (wm->bar != NULL && wm->bar->window == win) {
+		hide_bar(win);
+		render_tree(root);
+		return 0;
+	}
 
 	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
