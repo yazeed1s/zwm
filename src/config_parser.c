@@ -1006,7 +1006,7 @@ handle_exec_cmd(char *cmd)
 			int	   count = 0;
 			char **s	 = split_string(cmd, ',', &count);
 			if (s == NULL)
-				return;
+				_exit(EXIT_FAILURE);
 			const char *args[count + 1];
 			for (int i = 0; i < count; ++i) {
 				trim(s[i], WHITE_SPACE);
@@ -1020,16 +1020,16 @@ handle_exec_cmd(char *cmd)
 			execvp(args[0], (char *const *)args);
 			free_tokens(s, count);
 			_LOG_(ERROR, "execvp failed");
-			exit(EXIT_FAILURE);
+			_exit(EXIT_FAILURE);
 		} else {
 			trim(cmd, QUOTATION);
 			execlp(cmd, cmd, (char *)NULL);
 			_LOG_(ERROR, "execlp failed");
-			exit(EXIT_FAILURE);
+			_exit(EXIT_FAILURE);
 		}
 	} else if (pid < 0) {
 		_LOG_(ERROR, "fork failed");
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 	}
 }
 
@@ -1150,7 +1150,7 @@ static int
 parse_config_line(char *key, char *value, config_t *c, bool reload)
 {
 	if (strcmp(key, "exec") == 0) {
-		if(!reload)
+		if (!reload)
 			handle_exec_cmd(value);
 	} else if (strcmp(key, "border_width") == 0) {
 		c->border_width = atoi(value);
