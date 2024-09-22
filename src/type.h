@@ -193,13 +193,12 @@ struct node_t {
 };
 
 typedef struct {
-	node_t		*tree;
-	xcb_window_t top_w;
-	char		 name[DLEN];
-	uint8_t		 id;
-	uint8_t		 n_count;
-	layout_t	 layout;
-	bool		 is_focused;
+	node_t	*tree;
+	char	 name[DLEN];
+	uint8_t	 id;
+	uint8_t	 n_count;
+	layout_t layout;
+	bool	 is_focused;
 } desktop_t;
 
 typedef struct monitor_t monitor_t;
@@ -241,7 +240,7 @@ typedef struct {
 	resize_t	r;
 	layout_t	t;
 	direction_t d;
-	state_t     s;
+	state_t		s;
 } arg_t;
 
 typedef struct {
