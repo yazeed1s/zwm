@@ -536,7 +536,8 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 }
 
 static void
-stack_and_lower(node_t *root, node_t **stack, int *top, int max_size)
+stack_and_lower(
+	node_t *root, node_t **stack, int *top, int max_size, bool is_stacked)
 {
 	if (root == NULL)
 		return;
@@ -557,16 +558,16 @@ stack_and_lower(node_t *root, node_t **stack, int *top, int max_size)
 		}
 	} else if (root->client != NULL && !IS_INTERNAL(root) &&
 			   !IS_FLOATING(root->client)) { // non floating
-		lower_window(root->client->window);
+		if (!is_stacked)
+			lower_window(root->client->window);
 	}
-	stack_and_lower(root->first_child, stack, top, max_size);
-	stack_and_lower(root->second_child, stack, top, max_size);
+	stack_and_lower(root->first_child, stack, top, max_size, is_stacked);
+	stack_and_lower(root->second_child, stack, top, max_size, is_stacked);
 }
 
 static void
 sort(node_t **s, int n)
 {
-	// do quick sort instead?
 	for (int i = 0; i <= n; i++) {
 		for (int j = i + 1; j <= n; j++) {
 			int32_t area_i =
@@ -604,7 +605,11 @@ restack(void)
 		return;
 	}
 
-	stack_and_lower(root, stack, &top, stack_size);
+	stack_and_lower(root,
+					stack,
+					&top,
+					stack_size,
+					cur_monitor->desktops[idx]->layout == STACK);
 	if (top >= 0) {
 		sort(stack, top);
 		for (int i = 1; i <= top; i++) {
@@ -1111,12 +1116,12 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case MASTER: {
-		 xcb_window_t win = 
-		 	get_window_under_cursor(wm->connection, wm->root_window); 
-		 if (win == XCB_NONE || win == wm->root_window) { 
-		 	return; 
-		 } 
-		 node_t *n = find_node_by_window_id(root, win); 
+		xcb_window_t win =
+			get_window_under_cursor(wm->connection, wm->root_window);
+		if (win == XCB_NONE || win == wm->root_window) {
+			return;
+		}
+		node_t *n = find_node_by_window_id(root, win);
 		/* node_t *n = get_focused_node(root); */
 		if (n == NULL) {
 			return;
@@ -1125,20 +1130,19 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case STACK: {
-			xcb_window_t win = 
-				get_window_under_cursor(wm->connection, wm->root_window);
-		 
-			if (win == XCB_NONE || win == wm->root_window) { 
-				return; 
-			} 
-		node_t *n = find_node_by_window_id(root, win); 
+		xcb_window_t win =
+			get_window_under_cursor(wm->connection, wm->root_window);
+
+		if (win == XCB_NONE || win == wm->root_window) {
+			return;
+		}
+		node_t *n = find_node_by_window_id(root, win);
 		/* node_t *n = get_focused_node(root); */
 		if (n == NULL) {
 			return;
 		}
 		stack_layout(root);
 		set_focus(n, true);
-		d->top_w = n->client->window;
 		break;
 	}
 	case GRID: {
@@ -1970,7 +1974,6 @@ transfer_node_wrapper(arg_t *arg)
 
 	if (nd->layout == STACK) {
 		set_focus(node, true);
-		nd->top_w = node->client->window;
 	}
 
 	od->n_count--;

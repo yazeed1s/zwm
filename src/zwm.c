@@ -1318,7 +1318,9 @@ traverse_stack_wrapper(arg_t *arg)
 	}
 
 	set_focus(n, true);
-	cur_monitor->desktops[i]->top_w = n->client->window;
+	if(has_floating_window(root))
+		restack();
+	
 	return 0;
 }
 
@@ -1489,7 +1491,6 @@ init_desktop(void)
 	d->is_focused = false;
 	d->n_count	  = 0;
 	d->tree		  = NULL;
-	d->top_w	  = XCB_NONE;
 	return d;
 }
 
@@ -3217,10 +3218,10 @@ set_focus(node_t *n, bool flag)
 		return -1;
 	}
 
-	flag ? raise_window(n->client->window)
-		 : lower_window(n->client->window);
-
-	/* int r = set_active_window_name(n->client->window); */
+	// flag ? raise_window(n->client->window) :
+	// lower_window(n->client->window);
+	if (flag)
+		raise_window(n->client->window);
 
 	return 0;
 }
@@ -3236,22 +3237,6 @@ switch_desktop_wrapper(arg_t *arg)
 		return -1;
 	}
 	node_t *tree = cur_monitor->desktops[arg->idx]->tree;
-	if (cur_monitor->desktops[arg->idx]->layout == STACK) {
-		if (cur_monitor->desktops[arg->idx]->top_w == XCB_NONE) {
-			_LOG_(ERROR, "top window is empty");
-			goto out;
-		}
-		// restack(tree);
-		xcb_window_t w = cur_monitor->desktops[arg->idx]->top_w;
-		node_t		*n = find_node_by_window_id(tree, w);
-		if (n == NULL) {
-			_LOG_(WARNING, "canno retrive top window");
-			return 0;
-		}
-		set_focus(n, true);
-		return 0;
-	}
-out:
 	return render_tree(tree);
 }
 
@@ -3279,8 +3264,8 @@ switch_desktop(const int nd)
 	}
 
 	set_active_window_name(XCB_NONE);
-	win_focus(focused_win, false);
-	focused_win = XCB_NONE;
+	// win_focus(focused_win, false);
+	// focused_win = XCB_NONE;
 
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", nd + 1);
@@ -3699,8 +3684,8 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	d->n_count += 1;
 	if (d->layout == STACK) {
 		set_focus(new_node, true);
-		d->top_w = new_node->client->window;
 	}
+
 	ewmh_update_client_list();
 	return render_tree(d->tree);
 }
@@ -3859,7 +3844,6 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 		d->n_count += 1;
 		if (d->layout == STACK) {
 			set_focus(new_node, true);
-			d->top_w = new_node->client->window;
 		}
 		ewmh_update_client_list();
 	}
@@ -4036,10 +4020,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 	if (curd == -1)
 		return curd;
 
-	if (cur_monitor->desktops[curd]->layout == STACK) {
-		win = cur_monitor->desktops[curd]->top_w;
-	}
-
 	node_t	 *root	 = cur_monitor->desktops[curd]->tree;
 
 	node_t	 *n		 = find_node_by_window_id(root, win);
@@ -4091,9 +4071,19 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 			return -1;
 		}
 	} else {
-		if (set_focus(n, true) != 0) {
-			_LOG_(ERROR, "cannot focus node (enter)");
-			return -1;
+		if (cur_monitor->desktops[curd]->layout == STACK) {
+			if (win_focus(n->client->window, true) != 0) {
+				_LOG_(ERROR,
+					  "cannot focus window %d (enter)",
+					  n->client->window);
+				return -1;
+			}
+			n->is_focused = true;
+		} else {
+			if (set_focus(n, true) != 0) {
+				_LOG_(ERROR, "cannot focus node (enter)");
+				return -1;
+			}
 		}
 	}
 
@@ -4102,7 +4092,6 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 
 	if (has_floating_window(root)) {
 		restack();
-		// restackv2(root);
 	}
 
 	xcb_flush(wm->connection);
@@ -4249,13 +4238,19 @@ handle_state(node_t		 *n,
 			  "_NET_WM_STATE_BELOW received for win %d:%s",
 			  n->client->window,
 			  name);
-		lower_window(n->client->window);
+		if (cur_monitor->desktops[get_focused_desktop_idx()]->layout !=
+			STACK) {
+			lower_window(n->client->window);
+		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
 		_LOG_(INFO,
 			  "_NET_WM_STATE_ABOVE received for win %d:%s",
 			  n->client->window,
 			  name);
-		raise_window(n->client->window);
+		if (cur_monitor->desktops[get_focused_desktop_idx()]->layout !=
+			STACK) {
+			raise_window(n->client->window);
+		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
 		_LOG_(INFO,
 			  "_NET_WM_STATE_HIDDEN received for win %d:%s",
@@ -4598,10 +4593,6 @@ handle_button_press_event(const xcb_button_press_event_t *ev)
 	if (curd == -1)
 		return;
 
-	if (cur_monitor->desktops[curd]->layout == STACK) {
-		win = cur_monitor->desktops[curd]->top_w;
-	}
-
 	node_t	 *root	 = cur_monitor->desktops[curd]->tree;
 	node_t	 *n		 = find_node_by_window_id(root, win);
 	client_t *client = (n != NULL && n->client != NULL) ? n->client : NULL;
@@ -4624,30 +4615,42 @@ handle_button_press_event(const xcb_button_press_event_t *ev)
 	}
 
 	if (IS_FLOATING(n->client)) {
-		restack();
 		if (win_focus(n->client->window, true) != 0) {
 			_LOG_(ERROR,
 				  "cannot focus window %d (enter)",
 				  n->client->window);
 			return;
 		}
+		n->is_focused = true;
 	} else if (IS_FULLSCREEN(n->client)) {
 		if (fullscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return;
 		}
 	} else {
-		if (set_focus(n, true) != 0) {
-			_LOG_(ERROR, "cannot focus node (enter)");
-			return;
+		if (cur_monitor->desktops[curd]->layout == STACK) {
+			if (win_focus(n->client->window, true) != 0) {
+				_LOG_(ERROR,
+					  "cannot focus window %d (enter)",
+					  n->client->window);
+				return;
+			}
+			n->is_focused = true;
+		} else {
+			if (set_focus(n, true) != 0) {
+				_LOG_(ERROR, "cannot focus node (enter)");
+				return;
+			}
 		}
 	}
 
-	// if (has_floating_window(root)) {
-	// 	restack(root);
-	// }
-
+	focused_win = n->client->window;
 	update_focus(root, n);
+
+	if (has_floating_window(root)) {
+		restack();
+	}
+
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
 	// set_cursor(CURSOR_POINTER);
 	xcb_flush(wm->connection);
