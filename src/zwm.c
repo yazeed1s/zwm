@@ -4048,9 +4048,9 @@ handle_enter_notify(const xcb_enter_notify_event_t *ev)
 		return 0;
 	}
 
-	if (n->client->window == focused_win) {
-		return 0;
-	}
+	/* if (n->client->window == focused_win) { */
+	/* 	return 0; */
+	/* } */
 
 	const int r = set_active_window_name(win);
 	if (r != 0) {
