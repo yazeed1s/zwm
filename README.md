@@ -329,7 +329,7 @@ More options will be added in the future as development progresses.
 | `super + return`         | launch a terminal (alacritty)     |
 | `super + space`          | launch dmenu                      |
 | `super + p `             | launch rofi                       |
-| `super + [1..N]`         | switche the desktop               |
+| `super + [1..N]`         | switch to desktop                 |
 | `super + l`              | resize window (grow/expand)       |
 | `super + h`              | resize window (shrink)            |
 | `super + f`              | toggle fullscreen                 |
