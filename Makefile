@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized -finline-functions -finline-small-functions -findirect-inlining -fstrict-aliasing -falign-functions -falign-jumps -falign-labels -falign-loops -fprefetch-loop-arrays 
+CFLAGS = -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized -finline-functions -finline-small-functions -findirect-inlining -fstrict-aliasing -falign-functions -falign-jumps -falign-labels -falign-loops -fprefetch-loop-arrays -fdump-rtl-loop2
 
 LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm -lxcb-randr -lxcb-xinerama -lxcb-cursor
 SRC_FILES = ./src/zwm.c ./src/logger.c ./src/tree.c ./src/config_parser.c
