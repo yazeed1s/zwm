@@ -1,5 +1,18 @@
 ### zwm
 
+## Table of Contents
+- [About ZWM](#about-zwm)
+- [Motivation](#motivation)
+- [Goals](#goals)
+- [Features](#features)
+- [The underlying data structure](#the-underlying-data-structure)
+- [Screenshots](#screenshots)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Default Keybindings](#default-keybindings)
+- [ewmh specific settings for polyabr](#ewmh-specific-settings-for-polyabr)
+- [Contributing](#contributing)
+
 ## About ZWM
 
 zwm is a minimalistic and opinionated tiling window manager for X11. It uses XCB instead of Xlib to communicate with the X server. The underlying data structure for managing windows is a customized BSP tree.
