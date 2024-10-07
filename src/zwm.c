@@ -3264,8 +3264,8 @@ switch_desktop(const int nd)
 	}
 
 	set_active_window_name(XCB_NONE);
-	// win_focus(focused_win, false);
-	// focused_win = XCB_NONE;
+	win_focus(focused_win, false);
+	focused_win = XCB_NONE;
 
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", nd + 1);
