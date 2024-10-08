@@ -610,7 +610,10 @@ restack(void)
 					&top,
 					stack_size,
 					cur_monitor->desktops[idx]->layout == STACK);
-	if (top >= 0) {
+    if (top == 0) {
+  		if(stack[0]->client != NULL)
+        	raise_window(stack[0]->client->window);
+    } else if (top > 0) {
 		sort(stack, top);
 		for (int i = 1; i <= top; i++) {
 			if (stack[i]->client && stack[i]->client->window &&
