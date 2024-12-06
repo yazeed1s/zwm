@@ -41,6 +41,7 @@
 #include <xcb/xcb_icccm.h>
 
 #include "helper.h"
+#include "queue.h"
 #include "type.h"
 #include "zwm.h"
 
@@ -100,70 +101,37 @@ init_root(void)
 int
 render_tree(node_t *node)
 {
-	if (node == NULL)
+	if (!node)
 		return 0;
 
-	node_t **stack = malloc(10 * sizeof(node_t *));
-	if (stack == NULL) {
-		_LOG_(ERROR, "Stack allocation failed\n");
+	queue_t *q = create_queue();
+	if (!q) {
+		_LOG_(ERROR, "queue creation failed");
 		return -1;
 	}
 
-	int stack_size = 10;
-	int top		   = -1;
-	stack[++top]   = node;
+	enqueue(q, node);
 
-	while (top >= 0) {
-		node_t *current_node = stack[top--];
-
-		if (current_node == NULL)
-			continue;
-
-		if (!IS_INTERNAL(current_node) && current_node->client != NULL) {
-			bool flag = IS_FULLSCREEN(current_node->client);
-			if (!flag) {
-				if (tile(current_node) != 0) {
+	while (q->front) {
+		node_t *current = dequeue(q);
+		if (!IS_INTERNAL(current) && current->client) {
+			if (!IS_FULLSCREEN(current->client)) {
+				if (tile(current) != 0) {
 					_LOG_(ERROR,
 						  "error tiling window %d",
-						  current_node->client->window);
-					_FREE_(stack);
+						  current->client->window);
+					free_queue(q);
 					return -1;
 				}
 			}
+			continue;
 		}
-
-		if (current_node->second_child != NULL) {
-			if (top == stack_size - 1) {
-				stack_size *= 2;
-				node_t **new_stack =
-					realloc(stack, stack_size * sizeof(node_t *));
-				if (new_stack == NULL) {
-					_LOG_(ERROR, "Stack reallocation failed\n");
-					_FREE_(stack);
-					return -1;
-				}
-				stack = new_stack;
-			}
-			stack[++top] = current_node->second_child;
-		}
-
-		if (current_node->first_child != NULL) {
-			if (top == stack_size - 1) {
-				stack_size *= 2;
-				node_t **new_stack =
-					realloc(stack, stack_size * sizeof(node_t *));
-				if (new_stack == NULL) {
-					_LOG_(ERROR, "Stack reallocation failed\n");
-					_FREE_(stack);
-					return -1;
-				}
-				stack = new_stack;
-			}
-			stack[++top] = current_node->first_child;
-		}
+		if (current->first_child)
+			enqueue(q, current->first_child);
+		if (current->second_child)
+			enqueue(q, current->second_child);
 	}
-
-	_FREE_(stack);
+	free_queue(q);
 	return 0;
 }
 
@@ -182,25 +150,21 @@ get_tree_level(node_t *node)
 static bool
 has_floating_children(const node_t *parent)
 {
-	return (parent->first_child != NULL &&
-			parent->first_child->client != NULL &&
+	return (parent->first_child && parent->first_child->client &&
 			IS_FLOATING(parent->first_child->client)) ||
-		   (parent->second_child != NULL &&
-			parent->second_child->client != NULL &&
+		   (parent->second_child && parent->second_child->client &&
 			IS_FLOATING(parent->second_child->client));
 }
 
 static node_t *
 get_floating_child(const node_t *parent)
 {
-	if (parent->first_child != NULL &&
-		parent->first_child->client != NULL &&
+	if (parent->first_child && parent->first_child->client &&
 		IS_FLOATING(parent->first_child->client)) {
 		return parent->first_child;
 	}
 
-	if (parent->second_child != NULL &&
-		parent->second_child->client != NULL &&
+	if (parent->second_child && parent->second_child->client &&
 		IS_FLOATING(parent->second_child->client)) {
 		return parent->second_child;
 	}
@@ -237,14 +201,12 @@ split_node(node_t *n, node_t *nd)
 			n->first_child->rectangle.x = n->rectangle.x;
 			n->first_child->rectangle.y = n->rectangle.y;
 			n->first_child->rectangle.width =
-				(n->rectangle.width -
-				 (conf.window_gap - conf.border_width)) /
+				(n->rectangle.width - (conf.window_gap - conf.border_width)) /
 				2;
 			n->first_child->rectangle.height = n->rectangle.height;
 			if (!IS_FLOATING(n->first_child->client)) {
 				n->second_child->rectangle.x =
-					(int16_t)(n->rectangle.x +
-							  n->first_child->rectangle.width +
+					(int16_t)(n->rectangle.x + n->first_child->rectangle.width +
 							  conf.window_gap + conf.border_width);
 				n->second_child->rectangle.y = n->rectangle.y;
 				n->second_child->rectangle.width =
@@ -259,8 +221,7 @@ split_node(node_t *n, node_t *nd)
 			n->first_child->rectangle.y		= n->rectangle.y;
 			n->first_child->rectangle.width = n->rectangle.width;
 			n->first_child->rectangle.height =
-				(n->rectangle.height -
-				 (conf.window_gap - conf.border_width)) /
+				(n->rectangle.height - (conf.window_gap - conf.border_width)) /
 				2;
 			if (!IS_FLOATING(n->first_child->client)) {
 				n->second_child->rectangle.x = n->rectangle.x;
@@ -270,9 +231,8 @@ split_node(node_t *n, node_t *nd)
 							  conf.window_gap + conf.border_width);
 				n->second_child->rectangle.width = n->rectangle.width;
 				n->second_child->rectangle.height =
-					n->rectangle.height -
-					n->first_child->rectangle.height - conf.window_gap -
-					conf.border_width;
+					n->rectangle.height - n->first_child->rectangle.height -
+					conf.window_gap - conf.border_width;
 			} else {
 				n->second_child->rectangle = n->rectangle;
 			}
@@ -285,7 +245,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 {
 #ifdef _DEBUG__
 	_LOG_(DEBUG,
-		  "Node to split %d, node to insert %d",
+		  "node to split %d, node to insert %d",
 		  node->client->window,
 		  new_node->client->window);
 #endif
@@ -377,16 +337,16 @@ find_node_by_window_id(node_t *root, xcb_window_t win)
 	if (root == NULL)
 		return NULL;
 
-	if (root->client != NULL && root->client->window == win) {
+	if (root->client && root->client->window == win) {
 		return root;
 	}
 
 	node_t *l = find_node_by_window_id(root->first_child, win);
-	if (l != NULL)
+	if (l)
 		return l;
 
 	node_t *r = find_node_by_window_id(root->second_child, win);
-	if (r != NULL)
+	if (r)
 		return r;
 
 	return NULL;
@@ -398,10 +358,9 @@ free_tree(node_t *root)
 	if (root == NULL)
 		return;
 
-	if (root->client != NULL) {
+	if (root->client) {
 		_FREE_(root->client);
 	}
-
 	node_t *f = root->first_child;
 	free_tree(f);
 	root->first_child = NULL;
@@ -420,43 +379,43 @@ resize_subtree(node_t *parent)
 	rectangle_t r, r2 = {0};
 
 	if (parent->rectangle.width >= parent->rectangle.height) {
-		r.x		= parent->rectangle.x;
-		r.y		= parent->rectangle.y;
-		r.width = (parent->rectangle.width -
-				   (conf.window_gap - conf.border_width)) /
-				  2;
+		r.x = parent->rectangle.x;
+		r.y = parent->rectangle.y;
+		r.width =
+			(parent->rectangle.width - (conf.window_gap - conf.border_width)) /
+			2;
 		r.height = parent->rectangle.height;
 
-		r2.x = (int16_t)(parent->rectangle.x + r.width + conf.window_gap +
+		r2.x	 = (int16_t)(parent->rectangle.x + r.width + conf.window_gap +
 						 conf.border_width);
-		r2.y = parent->rectangle.y;
+		r2.y	 = parent->rectangle.y;
 		r2.width = parent->rectangle.width - r.width - conf.window_gap -
 				   conf.border_width;
 		r2.height = parent->rectangle.height;
 	} else {
-		r.x		 = parent->rectangle.x;
-		r.y		 = parent->rectangle.y;
-		r.width	 = parent->rectangle.width;
-		r.height = (parent->rectangle.height -
-					(conf.window_gap - conf.border_width)) /
-				   2;
+		r.x		= parent->rectangle.x;
+		r.y		= parent->rectangle.y;
+		r.width = parent->rectangle.width;
+		r.height =
+			(parent->rectangle.height - (conf.window_gap - conf.border_width)) /
+			2;
 
-		r2.x = parent->rectangle.x;
-		r2.y = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
-						 conf.border_width);
+		r2.x	  = parent->rectangle.x;
+		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
+						  conf.border_width);
 		r2.width  = parent->rectangle.width;
 		r2.height = parent->rectangle.height - r.height - conf.window_gap -
 					conf.border_width;
 	}
 
-	if (parent->first_child != NULL) {
+	if (parent->first_child) {
 		parent->first_child->rectangle = r;
 		if (IS_INTERNAL(parent->first_child)) {
 			resize_subtree(parent->first_child);
 		}
 	}
 
-	if (parent->second_child != NULL) {
+	if (parent->second_child) {
 		parent->second_child->rectangle = r2;
 		if (IS_INTERNAL(parent->second_child)) {
 			resize_subtree(parent->second_child);
@@ -474,11 +433,11 @@ find_master_node(node_t *root)
 		return root;
 
 	node_t *l = find_master_node(root->first_child);
-	if (l != NULL)
+	if (l)
 		return l;
 
 	node_t *r = find_master_node(root->second_child);
-	if (r != NULL)
+	if (r)
 		return r;
 
 	return NULL;
@@ -494,11 +453,11 @@ find_floating_node(node_t *root)
 		return root;
 
 	node_t *l = find_floating_node(root->first_child);
-	if (l != NULL)
+	if (l)
 		return l;
 
 	node_t *r = find_floating_node(root->second_child);
-	if (r != NULL)
+	if (r)
 		return r;
 
 	return NULL;
@@ -512,12 +471,10 @@ is_sibling_floating(node_t *node)
 	}
 
 	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node)
-								? parent->second_child
-								: parent->first_child;
+	const node_t *sibling = (parent->first_child == node) ? parent->second_child
+														  : parent->first_child;
 
-	return (sibling != NULL && sibling->client != NULL &&
-			IS_FLOATING(sibling->client));
+	return (sibling && sibling->client && IS_FLOATING(sibling->client));
 }
 
 static void
@@ -526,7 +483,7 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 	if (root == NULL)
 		return;
 
-	if (root->client != NULL && root->client->window != XCB_NONE) {
+	if (root->client && root->client->window != XCB_NONE) {
 		arr[*index] = root->client->window;
 		(*index)++;
 	}
@@ -541,8 +498,7 @@ stack_and_lower(
 {
 	if (root == NULL)
 		return;
-	if (root->client != NULL && !IS_INTERNAL(root) &&
-		IS_FLOATING(root->client)) {
+	if (root->client && !IS_INTERNAL(root) && IS_FLOATING(root->client)) {
 		if (*top < max_size - 1) {
 			stack[++(*top)] = root;
 		} else {
@@ -556,7 +512,7 @@ stack_and_lower(
 			max_size		= size;
 			stack[++(*top)] = root;
 		}
-	} else if (root->client != NULL && !IS_INTERNAL(root) &&
+	} else if (root->client && !IS_INTERNAL(root) &&
 			   !IS_FLOATING(root->client)) { // non floating
 		if (!is_stacked)
 			lower_window(root->client->window);
@@ -570,10 +526,8 @@ sort(node_t **s, int n)
 {
 	for (int i = 0; i <= n; i++) {
 		for (int j = i + 1; j <= n; j++) {
-			int32_t area_i =
-				s[i]->rectangle.height * s[i]->rectangle.width;
-			int32_t area_j =
-				s[j]->rectangle.height * s[j]->rectangle.width;
+			int32_t area_i = s[i]->rectangle.height * s[i]->rectangle.width;
+			int32_t area_j = s[j]->rectangle.height * s[j]->rectangle.width;
 			if (area_j > area_i) {
 				// swap
 				node_t *temp = s[i];
@@ -591,7 +545,7 @@ restack(void)
 	if (idx == -1)
 		return;
 
-	node_t *root = cur_monitor->desktops[idx]->tree;
+	node_t *root = curr_monitor->desktops[idx]->tree;
 	if (root == NULL)
 		return;
 
@@ -609,11 +563,11 @@ restack(void)
 					stack,
 					&top,
 					stack_size,
-					cur_monitor->desktops[idx]->layout == STACK);
-    if (top == 0) {
-  		if(stack[0]->client != NULL)
-        	raise_window(stack[0]->client->window);
-    } else if (top > 0) {
+					curr_monitor->desktops[idx]->layout == STACK);
+	if (top == 0) {
+		if (stack[0]->client)
+			raise_window(stack[0]->client->window);
+	} else if (top > 0) {
 		sort(stack, top);
 		for (int i = 1; i <= top; i++) {
 			if (stack[i]->client && stack[i]->client->window &&
@@ -627,7 +581,7 @@ restack(void)
 		char *s	 = win_name(stack[0]->client->window);
 		char *ss = win_name(stack[top]->client->window);
 		_LOG_(DEBUG,
-			  "Largest floating window: %s, Smallest floating window: %s",
+			  "largest floating window: %s, smallest floating window: %s",
 			  s,
 			  ss);
 		_FREE_(s);
@@ -647,11 +601,10 @@ restackv2(node_t *root)
 		return;
 	}
 
-	if (root->first_child != NULL && root->first_child->client != NULL &&
+	if (root->first_child && root->first_child->client &&
 		IS_EXTERNAL(root->first_child)) {
 		if (IS_FLOATING(root->first_child->client)) {
-			if (root->second_child != NULL &&
-				root->second_child->client != NULL &&
+			if (root->second_child && root->second_child->client &&
 				IS_EXTERNAL(root->second_child) &&
 				IS_FLOATING(root->second_child->client)) {
 				window_below(root->first_child->client->window,
@@ -664,7 +617,7 @@ restackv2(node_t *root)
 		}
 	}
 
-	if (root->second_child != NULL && root->second_child->client != NULL &&
+	if (root->second_child && root->second_child->client &&
 		IS_EXTERNAL(root->second_child)) {
 		if (IS_FLOATING(root->second_child->client)) {
 			if (root->first_child == NULL ||
@@ -691,7 +644,7 @@ has_sibling(const node_t *node)
 
 	const node_t *parent = node->parent;
 
-	return (parent->first_child != NULL && parent->second_child != NULL);
+	return (parent->first_child && parent->second_child);
 }
 
 static bool
@@ -703,7 +656,7 @@ has_internal_sibling(const node_t *node)
 
 	const node_t *parent = node->parent;
 
-	return (parent->first_child != NULL && parent->second_child != NULL) &&
+	return (parent->first_child && parent->second_child) &&
 		   ((IS_INTERNAL(parent->first_child)) ||
 			(IS_INTERNAL(parent->second_child)));
 }
@@ -716,11 +669,10 @@ is_sibling_external(const node_t *node)
 	}
 
 	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node)
-								? parent->second_child
-								: parent->first_child;
+	const node_t *sibling = (parent->first_child == node) ? parent->second_child
+														  : parent->first_child;
 
-	return (sibling != NULL && IS_EXTERNAL(sibling));
+	return (sibling && IS_EXTERNAL(sibling));
 }
 
 static node_t *
@@ -730,11 +682,11 @@ get_external_sibling(const node_t *node)
 		return NULL;
 	}
 
-	const node_t *parent = node->parent;
-	node_t *sibling = (parent->first_child == node) ? parent->second_child
-													: parent->first_child;
+	const node_t *parent  = node->parent;
+	node_t		 *sibling = (parent->first_child == node) ? parent->second_child
+														  : parent->first_child;
 
-	return (sibling != NULL && IS_EXTERNAL(sibling)) ? sibling : NULL;
+	return (sibling && IS_EXTERNAL(sibling)) ? sibling : NULL;
 }
 
 static bool
@@ -745,11 +697,10 @@ is_sibling_internal(const node_t *node)
 	}
 
 	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node)
-								? parent->second_child
-								: parent->first_child;
+	const node_t *sibling = (parent->first_child == node) ? parent->second_child
+														  : parent->first_child;
 
-	return (sibling != NULL && IS_INTERNAL(sibling));
+	return (sibling && IS_INTERNAL(sibling));
 }
 
 static node_t *
@@ -763,7 +714,7 @@ get_internal_sibling(node_t *node)
 	node_t *sibling = (parent->first_child == node) ? parent->second_child
 													: parent->first_child;
 
-	return (sibling != NULL && IS_INTERNAL(sibling)) ? sibling : NULL;
+	return (sibling && IS_INTERNAL(sibling)) ? sibling : NULL;
 }
 
 static node_t *
@@ -779,10 +730,10 @@ get_sibling(node_t *node, node_type_t *type)
 
 	switch (*type) {
 	case INTERNAL_NODE: {
-		return (sibling != NULL && IS_INTERNAL(sibling)) ? sibling : NULL;
+		return (sibling && IS_INTERNAL(sibling)) ? sibling : NULL;
 	}
 	case EXTERNAL_NODE: {
-		return (sibling != NULL && IS_EXTERNAL(sibling)) ? sibling : NULL;
+		return (sibling && IS_EXTERNAL(sibling)) ? sibling : NULL;
 	}
 	case ROOT_NODE: break;
 	}
@@ -792,10 +743,8 @@ get_sibling(node_t *node, node_type_t *type)
 static bool
 has_external_children(const node_t *parent)
 {
-	return (parent->first_child != NULL &&
-			IS_EXTERNAL(parent->first_child)) &&
-		   (parent->second_child != NULL &&
-			IS_EXTERNAL(parent->second_child));
+	return (parent->first_child && IS_EXTERNAL(parent->first_child)) &&
+		   (parent->second_child && IS_EXTERNAL(parent->second_child));
 }
 
 static node_t *
@@ -813,12 +762,10 @@ has_single_external_child(const node_t *parent)
 	if (parent == NULL)
 		return false;
 
-	return ((parent->first_child != NULL &&
-			 parent->second_child != NULL) &&
+	return ((parent->first_child && parent->second_child) &&
 			(IS_EXTERNAL(parent->first_child) &&
 			 !IS_EXTERNAL(parent->second_child))) ||
-		   ((parent->first_child != NULL &&
-			 parent->second_child != NULL) &&
+		   ((parent->first_child && parent->second_child) &&
 			(IS_EXTERNAL(parent->second_child) &&
 			 !IS_EXTERNAL(parent->first_child)));
 }
@@ -829,7 +776,7 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 	if (root == NULL)
 		return NULL;
 
-	if (root->client != NULL && root->client->window == win) {
+	if (root->client && root->client->window == win) {
 		return root->client;
 	}
 
@@ -837,7 +784,7 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 	if (l == NULL)
 		return NULL;
 
-	if (l->client != NULL) {
+	if (l->client) {
 		return l->client;
 	}
 
@@ -845,7 +792,7 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 	if (r == NULL)
 		return NULL;
 
-	if (r->client != NULL) {
+	if (r->client) {
 		return r->client;
 	}
 
@@ -855,53 +802,47 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 void
 apply_default_layout(node_t *root)
 {
-	_LOG_(INFO, "applying default layout to tree");
 	if (root == NULL)
 		return;
 
 	if (root->first_child == NULL && root->second_child == NULL) {
-
-		_LOG_(INFO, "returning here....");
 		return;
 	}
 
 	rectangle_t r, r2 = {0};
 	if (root->rectangle.width >= root->rectangle.height) {
-		r.x		= root->rectangle.x;
-		r.y		= root->rectangle.y;
-		r.width = (root->rectangle.width -
-				   (conf.window_gap - conf.border_width)) /
-				  2;
+		r.x = root->rectangle.x;
+		r.y = root->rectangle.y;
+		r.width =
+			(root->rectangle.width - (conf.window_gap - conf.border_width)) / 2;
 		r.height = root->rectangle.height;
-
-		r2.x = (int16_t)(root->rectangle.x + r.width + conf.window_gap +
+		r2.x	 = (int16_t)(root->rectangle.x + r.width + conf.window_gap +
 						 conf.border_width);
-		r2.y = root->rectangle.y;
+		r2.y	 = root->rectangle.y;
 		r2.width = root->rectangle.width - r.width - conf.window_gap -
 				   conf.border_width;
 		r2.height = root->rectangle.height;
 	} else {
-		r.x		 = root->rectangle.x;
-		r.y		 = root->rectangle.y;
-		r.width	 = root->rectangle.width;
-		r.height = (root->rectangle.height -
-					(conf.window_gap - conf.border_width)) /
-				   2;
-
-		r2.x = root->rectangle.x;
-		r2.y = (int16_t)(root->rectangle.y + r.height + conf.window_gap +
-						 conf.border_width);
+		r.x		= root->rectangle.x;
+		r.y		= root->rectangle.y;
+		r.width = root->rectangle.width;
+		r.height =
+			(root->rectangle.height - (conf.window_gap - conf.border_width)) /
+			2;
+		r2.x	  = root->rectangle.x;
+		r2.y	  = (int16_t)(root->rectangle.y + r.height + conf.window_gap +
+						  conf.border_width);
 		r2.width  = root->rectangle.width;
 		r2.height = root->rectangle.height - r.height - conf.window_gap -
 					conf.border_width;
 	}
 
-	if (root->first_child != NULL) {
+	if (root->first_child) {
 		root->first_child->rectangle =
-			((root->second_child->client != NULL) &&
+			((root->second_child->client) &&
 			 IS_FLOATING(root->second_child->client))
 				? root->rectangle
-			: ((root->first_child->client != NULL) &&
+			: ((root->first_child->client) &&
 			   IS_FLOATING(root->first_child->client))
 				? root->first_child->floating_rectangle
 				: r;
@@ -910,12 +851,12 @@ apply_default_layout(node_t *root)
 		}
 	}
 
-	if (root->second_child != NULL) {
+	if (root->second_child) {
 		root->second_child->rectangle =
-			((root->first_child->client != NULL) &&
+			((root->first_child->client) &&
 			 IS_FLOATING(root->first_child->client))
 				? root->rectangle
-			: ((root->second_child->client != NULL) &&
+			: ((root->second_child->client) &&
 			   IS_FLOATING(root->second_child->client))
 				? root->second_child->floating_rectangle
 				: r2;
@@ -932,11 +873,11 @@ default_layout(node_t *root)
 		return;
 
 	rectangle_t	   r = {0};
-	uint16_t	   w = cur_monitor->rectangle.width;
-	uint16_t	   h = cur_monitor->rectangle.height;
-	const uint16_t x = cur_monitor->rectangle.x;
-	const uint16_t y = cur_monitor->rectangle.y;
-	if (wm->bar != NULL && cur_monitor == prim_monitor) {
+	uint16_t	   w = curr_monitor->rectangle.width;
+	uint16_t	   h = curr_monitor->rectangle.height;
+	const uint16_t x = curr_monitor->rectangle.x;
+	const uint16_t y = curr_monitor->rectangle.y;
+	if (wm->bar && curr_monitor == prim_monitor) {
 		r.x		 = x + conf.window_gap;
 		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
@@ -965,16 +906,16 @@ apply_master_layout(node_t *parent)
 		parent->first_child->rectangle = parent->rectangle;
 	} else {
 		rectangle_t r, r2 = {0};
-		r.x		 = parent->rectangle.x;
-		r.y		 = parent->rectangle.y;
-		r.width	 = parent->rectangle.width;
-		r.height = (parent->rectangle.height -
-					(conf.window_gap - conf.border_width)) /
-				   2;
+		r.x		= parent->rectangle.x;
+		r.y		= parent->rectangle.y;
+		r.width = parent->rectangle.width;
+		r.height =
+			(parent->rectangle.height - (conf.window_gap - conf.border_width)) /
+			2;
 
-		r2.x = parent->rectangle.x;
-		r2.y = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
-						 conf.border_width);
+		r2.x	  = parent->rectangle.x;
+		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
+						  conf.border_width);
 		r2.width  = parent->rectangle.width;
 		r2.height = parent->rectangle.height - r.height - conf.window_gap -
 					conf.border_width;
@@ -995,14 +936,13 @@ static void
 master_layout(node_t *root, node_t *n)
 {
 	const double   ratio		= 0.70;
-	const uint16_t w			= cur_monitor->rectangle.width;
-	const uint16_t h			= cur_monitor->rectangle.height;
-	const uint16_t x			= cur_monitor->rectangle.x;
-	const uint16_t y			= cur_monitor->rectangle.y;
+	const uint16_t w			= curr_monitor->rectangle.width;
+	const uint16_t h			= curr_monitor->rectangle.height;
+	const uint16_t x			= curr_monitor->rectangle.x;
+	const uint16_t y			= curr_monitor->rectangle.y;
 	const uint16_t master_width = w * ratio;
 	const uint16_t r_width		= (uint16_t)(w * (1 - ratio));
-	const uint16_t bar_height =
-		wm->bar == NULL ? 0 : wm->bar->rectangle.height;
+	const uint16_t bar_height = wm->bar == NULL ? 0 : wm->bar->rectangle.height;
 
 	if (n == NULL) {
 		n = find_any_leaf(root);
@@ -1065,14 +1005,14 @@ apply_stack_layout(node_t *root)
 		return;
 	}
 
-	if (root->first_child != NULL) {
+	if (root->first_child) {
 		root->first_child->rectangle = root->rectangle;
 		if (IS_INTERNAL(root->first_child)) {
 			apply_stack_layout(root->first_child);
 		}
 	}
 
-	if (root->second_child != NULL) {
+	if (root->second_child) {
 		root->second_child->rectangle = root->rectangle;
 		if (IS_INTERNAL(root->second_child)) {
 			apply_stack_layout(root->second_child);
@@ -1084,11 +1024,11 @@ static void
 stack_layout(node_t *root)
 {
 	rectangle_t	   r = {0};
-	uint16_t	   w = cur_monitor->rectangle.width;
-	uint16_t	   h = cur_monitor->rectangle.height;
-	const uint16_t x = cur_monitor->rectangle.x;
-	const uint16_t y = cur_monitor->rectangle.y;
-	if (wm->bar != NULL && cur_monitor == prim_monitor) {
+	uint16_t	   w = curr_monitor->rectangle.width;
+	uint16_t	   h = curr_monitor->rectangle.height;
+	const uint16_t x = curr_monitor->rectangle.x;
+	const uint16_t y = curr_monitor->rectangle.y;
+	if (wm->bar && curr_monitor == prim_monitor) {
 		r.x		 = x + conf.window_gap;
 		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
@@ -1197,9 +1137,9 @@ delete_node_with_external_sibling(node_t *node)
 			grandparent->first_child->first_child  = NULL;
 			grandparent->first_child->second_child = NULL;
 		} else {
-			grandparent->second_child->node_type   = EXTERNAL_NODE;
-			grandparent->second_child->client	   = external_node->client;
-			grandparent->second_child->first_child = NULL;
+			grandparent->second_child->node_type	= EXTERNAL_NODE;
+			grandparent->second_child->client		= external_node->client;
+			grandparent->second_child->first_child	= NULL;
 			grandparent->second_child->second_child = NULL;
 		}
 	}
@@ -1417,13 +1357,13 @@ out:
 static bool
 has_first_child(const node_t *parent)
 {
-	return parent->first_child != NULL;
+	return parent->first_child;
 }
 
 static bool
 has_second_child(const node_t *parent)
 {
-	return parent->second_child != NULL;
+	return parent->second_child;
 }
 
 bool
@@ -1447,27 +1387,27 @@ is_parent_internal(const node_t *node)
 void
 log_tree_nodes(node_t *node)
 {
-	if (node != NULL) {
-		if (node->client != NULL) {
+	if (node) {
+		if (node->client) {
 			xcb_icccm_get_text_property_reply_t t_reply;
-			xcb_get_property_cookie_t			cn = xcb_icccm_get_wm_name(
-				  wm->connection, node->client->window);
-			uint8_t wr = xcb_icccm_get_wm_name_reply(
-				wm->connection, cn, &t_reply, NULL);
+			xcb_get_property_cookie_t			cn =
+				xcb_icccm_get_wm_name(wm->connection, node->client->window);
+			uint8_t wr =
+				xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
 			char name[256];
 			if (wr == 1) {
 				snprintf(name, sizeof(name), "%s", t_reply.name);
 				xcb_icccm_get_text_property_reply_wipe(&t_reply);
 			}
 			_LOG_(DEBUG,
-				  "Node Type: %d, Client Window ID: %u, name: %s, "
+				  "node Type: %d, client Window ID: %u, name: %s, "
 				  "is_focused %s",
 				  node->node_type,
 				  node->client->window,
 				  name,
 				  node->is_focused ? "true" : "false");
 		} else {
-			_LOG_(DEBUG, "Node Type: %d", node->node_type);
+			_LOG_(DEBUG, "node Type: %d", node->node_type);
 		}
 		log_tree_nodes(node->first_child);
 		log_tree_nodes(node->second_child);
@@ -1480,7 +1420,7 @@ hide_windows(node_t *cn)
 	if (cn == NULL)
 		return 0;
 
-	if (!IS_INTERNAL(cn) && cn->client != NULL) {
+	if (!IS_INTERNAL(cn) && cn->client) {
 		if (set_visibility(cn->client->window, false) != 0) {
 			return -1;
 		}
@@ -1506,7 +1446,7 @@ show_windows(node_t *cn)
 	if (cn == NULL)
 		return 0;
 
-	if (!IS_INTERNAL(cn) && cn->client != NULL) {
+	if (!IS_INTERNAL(cn) && cn->client) {
 		if (set_visibility(cn->client->window, true) != 0) {
 			return -1;
 		}
@@ -1524,7 +1464,7 @@ client_exist(node_t *cn, xcb_window_t win)
 	if (cn == NULL)
 		return false;
 
-	if (cn->client != NULL) {
+	if (cn->client) {
 		if (cn->client->window == win) {
 			return true;
 		}
@@ -1590,11 +1530,11 @@ horizontal_resize_wrapper(arg_t *arg)
 	if (i == -1)
 		return -1;
 
-	if (cur_monitor->desktops[i]->layout == STACK) {
+	if (curr_monitor->desktops[i]->layout == STACK) {
 		return 0;
 	}
 
-	node_t *root = cur_monitor->desktops[i]->tree;
+	node_t *root = curr_monitor->desktops[i]->tree;
 	if (root == NULL)
 		return -1;
 
@@ -1711,8 +1651,7 @@ horizontal_resize(node_t *n, resize_t t)
 	 */
 	if (IS_INTERNAL(n->parent)) {
 		if (in_left_subtree(root->first_child, n)) {
-			if (root->first_child == NULL ||
-				!IS_INTERNAL(root->first_child)) {
+			if (root->first_child == NULL || !IS_INTERNAL(root->first_child)) {
 				return;
 			}
 			(t == GROW) ? (root->first_child->rectangle.width += px)
@@ -1722,8 +1661,7 @@ horizontal_resize(node_t *n, resize_t t)
 			(t == GROW) ? (root->second_child->rectangle.x += px)
 						: (root->second_child->rectangle.x -= px);
 
-			if (root->second_child != NULL &&
-				IS_EXTERNAL(root->second_child)) {
+			if (root->second_child && IS_EXTERNAL(root->second_child)) {
 				resize_subtree(root->first_child);
 			} else {
 				resize_subtree(root->first_child);
@@ -1741,8 +1679,7 @@ horizontal_resize(node_t *n, resize_t t)
 			(t == GROW) ? (root->first_child->rectangle.width -= px)
 						: (root->first_child->rectangle.width += px);
 
-			if (root->first_child != NULL &&
-				IS_EXTERNAL(root->first_child)) {
+			if (root->first_child && IS_EXTERNAL(root->first_child)) {
 				resize_subtree(root->second_child);
 			} else {
 				resize_subtree(root->first_child);
@@ -1759,13 +1696,13 @@ find_left_leaf(node_t *root)
 		return NULL;
 
 	if ((root->node_type != INTERNAL_NODE || root->parent == NULL) &&
-		root->client != NULL) {
+		root->client) {
 		return root;
 	}
 
 	node_t *left_leaf = find_left_leaf(root->first_child);
 
-	if ((left_leaf != NULL && left_leaf->client != NULL) &&
+	if ((left_leaf && left_leaf->client) &&
 		(IS_EXTERNAL(left_leaf) || IS_ROOT(left_leaf))) {
 		return left_leaf;
 	}
@@ -1780,19 +1717,17 @@ find_any_leaf(node_t *root)
 		return NULL;
 
 	if ((root->node_type != INTERNAL_NODE || root->parent == NULL) &&
-		root->client != NULL && !IS_FLOATING(root->client)) {
+		root->client && !IS_FLOATING(root->client)) {
 		return root;
 	}
 
 	node_t *f = find_any_leaf(root->first_child);
-	if (f != NULL && f->client != NULL &&
-		!IS_FLOATING(f->client)) {
+	if (f && f->client && !IS_FLOATING(f->client)) {
 		return f;
 	}
 
 	node_t *s = find_any_leaf(root->second_child);
-	if (s != NULL && s->client != NULL &&
-		!IS_FLOATING(s->client)) {
+	if (s && s->client && !IS_FLOATING(s->client)) {
 		return s;
 	}
 
@@ -1939,10 +1874,9 @@ unlink_node(node_t *node, desktop_t *d)
 int
 transfer_node_wrapper(arg_t *arg)
 {
-	xcb_window_t w =
-		get_window_under_cursor(wm->connection, wm->root_window);
-	const int i = arg->idx;
-	int		  d = get_focused_desktop_idx();
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	const int	 i = arg->idx;
+	int			 d = get_focused_desktop_idx();
 
 	if (w == wm->root_window)
 		return 0;
@@ -1950,11 +1884,11 @@ transfer_node_wrapper(arg_t *arg)
 	if (d == -1)
 		return d;
 
-	if (is_tree_empty(cur_monitor->desktops[d]->tree)) {
+	if (is_tree_empty(curr_monitor->desktops[d]->tree)) {
 		return 0;
 	}
 
-	node_t *root = cur_monitor->desktops[d]->tree;
+	node_t *root = curr_monitor->desktops[d]->tree;
 	/* node_t *node = find_node_by_window_id(root, w); */
 
 	node_t *node = get_focused_node(root);
@@ -1963,8 +1897,8 @@ transfer_node_wrapper(arg_t *arg)
 		return 0;
 	}
 
-	desktop_t *nd = cur_monitor->desktops[i];
-	desktop_t *od = cur_monitor->desktops[d];
+	desktop_t *nd = curr_monitor->desktops[i];
+	desktop_t *od = curr_monitor->desktops[d];
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
 #endif
@@ -2007,18 +1941,16 @@ transfer_node(node_t *node, desktop_t *d)
 
 	if (is_tree_empty(d->tree)) {
 		rectangle_t	   r = {0};
-		// uint16_t	w = wm->screen->width_in_pixels;
-		// uint16_t	h = wm->screen->height_in_pixels;
-		uint16_t	   w = cur_monitor->rectangle.width;
-		uint16_t	   h = cur_monitor->rectangle.height;
-		const uint16_t x = cur_monitor->rectangle.x;
-		const uint16_t y = cur_monitor->rectangle.y;
-		if (wm->bar != NULL && cur_monitor == prim_monitor) {
+		uint16_t	   w = curr_monitor->rectangle.width;
+		uint16_t	   h = curr_monitor->rectangle.height;
+		const uint16_t x = curr_monitor->rectangle.x;
+		const uint16_t y = curr_monitor->rectangle.y;
+		if (wm->bar && curr_monitor == prim_monitor) {
 			r.x		 = x + conf.window_gap;
 			r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
 			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-			r.height = h - wm->bar->rectangle.height -
-					   2 * conf.window_gap - 2 * conf.border_width;
+			r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
+					   2 * conf.border_width;
 		} else {
 			r.x		 = x + conf.window_gap;
 			r.y		 = y + conf.window_gap;
@@ -2029,8 +1961,7 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree			   = node;
 		d->tree->rectangle = r;
 		d->tree->node_type = ROOT_NODE;
-	} else if (d->tree->first_child == NULL &&
-			   d->tree->second_child == NULL) {
+	} else if (d->tree->first_child == NULL && d->tree->second_child == NULL) {
 		client_t *c = d->tree->client;
 		if ((d->tree->first_child = create_node(c)) == NULL) {
 			return;
@@ -2039,8 +1970,7 @@ transfer_node(node_t *node, desktop_t *d)
 		d->tree->second_child			 = node;
 		d->tree->second_child->node_type = EXTERNAL_NODE;
 		d->tree->client					 = NULL;
-		d->tree->first_child->parent	 = d->tree->second_child->parent =
-			d->tree;
+		d->tree->first_child->parent = d->tree->second_child->parent = d->tree;
 	} else {
 		node_t *leaf = find_any_leaf(d->tree);
 		if (leaf == NULL) {
@@ -2056,7 +1986,6 @@ transfer_node(node_t *node, desktop_t *d)
 		leaf->first_child->parent	 = leaf;
 		leaf->first_child->node_type = EXTERNAL_NODE;
 		leaf->client				 = NULL;
-
 		leaf->second_child			 = node;
 		if (leaf->second_child == NULL) {
 			return;
@@ -2073,7 +2002,7 @@ has_floating_window(node_t *root)
 	if (root == NULL)
 		return false;
 
-	if (root->client != NULL && IS_FLOATING(root->client)) {
+	if (root->client && IS_FLOATING(root->client)) {
 		return true;
 	}
 
@@ -2168,42 +2097,32 @@ flip_node(node_t *node)
 					   ? VERTICAL_FLIP
 					   : HORIZONTAL_FLIP;
 	node_t *p	 = node->parent;
-	node_t *s =
-		(p->first_child == node) ? p->second_child : p->first_child;
+	node_t *s	 = (p->first_child == node) ? p->second_child : p->first_child;
 
 	if (s == NULL)
 		return;
 
 	node->rectangle.x = p->rectangle.x;
 	node->rectangle.y = p->rectangle.y;
-	node->rectangle.width =
-		(flip == VERTICAL_FLIP)
-			? ((p->rectangle.width - conf.window_gap) / 2)
-			: p->rectangle.width;
-	node->rectangle.height =
-		(flip == VERTICAL_FLIP)
-			? p->rectangle.height
-			: (p->rectangle.height - conf.window_gap) / 2;
-	s->rectangle.x =
-		(flip == VERTICAL_FLIP)
-			? ((int16_t)((p->rectangle.x + node->rectangle.width) +
-						 conf.window_gap))
-			: p->rectangle.x;
-	s->rectangle.y =
-		(flip == VERTICAL_FLIP)
-			? p->rectangle.y
-			: ((int16_t)((p->rectangle.y + node->rectangle.height) +
-						 conf.window_gap));
-	s->rectangle.width =
-		(flip == VERTICAL_FLIP)
-			? ((p->rectangle.width - node->rectangle.width) -
-			   conf.window_gap)
-			: p->rectangle.width;
-	s->rectangle.height =
-		(flip == VERTICAL_FLIP)
-			? p->rectangle.height
-			: ((p->rectangle.height - node->rectangle.height) -
-			   conf.window_gap);
+	if (flip == VERTICAL_FLIP) {
+		node->rectangle.width  = (p->rectangle.width - conf.window_gap) / 2;
+		node->rectangle.height = p->rectangle.height;
+		s->rectangle.x =
+			p->rectangle.x + node->rectangle.width + conf.window_gap;
+		s->rectangle.y = p->rectangle.y;
+		s->rectangle.width =
+			p->rectangle.width - node->rectangle.width - conf.window_gap;
+		s->rectangle.height = p->rectangle.height;
+	} else {
+		node->rectangle.width  = p->rectangle.width;
+		node->rectangle.height = (p->rectangle.height - conf.window_gap) / 2;
+		s->rectangle.x		   = p->rectangle.x;
+		s->rectangle.y =
+			p->rectangle.y + node->rectangle.height + conf.window_gap;
+		s->rectangle.width = p->rectangle.width;
+		s->rectangle.height =
+			p->rectangle.height - node->rectangle.height - conf.window_gap;
+	}
 
 	if (s->node_type == INTERNAL_NODE) {
 		resize_subtree(s);
@@ -2216,7 +2135,7 @@ update_focus(node_t *root, node_t *n)
 	if (root == NULL)
 		return;
 
-	bool flag = !IS_INTERNAL(root) && root->client != NULL;
+	bool flag = !IS_INTERNAL(root) && root->client;
 	if (flag && root != n) {
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
@@ -2234,7 +2153,7 @@ update_focus_all(node_t *root)
 	if (root == NULL)
 		return;
 
-	bool flag = !IS_INTERNAL(root) && root->client != NULL;
+	bool flag = !IS_INTERNAL(root) && root->client;
 	if (flag) {
 		set_focus(root, false);
 		if (!conf.focus_follow_pointer)
@@ -2252,16 +2171,16 @@ get_focused_node(node_t *n)
 	if (n == NULL)
 		return NULL;
 
-	if (!IS_INTERNAL(n) && n->client != NULL && n->is_focused) {
+	if (!IS_INTERNAL(n) && n->client && n->is_focused) {
 		return n;
 	}
 
 	node_t *l = get_focused_node(n->first_child);
-	if (l != NULL) {
+	if (l) {
 		return l;
 	}
 	node_t *s = get_focused_node(n->second_child);
-	if (s != NULL) {
+	if (s) {
 		return s;
 	}
 
@@ -2274,12 +2193,21 @@ swap_node(node_t *n)
 	if (n->parent == NULL)
 		return -1;
 
-	node_t	   *s = (n->parent->first_child == n) ? n->parent->second_child
-												  : n->parent->first_child;
+	node_t	   *p  = n->parent;
+	node_t	   *s  = (p->first_child == n) ? p->second_child : p->first_child;
 	rectangle_t sr = s->rectangle;
 	rectangle_t nr = n->rectangle;
-	n->rectangle   = sr;
-	s->rectangle   = nr;
+
+	if (p->first_child == n) {
+		p->first_child	= s;
+		p->second_child = n;
+	} else {
+		p->first_child	= n;
+		p->second_child = s;
+	}
+
+	n->rectangle = sr;
+	s->rectangle = nr;
 
 	if (IS_INTERNAL(s)) {
 		resize_subtree(s);
@@ -2327,24 +2255,23 @@ find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 
 	while (front < rear) {
 		node_t *current = queue[front++];
-
 		if (current == node)
 			continue;
-		if (IS_EXTERNAL(current) && current->client != NULL &&
+		if (IS_EXTERNAL(current) && current->client &&
 			is_within_range(&node->rectangle, &current->rectangle, d)) {
 			int distance;
 			switch (d) {
 			case LEFT:
-				distance = node->rectangle.x - (current->rectangle.x +
-												current->rectangle.width);
+				distance = node->rectangle.x -
+						   (current->rectangle.x + current->rectangle.width);
 				break;
 			case RIGHT:
 				distance = current->rectangle.x -
 						   (node->rectangle.x + node->rectangle.width);
 				break;
 			case UP:
-				distance = node->rectangle.y - (current->rectangle.y +
-												current->rectangle.height);
+				distance = node->rectangle.y -
+						   (current->rectangle.y + current->rectangle.height);
 				break;
 			case DOWN:
 				distance = current->rectangle.y -
@@ -2358,9 +2285,9 @@ find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 			}
 		}
 
-		if (current->first_child != NULL)
+		if (current->first_child)
 			queue[rear++] = current->first_child;
-		if (current->second_child != NULL)
+		if (current->second_child)
 			queue[rear++] = current->second_child;
 	}
 
@@ -2386,10 +2313,7 @@ cycle_win(node_t *node, direction_t d)
 }
 
 static bool
-is_closer_node(node_t	  *current,
-			   node_t	  *new_node,
-			   node_t	  *node,
-			   direction_t d)
+is_closer_node(node_t *current, node_t *new_node, node_t *node, direction_t d)
 {
 	if (current == NULL)
 		return true;
@@ -2419,7 +2343,7 @@ find_neighbor(node_t *root, node_t *node, direction_t d)
 
 	node_t *best_node = NULL;
 
-	if (root->client != NULL) {
+	if (root->client) {
 		switch (d) {
 		case LEFT:
 			if (root->rectangle.x < node->rectangle.x &&
@@ -2435,8 +2359,7 @@ find_neighbor(node_t *root, node_t *node, direction_t d)
 			}
 			break;
 		case RIGHT:
-			if (root->rectangle.x >
-					node->rectangle.x + node->rectangle.width &&
+			if (root->rectangle.x > node->rectangle.x + node->rectangle.width &&
 				(node->rectangle.y <
 					 root->rectangle.y + root->rectangle.height &&
 				 node->rectangle.y + node->rectangle.height >
@@ -2475,18 +2398,16 @@ find_neighbor(node_t *root, node_t *node, direction_t d)
 		}
 	}
 
-	if (root->first_child != NULL) {
+	if (root->first_child) {
 		node_t *child_result = find_neighbor(root->first_child, node, d);
-		if (child_result != NULL &&
-			is_closer_node(best_node, child_result, node, d)) {
+		if (child_result && is_closer_node(best_node, child_result, node, d)) {
 			best_node = child_result;
 		}
 	}
 
-	if (root->second_child != NULL) {
+	if (root->second_child) {
 		node_t *child_result = find_neighbor(root->second_child, node, d);
-		if (child_result != NULL &&
-			is_closer_node(best_node, child_result, node, d)) {
+		if (child_result && is_closer_node(best_node, child_result, node, d)) {
 			best_node = child_result;
 		}
 	}

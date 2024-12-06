@@ -91,6 +91,15 @@ typedef enum {
 	CURSOR_MAX
 } cursor_t;
 
+/* bit flags to detrmine the change in monitors' state */
+typedef enum {
+	_NONE		 = 0x00,
+	CONNECTED	 = 0x01,
+	DISCONNECTED = 0x02,
+	/* LAYOUT includes resolution, position, or orientation changes */
+	LAYOUT		 = 0x04
+} monitor_state_t;
+
 typedef struct {
 	// 2^16 = 65535
 	uint16_t previous_x, previous_y;
@@ -129,55 +138,6 @@ typedef enum {
 	INTERNAL_NODE,
 	EXTERNAL_NODE
 } node_type_t;
-
-// clang-format off
-/*
-		I         ROOT (root is also an INTERNAL NODE, unless it is a leaf by definition)
-	  /   \
-	 I     I      INTERNAL NODES
-	/     / \
-   E     E   E    EXTERNAL NODES (or leaves)
-
-	I (if parent of E) = screen sections/partitions in which windows can be mapped
-	(displayed). E = windows in every screen partition. windows are basically the
-	leaves of a full binary tree. E nodes, on the screen, evenly share the width &
-	height of their I parent, and the I's x & y as well.
-
-		I
-	  /   \
-	 I     I
-	/     / \
-   E     E   I
-			/ \
-		   E   E
-
-	[I] partitions/sections can be:
-	1- container of other partitions
-	2- contained by other partitions
-
-	- the behaviour should be ->
-	- 1,2,3 are leaves (EXTERNAL_NODE) 
-	- a,b are internal nodes (INTERNAL_NODE), or screen sections/partitions
-
-			 1                          a                          a
-			 ^                         / \                        / \
-						 --->         1   2         --->         1   b
-										  ^                         / \
-																   2   3
-																	   ^
-
-	+-----------------------+  +-----------------------+  +-----------------------+
-	|                       |  |           |           |  |           |           |
-	|                       |  |           |           |  |           |     2     |
-	|                       |  |           |           |  |           |           |
-	|           1           |  |     1     |     2     |  |     1     |-----------|
-	|           ^           |  |           |     ^     |  |           |           |
-	|                       |  |           |           |  |           |     3     |
-	|                       |  |           |           |  |           |     ^     |
-	+-----------------------+  +-----------------------+  +-----------------------+
-
-*/
-// clang-format on
 
 typedef struct node_t node_t;
 struct node_t {
@@ -285,4 +245,16 @@ struct rule_t {
 	int		desktop_id;
 	rule_t *next;
 };
+
+typedef struct queue_node_t queue_node_t;
+struct queue_node_t {
+	node_t		 *tree_node;
+	queue_node_t *next;
+};
+
+typedef struct {
+	queue_node_t *front;
+	queue_node_t *rear;
+} queue_t;
+
 #endif // ZWM_TYPE_H
