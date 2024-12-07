@@ -62,10 +62,6 @@ typedef enum {
 	QUOTATION
 } trim_token_t;
 
-// _key__t **conf_keys = NULL;
-// int		  _entries_ = 0;
-// rule_t	**_rules	 = NULL;
-// int		  rule_index = 0;
 rule_t	   *rule_head = NULL;
 conf_key_t *key_head  = NULL;
 
@@ -73,55 +69,50 @@ static void
 free_tokens(char **, int);
 
 // clang-format off
-static conf_mapper_t _cmapper_[] = {
- 	{"run", 					 exec_process},
- 	{"kill", 		    close_or_kill_wrapper},
- 	{"switch_desktop", switch_desktop_wrapper},
- 	{"resize", 		horizontal_resize_wrapper},
- 	{"fullscreen", 	   set_fullscreen_wrapper},
- 	{"swap", 				swap_node_wrapper},
- 	{"transfer_node", 	transfer_node_wrapper},
- 	{"layout", 				   layout_handler},
- 	{"traverse",       traverse_stack_wrapper},
-	{"flip", 	            flip_node_wrapper},
-	{"cycle_window", 	    cycle_win_wrapper},
-	{"reload_config",   reload_config_wrapper},
-	{"cycle_desktop",   cycle_desktop_wrapper},
-	{"shift_window", 	shift_floating_window},
-	{"gap_handler", 			  gap_handler},
-	{"change_state",             change_state}
+static const conf_mapper_t _cmapper_[] = {
+    DEFINE_MAPPING("run",            exec_process),
+    DEFINE_MAPPING("kill",           close_or_kill_wrapper),
+    DEFINE_MAPPING("switch_desktop", switch_desktop_wrapper),
+    DEFINE_MAPPING("resize",         horizontal_resize_wrapper),
+    DEFINE_MAPPING("fullscreen",     set_fullscreen_wrapper),
+    DEFINE_MAPPING("swap",           swap_node_wrapper),
+    DEFINE_MAPPING("transfer_node",  transfer_node_wrapper),
+    DEFINE_MAPPING("layout",         layout_handler),
+    DEFINE_MAPPING("traverse",       traverse_stack_wrapper),
+    DEFINE_MAPPING("flip",           flip_node_wrapper),
+    DEFINE_MAPPING("cycle_window",   cycle_win_wrapper),
+    DEFINE_MAPPING("reload_config",  reload_config_wrapper),
+    DEFINE_MAPPING("cycle_desktop",  cycle_desktop_wrapper),
+    DEFINE_MAPPING("shift_window",   shift_floating_window),
+    DEFINE_MAPPING("gap_handler",    gap_handler),
+    DEFINE_MAPPING("change_state",   change_state),
 };
 
-static key_mapper_t	 _kmapper_[] = {
- 	{"0", 0x0030}, {"1", 0x0031},
-	{"2", 0x0032}, {"3", 0x0033},
-	{"4", 0x0034}, {"5", 0x0035},
- 	{"6", 0x0036}, {"7", 0x0037},
-	{"8", 0x0038}, {"9", 0x0039},
-	{"a", 0x0061}, {"b", 0x0062},
-	{"c", 0x0063}, {"d", 0x0064},
-	{"e", 0x0065}, {"f", 0x0066},
-	{"g", 0x0067}, {"h", 0x0068},
- 	{"i", 0x0069}, {"j", 0x006a},
-	{"k", 0x006b}, {"l", 0x006c},
-	{"m", 0x006d}, {"n", 0x006e},
-	{"o", 0x006f}, {"p", 0x0070},
-	{"q", 0x0071}, {"r", 0x0072},
-	{"s", 0x0073}, {"t", 0x0074},
-	{"u", 0x0075}, {"v", 0x0076},
-	{"w", 0x0077}, {"x", 0x0078},
-	{"y", 0x0079}, {"z", 0x007a},
-	{"space", 	   	     0x0020},
-	{"return", 	         0xff0d},
-	{"left", 	   	     0xff51},
-	{"up", 	   	         0xff52},
-	{"right", 	         0xff53},
-	{"down", 	         0xff54},
- 	{"super",             SUPER},
- 	{"alt",                 ALT},
- 	{"ctrl",    		   CTRL},
- 	{"shift", 		      SHIFT},
-    {"sup+sh",      SUPER|SHIFT},
+static key_mapper_t _kmapper_[] = {
+    DEFINE_MAPPING("0",        0x0030), DEFINE_MAPPING("1",        0x0031),
+    DEFINE_MAPPING("2",        0x0032), DEFINE_MAPPING("3",        0x0033),
+    DEFINE_MAPPING("4",        0x0034), DEFINE_MAPPING("5",        0x0035),
+    DEFINE_MAPPING("6",        0x0036), DEFINE_MAPPING("7",        0x0037),
+    DEFINE_MAPPING("8",        0x0038), DEFINE_MAPPING("9",        0x0039),
+    DEFINE_MAPPING("a",        0x0061), DEFINE_MAPPING("b",        0x0062),
+    DEFINE_MAPPING("c",        0x0063), DEFINE_MAPPING("d",        0x0064),
+    DEFINE_MAPPING("e",        0x0065), DEFINE_MAPPING("f",        0x0066),
+    DEFINE_MAPPING("g",        0x0067), DEFINE_MAPPING("h",        0x0068),
+    DEFINE_MAPPING("i",        0x0069), DEFINE_MAPPING("j",        0x006a),
+    DEFINE_MAPPING("k",        0x006b), DEFINE_MAPPING("l",        0x006c),
+    DEFINE_MAPPING("m",        0x006d), DEFINE_MAPPING("n",        0x006e),
+    DEFINE_MAPPING("o",        0x006f), DEFINE_MAPPING("p",        0x0070),
+    DEFINE_MAPPING("q",        0x0071), DEFINE_MAPPING("r",        0x0072),
+    DEFINE_MAPPING("s",        0x0073), DEFINE_MAPPING("t",        0x0074),
+    DEFINE_MAPPING("u",        0x0075), DEFINE_MAPPING("v",        0x0076),
+    DEFINE_MAPPING("w",        0x0077), DEFINE_MAPPING("x",        0x0078),
+    DEFINE_MAPPING("y",        0x0079), DEFINE_MAPPING("z",        0x007a),
+    DEFINE_MAPPING("space",    0x0020), DEFINE_MAPPING("return",   0xff0d),
+    DEFINE_MAPPING("left",     0xff51), DEFINE_MAPPING("up",       0xff52),
+    DEFINE_MAPPING("right",    0xff53), DEFINE_MAPPING("down",     0xff54),
+    DEFINE_MAPPING("super",     SUPER), DEFINE_MAPPING("alt",        ALT ),
+    DEFINE_MAPPING("ctrl",      CTRL ), DEFINE_MAPPING("shift",     SHIFT),
+    DEFINE_MAPPING("sup+sh", SUPER | SHIFT),
 };
 // clang-format on
 
@@ -483,7 +474,7 @@ trim(char *str, trim_token_t t)
 	}
 }
 
-// caller must free using free_tokens(...)
+/* caller must free using free_tokens(...) */
 static char **
 split_string(const char *str, char delimiter, int *count)
 {
@@ -557,7 +548,7 @@ key_exist(conf_key_t *key)
 	return false;
 }
 
-// caller must free
+/* caller must free */
 static char *
 extract_body(const char *str)
 {
@@ -775,14 +766,14 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	uint32_t _mod		= -1;
 	int (*ptr)(arg_t *) = NULL;
 
-	// parse mod key
+	/* parse mod key */
 	_mod				= parse_mod_key(mod);
 	if ((int)_mod == -1) {
 		_LOG_(ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
 		return -1;
 	}
 
-	// parse keysym if not null
+	/* parse keysym if not null */
 	if (keysym) {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
@@ -843,7 +834,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		return 0;
 	}
 
-	// handle "run" functions
+	/* handle "run" functions */
 	if (run_func) {
 		ptr = str_to_func("run");
 		if (ptr == NULL) {
@@ -857,7 +848,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		return 0;
 	}
 
-	// handle other functions
+	/* handle other functions */
 	ptr = str_to_func(func_param);
 	if (ptr == NULL) {
 		_LOG_(ERROR, "failed to find function pointer for %s", func_param);
@@ -880,7 +871,6 @@ parse_keybinding(char *str, conf_key_t *key)
 		return -1;
 	}
 
-	// bool  keysym_exists = strchr(str, '+') ;
 	char plus		   = '+';
 	bool keysym_exists = false;
 	int	 i			   = 0;
@@ -1033,7 +1023,7 @@ construct_rule(char *class, char *state, char *desktop_number, rule_t *rule)
 		return -1;
 	}
 
-	// wm_class
+	/* wm_class */
 	char *c = extract_body(class);
 	if (c == NULL) {
 		_LOG_(ERROR, "while extracting class rule body (%s)", class);
@@ -1045,7 +1035,7 @@ construct_rule(char *class, char *state, char *desktop_number, rule_t *rule)
 	uint32_t c_len = strlen(c);
 	strncpy(rule->win_name, c, c_len);
 
-	// w_state
+	/* w_state */
 	char *s = extract_body(state);
 	if (s == NULL) {
 		_LOG_(ERROR, "while extracting state rule body");
@@ -1060,7 +1050,7 @@ construct_rule(char *class, char *state, char *desktop_number, rule_t *rule)
 	}
 	rule->state = enum_state;
 
-	// w_desktop
+	/* w_desktop */
 	char *d		= extract_body(desktop_number);
 	if (d == NULL) {
 		_LOG_(ERROR, "while extracting desktop rule body");
@@ -1250,17 +1240,21 @@ free_keys(void)
 	conf_key_t *current = key_head;
 	while (current) {
 		conf_key_t *next = current->next;
-		if (current->arg) {
-			if (current->arg->cmd) {
-				for (int j = 0; j < current->arg->argc; j++) {
-					if (current->arg->cmd && current->arg->cmd[j]) {
-						_FREE_(current->arg->cmd[j]);
-					}
-				}
-				_FREE_(current->arg->cmd);
-			}
-			_FREE_(current->arg);
+		if (!current->arg) {
+			current = next;
+			continue;
 		}
+		if (!current->arg->cmd) {
+			current = next;
+			continue;
+		}
+		for (int j = 0; j < current->arg->argc; j++) {
+			if (current->arg->cmd && current->arg->cmd[j]) {
+				_FREE_(current->arg->cmd[j]);
+			}
+		}
+		_FREE_(current->arg->cmd);
+		_FREE_(current->arg);
 		_FREE_(current);
 		current = next;
 	}
