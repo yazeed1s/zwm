@@ -39,7 +39,7 @@ extern wm_t 			  *wm;
 extern xcb_window_t 	  focused_win;
 extern monitor_t 		  *head_monitor;
 extern monitor_t		  *prim_monitor;
-extern monitor_t 		  *cur_monitor;
+extern monitor_t 		  *curr_monitor;
 extern bool 			  using_xrandr;
 extern bool 		      using_xinerama;
 extern uint8_t 			  randr_base;
