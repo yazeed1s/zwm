@@ -70,6 +70,12 @@ dequeue(queue_t *q)
 	return node;
 }
 
+bool
+is_queue_empty(queue_t *q)
+{
+	return q->front == NULL;
+}
+
 void
 free_queue(queue_t *q)
 {
