@@ -35,6 +35,7 @@
 queue_t *create_queue(void);
 void    enqueue(queue_t *queue, node_t *node);
 node_t  *dequeue(queue_t *queue);
+bool    is_queue_empty(queue_t *q);
 void    free_queue(queue_t *queue);
 // clang-format on
 #endif // ZWM_QUEUE_H

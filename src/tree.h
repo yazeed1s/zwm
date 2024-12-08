@@ -41,7 +41,8 @@ node_t   *cycle_win(node_t *node, direction_t);
 node_t   *find_left_leaf(node_t *root);
 node_t   *find_any_leaf(node_t *root);
 node_t 	 *get_focused_node(node_t *n);
-void     unlink_node(node_t *node, desktop_t *d);
+bool     unlink_node(node_t *node, desktop_t *d);
+void     horizontal_resize(node_t *n, resize_t t);
 void 	 apply_master_layout(node_t *parent);
 void 	 apply_default_layout(node_t *root);
 void	 apply_stack_layout(node_t *root);
@@ -54,16 +55,15 @@ void	 restack(void);
 void     restackv2(node_t *root);
 void	 delete_node(node_t *node, desktop_t *d);
 void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);
+void     arrange_tree(node_t *tree, layout_t l);
 void	 log_tree_nodes(node_t *node);
-void	 transfer_node(node_t *, desktop_t *);
+bool	 transfer_node(node_t *, desktop_t *);
 bool	 is_tree_empty(const node_t *root);
 bool	 client_exist(node_t *cn, xcb_window_t id);
 bool	 has_floating_window(node_t *root);
 int	   	 render_tree(node_t *current_node);
 int		 hide_windows(node_t *tree);
 int 	 show_windows(node_t *tree);
-int	     transfer_node_wrapper(arg_t *arg);
-int 	 horizontal_resize_wrapper(arg_t *arg);
 int	     swap_node(node_t *root);
 // clang-format on
 #endif // ZWM_TREE_H

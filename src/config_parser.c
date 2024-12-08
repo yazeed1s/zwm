@@ -68,7 +68,7 @@ conf_key_t *key_head  = NULL;
 static void
 free_tokens(char **, int);
 
-// clang-format off
+/* clang-format off */
 static const conf_mapper_t _cmapper_[] = {
     DEFINE_MAPPING("run",            exec_process),
     DEFINE_MAPPING("kill",           close_or_kill_wrapper),
@@ -114,7 +114,7 @@ static key_mapper_t _kmapper_[] = {
     DEFINE_MAPPING("ctrl",      CTRL ), DEFINE_MAPPING("shift",     SHIFT),
     DEFINE_MAPPING("sup+sh", SUPER | SHIFT),
 };
-// clang-format on
+/* clang-format on */
 
 static int (*str_to_func(char *ch))(arg_t *)
 {
@@ -209,8 +209,8 @@ print_key_array(void)
 static int
 write_default_config(const char *filename, config_t *c)
 {
-	// clang-format off
-const char *content =
+	/* clang-format off */
+	const char *content =
     "; ----------- ZWM Configuration File -------------\n"
     ";\n"
     "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
@@ -378,8 +378,8 @@ const char *content =
     "; reload the configuration file\n"
     "bind = super|shift + r -> func(reload_config)\n"
     "\n";
+	/* clang-format on */
 
-	// clang-format on
 	char dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
@@ -388,7 +388,7 @@ const char *content =
 		struct stat st;
 		if (stat(dir_path, &st) == -1) {
 			if (mkdir(dir_path, 0777) == -1) {
-				_LOG_(ERROR, "failed to create directory: %s\n", dir_path);
+				_LOG_(ERROR, "failed to create directory: %s", dir_path);
 				return -1;
 			}
 		}
@@ -396,7 +396,7 @@ const char *content =
 
 	FILE *file = fopen(filename, "w");
 	if (file == NULL) {
-		_LOG_(ERROR, "failed to create config file: %s\n", filename);
+		_LOG_(ERROR, "failed to create config file: %s", filename);
 		return -1;
 	}
 
@@ -404,7 +404,7 @@ const char *content =
 	size_t written = fwrite(content, 1, len, file);
 	if (written != len) {
 		fclose(file);
-		_LOG_(ERROR, "error writing to file: %s\n", filename);
+		_LOG_(ERROR, "error writing to file: %s", filename);
 		return -1;
 	}
 
@@ -585,16 +585,16 @@ parse_mod_key(char *mod)
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
 		if (mods == NULL) {
-			_LOG_(ERROR, "failed to split string %s\n", mod);
+			_LOG_(ERROR, "failed to split string %s", mod);
 			return -1;
 		}
 		uint32_t mask1 = str_to_key(mods[0]);
 		if ((int)mask1 == -1) {
-			_LOG_(ERROR, "failed to find key (%s)\n", mods[0]);
+			_LOG_(ERROR, "failed to find key (%s)", mods[0]);
 		}
 		uint32_t mask2 = str_to_key(mods[1]);
 		if ((int)mask2 == -1) {
-			_LOG_(ERROR, "failed to find key (%s)\n", mods[1]);
+			_LOG_(ERROR, "failed to find key (%s)", mods[1]);
 		}
 		mask = mask1 | mask2;
 		free_tokens(mods, count);
@@ -609,7 +609,7 @@ parse_keysym(char *keysym)
 {
 	uint32_t keysym_ = str_to_key(keysym);
 	if ((int)keysym_ == -1) {
-		_LOG_(ERROR, "failed to find keysym %s\n", keysym);
+		_LOG_(ERROR, "failed to find keysym %s", keysym);
 		return -1;
 	}
 
@@ -769,7 +769,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	/* parse mod key */
 	_mod				= parse_mod_key(mod);
 	if ((int)_mod == -1) {
-		_LOG_(ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
+		_LOG_(ERROR, "failed to parse mod key for %s, func %s", mod, func);
 		return -1;
 	}
 
@@ -777,24 +777,24 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	if (keysym) {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
-			_LOG_(ERROR, "failed to parse keysym for %s\n", keysym);
+			_LOG_(ERROR, "failed to parse keysym for %s", keysym);
 			return -1;
 		}
 	} else {
 		_LOG_(
-			INFO, "keysym is null, func must be switch or transfer %s\n", func);
+			INFO, "keysym is null, func must be switch or transfer %s", func);
 	}
 
 	if (strncmp(func, "run", 3) == 0) {
 		run_func = true;
 #ifdef _DEBUG__
-		_LOG_(INFO, "found run func %s, ...\n", func);
+		_LOG_(INFO, "found run func %s, ...", func);
 #endif
 	}
 
 	char *func_param = extract_body(func);
 	if (func_param == NULL) {
-		_LOG_(ERROR, "failed to extract func body for %s\n", func);
+		_LOG_(ERROR, "failed to extract func body for %s", func);
 		return -1;
 	}
 
@@ -805,7 +805,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		char **s	 = split_string(func_param, ':', &count);
 		if (s == NULL || count != 2) {
 			_LOG_(ERROR,
-				  "failed to split string or incorrect count for %s\n",
+				  "failed to split string or incorrect count for %s",
 				  func_param);
 			_FREE_(func_param);
 			if (s)
@@ -1145,35 +1145,35 @@ parse_config_line(char *key, char *value, config_t *c, bool reload)
 		} else if (strcmp(value, "false") == 0) {
 			c->focus_follow_pointer = false;
 		} else {
-			_LOG_(ERROR, "invalid value for focus_follow_pointer: %s\n", value);
+			_LOG_(ERROR, "invalid value for focus_follow_pointer: %s", value);
 			return -1;
 		}
 	} else if (strcmp(key, "rule") == 0) {
 		rule_t *rule = init_rule();
 		if (rule == NULL) {
-			_LOG_(ERROR, "failed to allocate memory for rule_t\n");
+			_LOG_(ERROR, "failed to allocate memory for rule_t");
 			return -1;
 		}
 		if (parse_rule(value, rule) != 0) {
 			_FREE_(rule);
-			_LOG_(ERROR, "error while parsing rule %s\n", value);
+			_LOG_(ERROR, "error while parsing rule %s", value);
 			return -1;
 		}
 		add_rule(&rule_head, rule);
 	} else if (strcmp(key, "bind") == 0) {
 		conf_key_t *k = init_key();
 		if (k == NULL) {
-			_LOG_(ERROR, "failed to allocate memory for _key__t\n");
+			_LOG_(ERROR, "failed to allocate memory for _key__t");
 			return -1;
 		}
 		if (parse_keybinding(value, k) != 0) {
 			err_cleanup(k);
-			_LOG_(ERROR, "error while parsing keys\n");
+			_LOG_(ERROR, "error while parsing keys");
 			return -1;
 		}
 		add_key(&key_head, k);
 	} else {
-		_LOG_(WARNING, "unknown config key: %s\n", key);
+		_LOG_(WARNING, "unknown config key: %s", key);
 	}
 	return 0;
 }
@@ -1183,7 +1183,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
-		_LOG_(ERROR, "error: could not open file '%s'\n", filename);
+		_LOG_(ERROR, "error: could not open file '%s'", filename);
 		return -1;
 	}
 
@@ -1206,7 +1206,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 
 #ifdef _DEBUG__
 		_LOG_(DEBUG,
-			  "config line = (%s) key = (%s) value = (%s)\n",
+			  "config line = (%s) key = (%s) value = (%s)",
 			  line,
 			  key,
 			  value);

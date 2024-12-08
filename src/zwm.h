@@ -61,6 +61,8 @@ int 		 flip_node_wrapper();
 int          reload_config_wrapper();
 int          get_focused_desktop_idx();
 int 		 switch_desktop_wrapper(arg_t *arg);
+int	         transfer_node_wrapper(arg_t *arg);
+int 	     horizontal_resize_wrapper(arg_t *arg);
 int 		 gap_handler(arg_t *arg);
 int 		 cycle_desktop_wrapper(arg_t *arg);
 int 	     close_or_kill_wrapper();
