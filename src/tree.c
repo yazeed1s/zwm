@@ -51,7 +51,6 @@ static void stack_layout(node_t *parent);
 static void default_layout(node_t *parent);
 static node_t *find_tree_root(node_t *);
 static bool is_parent_null(const node_t *node);
-static void horizontal_resize(node_t *n, resize_t t);
 // clang-format on
 
 node_t *
@@ -320,9 +319,13 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 }
 
 /* arrange_tree - applies layout changes to a given tree */
-static void
+void
 arrange_tree(node_t *tree, layout_t l)
 {
+	if (!tree) {
+		return;
+	}
+
 	switch (l) {
 	case DEFAULT: {
 		default_layout(tree);
@@ -670,14 +673,14 @@ has_internal_sibling(const node_t *node)
 }
 
 static bool
-is_sibling_external(const node_t *node)
+is_sibling_external(node_t *node)
 {
 	if (node == NULL || node->parent == NULL) {
 		return false;
 	}
-	node_t		 *parent  = node->parent;
-	const node_t *sibling = (parent->first_child == node) ? parent->second_child
-														  : parent->first_child;
+	node_t *parent	= node->parent;
+	node_t *sibling = (parent->first_child == node) ? parent->second_child
+													: parent->first_child;
 	return (sibling && IS_EXTERNAL(sibling));
 }
 
@@ -1378,7 +1381,11 @@ delete_node(node_t *node, desktop_t *d)
 		goto out;
 	}
 
-	unlink_node(node, d);
+	if (!unlink_node(node, d)) {
+		_LOG_(ERROR, "could not unlink node.. abort");
+		return;
+	}
+
 	_FREE_(node->client);
 	_FREE_(node);
 
@@ -1556,36 +1563,7 @@ in_right_subtree(node_t *rc, node_t *n)
 	return false;
 }
 
-int
-horizontal_resize_wrapper(arg_t *arg)
-{
-	const int i = get_focused_desktop_idx();
-	if (i == -1)
-		return -1;
-
-	if (curr_monitor->desktops[i]->layout == STACK) {
-		return 0;
-	}
-
-	node_t *root = curr_monitor->desktops[i]->tree;
-	if (root == NULL)
-		return -1;
-
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
-		return -1;
-	/* todo: if node was flipped, reize up or down instead */
-	grab_pointer(wm->root_window,
-				 false); /* steal the pointer and prevent it from sending
-						  * enter_notify events (which focuses the window
-						  * being under cursor as the resize happens); */
-	horizontal_resize(n, arg->r);
-	render_tree(root);
-	ungrab_pointer();
-	return 0;
-}
-
-static void
+void
 horizontal_resize(node_t *n, resize_t t)
 {
 	const int16_t px			   = 5;
@@ -1786,15 +1764,15 @@ find_any_leaf(node_t *root)
  * The caller is responsible for freeing the memory of the unlinked node if it's
  * no longer needed.
  */
-void
+bool
 unlink_node(node_t *node, desktop_t *d)
 {
 	if (node == NULL)
-		return;
+		return false;
 
 	if (d->tree == node) {
 		d->tree = NULL;
-		return;
+		return true;
 	}
 
 	/* node to unlink = N, internal node = I, external node = E
@@ -1809,7 +1787,7 @@ unlink_node(node_t *node, desktop_t *d)
 	if (is_sibling_external(node)) {
 		node_t *e = get_external_sibling(node);
 		if (e == NULL) {
-			return;
+			return false;
 		}
 		/* if I has no parent */
 		if (IS_ROOT(node->parent)) {
@@ -1840,7 +1818,7 @@ unlink_node(node_t *node, desktop_t *d)
 		e->parent = NULL;
 		_FREE_(e);
 		node->parent = NULL;
-		return;
+		return true;
 	}
 	/*
 	 * Node to be unlinked: N
@@ -1871,7 +1849,7 @@ unlink_node(node_t *node, desktop_t *d)
 			n = get_internal_sibling(node);
 			if (n == NULL) {
 				_LOG_(ERROR, "internal node is null");
-				return;
+				return false;
 			}
 			if (d->tree == node->parent) {
 				d->tree->first_child	= n->first_child;
@@ -1898,10 +1876,10 @@ unlink_node(node_t *node, desktop_t *d)
 				n = get_internal_sibling(node);
 			} else {
 				_LOG_(ERROR, "internal node is null");
-				return;
+				return false;
 			}
 			if (n == NULL)
-				return;
+				return false;
 
 			if (node->parent->first_child == node) {
 				node->parent->first_child  = n->first_child;
@@ -1920,81 +1898,9 @@ unlink_node(node_t *node, desktop_t *d)
 		n->second_child = NULL;
 		node->parent	= NULL;
 		_FREE_(n);
+		return true;
 	}
-}
-
-/* transfer_node_wrapper - handles transferring a node between desktops.
- *
- * This function moves the focused window (or the one under the cursor)
- * from the currently active desktop to another desktop.
- *
- * How it works:
- * 1. Determines the focused desktop and retrieves the focused node.
- * 2. If the window is already on the target desktop, it logs a message and
- * exits.
- * 3. Hides the window visually before unlinking it from the source desktop.
- * 4. Calls `transfer_node` to handle the actual node relocation.
- * 5. Updates node counts for both desktops and re-renders the source desktop.
- *
- * Handles:
- * - Rearranging the source and target desktop trees to keep things consistent.
- *
- * Notes:
- * - This wrapper is focused on coordinating the high-level flow,
- *   it leaves layout-specific handling to the `transfer_node` function.
- */
-int
-transfer_node_wrapper(arg_t *arg)
-{
-	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
-	if (w == wm->root_window)
-		return 0;
-
-	const int i = arg->idx;
-	int		  d = get_focused_desktop_idx();
-	if (d == -1)
-		return d;
-
-	if (d == i) {
-		_LOG_(INFO, "switch node to curr desktop... abort");
-		return 0;
-	}
-
-	node_t *root = curr_monitor->desktops[d]->tree;
-	if (is_tree_empty(root)) {
-		return 0;
-	}
-
-	node_t *node = get_focused_node(root);
-	if (!node) {
-		_LOG_(ERROR, "focused node is null");
-		return 0;
-	}
-
-	desktop_t *nd = curr_monitor->desktops[i];
-	desktop_t *od = curr_monitor->desktops[d];
-#ifdef _DEBUG__
-	_LOG_(DEBUG, "new desktop = %d, old desktop = %d", i + 1, d + 1);
-#endif
-	if (set_visibility(node->client->window, false) != 0) {
-		_LOG_(ERROR, "cannot hide window %d", node->client->window);
-		return -1;
-	}
-	unlink_node(node, od);
-	transfer_node(node, nd);
-
-	if (nd->layout == STACK) {
-		set_focus(node, true);
-	}
-
-	od->n_count--;
-	nd->n_count++;
-
-	if (render_tree(od->tree) != 0) {
-		_LOG_(ERROR, "cannot render tree");
-		return -1;
-	}
-	return 0;
+	return false;
 }
 
 /* transfer_node - moves a node to a new desktop's tree.
@@ -2011,15 +1917,15 @@ transfer_node_wrapper(arg_t *arg)
  *
  * Note:
  * - Doesn't touch visibility or focus; that's handled outside. */
-void
+bool
 transfer_node(node_t *node, desktop_t *d)
 {
 	if (node == NULL || d == NULL) {
-		return;
+		return false;
 	}
 
 	if (node->client == NULL) {
-		return;
+		return false;
 	}
 
 	assert(node->parent == NULL);
@@ -2049,7 +1955,7 @@ transfer_node(node_t *node, desktop_t *d)
 	} else if (d->tree->first_child == NULL && d->tree->second_child == NULL) {
 		client_t *c = d->tree->client;
 		if ((d->tree->first_child = create_node(c)) == NULL) {
-			return;
+			return false;
 		}
 		d->tree->first_child->node_type	 = EXTERNAL_NODE;
 		d->tree->second_child			 = node;
@@ -2059,26 +1965,25 @@ transfer_node(node_t *node, desktop_t *d)
 	} else {
 		node_t *leaf = find_any_leaf(d->tree);
 		if (leaf == NULL) {
-			return;
+			return false;
 		}
 		if (!IS_ROOT(leaf)) {
 			leaf->node_type = INTERNAL_NODE;
 		}
-		leaf->first_child = create_node(leaf->client);
-		if (leaf->first_child == NULL) {
-			return;
+		if ((leaf->first_child = create_node(leaf->client)) == NULL) {
+			return false;
 		}
 		leaf->first_child->parent	 = leaf;
 		leaf->first_child->node_type = EXTERNAL_NODE;
 		leaf->client				 = NULL;
 		leaf->second_child			 = node;
 		if (leaf->second_child == NULL) {
-			return;
+			return false;
 		}
 		leaf->second_child->parent	  = leaf;
 		leaf->second_child->node_type = EXTERNAL_NODE;
 	}
-	arrange_tree(d->tree, d->layout);
+	return true;
 }
 
 bool

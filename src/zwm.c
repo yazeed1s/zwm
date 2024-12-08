@@ -32,6 +32,7 @@
 #include "zwm.h"
 #include "config_parser.h"
 #include "helper.h"
+#include "queue.h"
 #include "tree.h"
 #include "type.h"
 #include <X11/keysym.h>
@@ -97,14 +98,19 @@ monitor_t			 *prim_monitor	 = NULL;
 monitor_t			 *curr_monitor	 = NULL;
 monitor_t			 *head_monitor	 = NULL;
 bool				  using_xrandr	 = false;
+bool				  multi_monitors = false;
 bool				  using_xinerama = false;
 uint8_t				  randr_base	 = 0;
 xcb_cursor_context_t *cursor_ctx;
 xcb_cursor_t		  cursors[CURSOR_MAX];
 
-// clang-format off
-// X11/keysymdef.h
-static const _key__t keys_[] = {
+/* clang-format off */
+
+/* keys_[] is used as a fallback in case of an 
+ * error while loading the keys from the config file */
+
+/* see X11/keysymdef.h */
+static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER_MASK,          XK_w,       close_or_kill_wrapper,     NULL),
     DEFINE_KEY(SUPER_MASK,          XK_Return,  exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"alacritty"}})),
     DEFINE_KEY(SUPER_MASK,          XK_space,   exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"dmenu_run"}})),
@@ -150,7 +156,7 @@ static const _key__t keys_[] = {
     DEFINE_KEY(SHIFT_MASK,          XK_t,       change_state,              &((arg_t){.s = TILED})),
 };
 
-static const uint32_t buttons_[] = {
+static const uint32_t _buttons_[] = {
 	XCB_BUTTON_INDEX_1, XCB_BUTTON_INDEX_2, XCB_BUTTON_INDEX_3};
 
 static monitor_t *get_focused_monitor();
@@ -161,6 +167,7 @@ static int move_window(xcb_window_t, int16_t x, int16_t y);
 static int win_focus(xcb_window_t, bool);
 static void update_grabbed_window(node_t *, node_t *);
 static void ungrab_keys(xcb_conn_t *, xcb_window_t);
+static void arrange_trees(void);
 static int grab_keys(xcb_conn_t *, xcb_window_t);
 static desktop_t *init_desktop();
 static int ewmh_update_current_desktop(xcb_ewmh_connection_t *, int, uint32_t);
@@ -194,21 +201,50 @@ static int handle_mapping_notify(const xcb_generic_event_t *);
 static int handle_leave_notify(const xcb_generic_event_t *);
 static int handle_motion_notify(const xcb_generic_event_t *);
 
-static const event_handler_entry_t event_handlers[] = {
+/* an array of xcb events we need to handle */
+static const event_handler_entry_t _handlers_[] = {
 	/* core window management events */
+	/* map request - is generated when a window wants to be mapped (displayed) on the screen */
     DEFINE_MAPPING(XCB_MAP_REQUEST, handle_map_request),
+	/* unmap request - is generated when a window wants to be unmapped (removed) from the screen */
     DEFINE_MAPPING(XCB_UNMAP_NOTIFY, handle_unmap_notify),
+	/* destroy notify - is generated when a window is killed */
     DEFINE_MAPPING(XCB_DESTROY_NOTIFY, handle_destroy_notify),
     /* communication and configuration events */
+	/* client message (ewmh): 
+	 * These events are sent by other applications through ewmh protocol to zwm;
+	 * I am only responding to requestes where:
+	 * 1- the state of the window is changed (below, above, or fullscreen only, rest is ignored)
+	 * 		this generates a _NET_WM_STATE message
+	 * 2- an application wants to know where a window is located (_NET_ACTIVE_WINDOW), 
+	 * 		as result, zwm switches to the desktop containing that window.
+	 * 3- application wants to be closed (when a user clicks the close button at the corner)
+	 * 		this generates a NET_CLOSE_WINDOW message
+	 * 4- a desktop change was requested (usually through a status bar)
+	 * 		this generates _NET_CURRENT_DESKTOP message
+	 * other messages like are ignored intentionally.*/
     DEFINE_MAPPING(XCB_CLIENT_MESSAGE, handle_client_message),
+	/* configure request - this is used when a client wants to set or update its 
+	 * rectangle/positions or stacking mode.
+	 * since zwm is a tiling wm, i am mostly ignoring this event even though it 
+	 * reveals important info for splash screens */
     DEFINE_MAPPING(XCB_CONFIGURE_REQUEST, handle_configure_request),
     /* input and interaction events */
+	/* enter notify - is generated when a cursor enters a window, as a result, 
+	 * i redirect the focus and do some book keeping for floating windows */
     DEFINE_MAPPING(XCB_ENTER_NOTIFY, handle_enter_notify),
+	/* button press - is generated when a button is pressed, this event is handled 
+	 * when focus_follow_pointer is set to false (the focus is redirected as a result) */
     DEFINE_MAPPING(XCB_BUTTON_PRESS, handle_button_press_event),
+    /* key press - is generated when a key is pressed, this event allows certain 
+     * actions to be performed when a key is pressed, and this is how 
+	 * keybinds take action */
     DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
+    /* key press - is generated when keyboard mapping is changed, 
+    * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
-    DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),
    	/* will be implemented if needed */
+    /* DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),*/
     /* DEFINE_MAPPING(XCB_LEAVE_NOTIFY, handle_leave_notify), */
     /* DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release), */
     /* DEFINE_MAPPING(XCB_KEY_RELEASE, handle_key_release), */
@@ -217,7 +253,7 @@ static const event_handler_entry_t event_handlers[] = {
     /* DEFINE_MAPPING(XCB_CONFIGURE_NOTIFY, handle_configure_notify), */
     /* DEFINE_MAPPING(XCB_PROPERTY_NOTIFY, handle_property_notify), */
 };
-// clang-format on
+/* clang-format on */
 
 static void
 load_cursors(void)
@@ -769,6 +805,117 @@ swap_node_wrapper()
 		return -1;
 
 	return render_tree(root);
+}
+
+/* transfer_node_wrapper - handles transferring a node between desktops.
+ *
+ * This function moves the focused window (or the one under the cursor)
+ * from the currently active desktop to another desktop.
+ *
+ * How it works:
+ * 1. Determines the focused desktop and retrieves the focused node.
+ * 2. If the window is already on the target desktop, it logs a message and
+ * exits.
+ * 3. Hides the window visually before unlinking it from the source desktop.
+ * 4. Calls `transfer_node` to handle the actual node relocation.
+ * 5. Updates node counts for both desktops and re-renders the source desktop.
+ *
+ * Handles:
+ * - Rearranging the source and target desktop trees to keep things consistent.
+ *
+ * Notes:
+ * - This wrapper is focused on coordinating the high-level flow,
+ *   it leaves layout-specific handling to the `transfer_node` function.
+ */
+int
+transfer_node_wrapper(arg_t *arg)
+{
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == wm->root_window)
+		return 0;
+
+	const int i = arg->idx;
+	int		  d = get_focused_desktop_idx();
+	if (d == -1)
+		return d;
+
+	if (d == i) {
+		_LOG_(INFO, "switch node to curr desktop... abort");
+		return 0;
+	}
+
+	node_t *root = curr_monitor->desktops[d]->tree;
+	if (is_tree_empty(root)) {
+		return 0;
+	}
+
+	node_t *node = get_focused_node(root);
+	if (!node) {
+		_LOG_(ERROR, "focused node is null");
+		return 0;
+	}
+
+	desktop_t *nd = curr_monitor->desktops[i];
+	desktop_t *od = curr_monitor->desktops[d];
+#ifdef _DEBUG__
+	_LOG_(INFO, "new desktop %d nodes--------------", i + 1);
+	log_tree_nodes(nd->tree);
+	_LOG_(INFO, "old desktop %d nodes--------------", d + 1);
+	log_tree_nodes(od->tree);
+#endif
+	if (set_visibility(node->client->window, false) != 0) {
+		_LOG_(ERROR, "cannot hide window %d", node->client->window);
+		return -1;
+	}
+	if (unlink_node(node, od)) {
+		if (!transfer_node(node, nd)) {
+			_LOG_(ERROR, "could not transfer node.. abort");
+			return -1;
+		}
+	} else {
+		_LOG_(ERROR, "could not unlink node.. abort");
+		return -1;
+	}
+
+	od->n_count--;
+	nd->n_count++;
+	arrange_tree(nd->tree, nd->layout);
+	if (nd->layout == STACK) {
+		set_focus(node, true);
+	}
+	if (!is_tree_empty(od->tree)) {
+		arrange_tree(od->tree, od->layout);
+	}
+	return render_tree(od->tree);
+}
+
+int
+horizontal_resize_wrapper(arg_t *arg)
+{
+	const int i = get_focused_desktop_idx();
+	if (i == -1)
+		return -1;
+
+	if (curr_monitor->desktops[i]->layout == STACK) {
+		return 0;
+	}
+
+	node_t *root = curr_monitor->desktops[i]->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
+	if (n == NULL)
+		return -1;
+	/* todo: if node was flipped, reize up or down instead */
+	grab_pointer(wm->root_window,
+				 false); /* steal the pointer and prevent it from sending
+						  * enter_notify events (which focuses the window
+						  * being under cursor as the resize happens); */
+	horizontal_resize(n, arg->r);
+	render_tree(root);
+	ungrab_pointer();
+	return 0;
 }
 
 int
@@ -1547,6 +1694,9 @@ log_monitors(void)
 	}
 }
 
+/* init_wm - initializes the window manager by setting up the necessary
+ * X connection, retrieving screen information, and creating the required
+ * windows */
 static wm_t *
 init_wm(void)
 {
@@ -1725,11 +1875,14 @@ get_connected_monitor_count(bool xrandr, bool xinerama)
 	return n;
 }
 
+/* setup_monitors_via_xrandr - initializes monitors using the Xrandr extension
+ * by querying the screen resources and output information */
 static bool
 setup_monitors_via_xrandr()
 {
 	xcb_connection_t							   *conn = wm->connection;
 	xcb_window_t									root = wm->root_window;
+	/* get screen resources (primary output, crtcs, outputs, modes, etc) */
 	xcb_randr_get_screen_resources_current_cookie_t sc =
 		xcb_randr_get_screen_resources_current(conn, root);
 	xcb_randr_get_screen_resources_current_reply_t *sr =
@@ -1739,31 +1892,40 @@ setup_monitors_via_xrandr()
 		return false;
 	}
 	const xcb_timestamp_t time = sr->config_timestamp;
+	/* an output is eDP, HDMI-* VGA-*, etc. (a physical video outputs) */
 	const int len = xcb_randr_get_screen_resources_current_outputs_length(sr);
 	xcb_randr_output_t *outputs =
 		xcb_randr_get_screen_resources_current_outputs(sr);
 	xcb_randr_get_output_info_cookie_t oc[len];
+	/* loop through all outputs available for this X screen and get their info
+	 */
 	for (int i = 0; i < len; i++) {
 		oc[i] = xcb_randr_get_output_info(conn, outputs[i], time);
 	}
 	int monitors = 0;
+	/* loop through all outputs and uses the connected ones */
 	for (int i = 0; i < len; i++) {
+		/* request information for each output */
 		xcb_randr_get_output_info_reply_t *info;
 		if ((info = xcb_randr_get_output_info_reply(conn, oc[i], NULL)) ==
 			NULL) {
 			_LOG_(INFO, "could not query output info... skipping this output");
 			continue;
 		}
+		/* skip if this ouput isn't connected */
 		if (info->connection == XCB_RANDR_CONNECTION_DISCONNECTED) {
 			_LOG_(INFO, "output is disconnected... skipping this output");
 			_FREE_(info);
 			continue;
 		}
+		/* skip if this ouput has no crtc */
 		if (info->crtc == XCB_NONE) {
 			_LOG_(INFO, "output crtc is empty... skipping this output");
 			_FREE_(info);
 			continue;
 		}
+		/* if we rached here, then this output is connected and has a valid
+		 * crtc. */
 		xcb_randr_get_crtc_info_cookie_t ic;
 		xcb_randr_get_crtc_info_reply_t *crtc;
 		ic = xcb_randr_get_crtc_info(conn, info->crtc, time);
@@ -1903,25 +2065,50 @@ ewmh_update_desktop_viewport(void)
 	xcb_ewmh_set_desktop_viewport(wm->ewmh, wm->screen_nbr, desktop, coords);
 }
 
+static int
+get_monitors_count(void)
+{
+	monitor_t *curr = head_monitor;
+	int		   n	= 0;
+	while (curr) {
+		n++;
+		curr = curr->next;
+	}
+	return n;
+}
+
+/* setup_monitors - called when we first establishe a
+ * connection to the X server and need the initial information to setup
+ * monitors. It checks for the availability of Xrandr
+ * or Xinerama extensions and configures the monitors accordingly.
+ */
 static bool
 setup_monitors(void)
 {
-
+	/* if we should use a single global screen, rarely happens, or never */
 	bool							   use_global_screen = false;
-	const xcb_query_extension_reply_t *query_xr =
-		xcb_get_extension_data(wm->connection, &xcb_randr_id);
-	const xcb_query_extension_reply_t *query_x =
-		xcb_get_extension_data(wm->connection, &xcb_xinerama_id);
+	/* query for the Xrandr extension */
+	const xcb_query_extension_reply_t *query_xr			 = NULL;
+	/* query for the Xinerama extension */
+	const xcb_query_extension_reply_t *query_x			 = NULL;
 
+	query_xr = xcb_get_extension_data(wm->connection, &xcb_randr_id);
+	query_x	 = xcb_get_extension_data(wm->connection, &xcb_xinerama_id);
+
+	/* if xrandr is available, we use it for managing monitors */
 	if (query_xr->present) {
-		using_xrandr   = true;
-		using_xinerama = false;
-		randr_base	   = query_xr->first_event;
+		/* set the flag for xrandr */
+		using_xrandr = true;
+		/* get the base event number for xrandr */
+		randr_base	 = query_xr->first_event;
+		/* listen for screen change notifications from xrandr */
 		xcb_randr_select_input(wm->connection,
 							   wm->root_window,
 							   XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE);
 	} else if (query_x->present) {
+		/* if xinerama is available but xrandr is not, use xinerama */
 		bool							xinerama_is_active = false;
+		/* check if xinerama is active */
 		xcb_xinerama_is_active_cookie_t xc =
 			xcb_xinerama_is_active(wm->connection);
 		xcb_xinerama_is_active_reply_t *xis_active =
@@ -1929,20 +2116,28 @@ setup_monitors(void)
 		if (xis_active) {
 			xinerama_is_active = xis_active->state;
 			free(xis_active);
-			using_xrandr   = false;
+			/* enable xinerama based on its state */
 			using_xinerama = xinerama_is_active;
 		}
 	} else {
+		/* if neither xrandr nor xinerama is available, set both
+		 * flags to false.
+		 * This should NEVER happen, but in case it does, we use
+		 * the global screen as a monitor. */
 		using_xrandr = using_xinerama = false;
 	}
 
+	/* get the number of connected monitors based on the available extension */
 	int n = get_connected_monitor_count(using_xrandr, using_xinerama);
 
+	/* if neither extension is available and only one "monitor" is connected,
+	 * default to global screen */
 	if (!using_xrandr && !using_xinerama && n == 1) {
 		_LOG_(ERROR, "Neither Xrandr nor Xinerama extensions are available");
 		use_global_screen = true;
 	}
 
+	/* if we are using a global screen, set up a single monitor */
 	if (use_global_screen) {
 		rectangle_t r = (rectangle_t){
 			0, 0, wm->screen->width_in_pixels, wm->screen->height_in_pixels};
@@ -1961,25 +2156,27 @@ setup_monitors(void)
 		m->randr_id	   = 0;
 		add_monitor(&head_monitor, m);
 		prim_monitor = curr_monitor = m;
-		goto out;
+		goto out; /* skip to the end of the function */
 	}
 
 	bool setup_success = false;
-	if (using_xrandr && !using_xinerama) {
+	/* if using xrandr and not xinerama, set up monitors via xrandr */
+	if (using_xrandr) {
 		setup_success = setup_monitors_via_xrandr();
 		if (setup_success) {
 			_LOG_(INFO, "Monitors successfully set up using Xrandr");
 		}
-	} else if (using_xinerama && !using_xrandr) {
+	} else if (using_xinerama) {
+		/* if using xinerama and not xrandr, set up monitors via xinerama */
 		setup_success = setup_monitors_via_xinerama();
 		if (setup_success) {
 			_LOG_(INFO, "Monitors successfully set up using Xinerama");
 		}
 	}
 
+	/* if setup fails, log an error and return false */
 	if (!setup_success) {
-		_LOG_(ERROR, "fialed to setup monitors, defaulting to global screen");
-
+		_LOG_(ERROR, "failed to set up monitors, defaulting to global screen");
 		return false;
 	}
 
@@ -1987,7 +2184,7 @@ setup_monitors(void)
 #if 0
 	monitor_t *curr = head_monitor;
 	while (curr) {
-		uint32_t values[] = {XCB_EVENT_MASK_ENTER_WINDOW};
+		uint32_t values[] = {ENTER_WINDOW | POINTER_MOTION};
 		curr->root		  = xcb_generate_id(wm->connection);
 		xcb_create_window(wm->connection,
 						  XCB_COPY_FROM_PARENT,
@@ -2002,13 +2199,11 @@ setup_monitors(void)
 						  XCB_COPY_FROM_PARENT,
 						  XCB_CW_EVENT_MASK,
 						  values);
-		const uint32_t mask = XCB_CW_EVENT_MASK;
-		xcb_change_window_attributes(wm->connection, curr->root, mask, values);
 		_LOG_(INFO,
 			  "succseffuly created root %d for monitor %s",
 			  curr->root,
 			  curr->name);
-		// show_window(curr->root);
+		show_window(curr->root);
 		lower_window(curr->root);
 		xcb_icccm_set_wm_class(
 			wm->connection, curr->root, sizeof(ROOT_WINDOW), ROOT_WINDOW);
@@ -2020,23 +2215,22 @@ setup_monitors(void)
 							  curr->name);
 	}
 #endif
-
-	/* primary monitor */
+	/* get the primary monitor output using xrandr, this will fail if xinerma is
+	 * used, but it is fine we make head_mon our primary if that happens */
 	xcb_randr_get_output_primary_cookie_t ccc =
 		xcb_randr_get_output_primary(wm->connection, wm->root_window);
 	xcb_randr_get_output_primary_reply_t *primary_output_reply =
 		xcb_randr_get_output_primary_reply(wm->connection, ccc, NULL);
-
 	if (primary_output_reply) {
 		monitor_t *mm = get_monitor_by_randr_id(primary_output_reply->output);
-		if (mm) {
+		if (!mm) {
 			mm->is_primary = true;
 			prim_monitor = curr_monitor = mm;
 		} else {
 			prim_monitor = curr_monitor = head_monitor;
 		}
 	} else {
-		_LOG_(INFO, "no monitor is found");
+		prim_monitor = curr_monitor = head_monitor;
 	}
 
 	_LOG_(INFO,
@@ -2053,6 +2247,10 @@ setup_monitors(void)
 	free(primary_output_reply);
 
 out:
+	if (get_monitors_count() > 1) {
+		multi_monitors = true;
+	}
+	_LOG_(INFO, "multi monitors = %s", multi_monitors ? "true" : "false");
 	xcb_flush(wm->connection);
 	return true;
 }
@@ -2061,6 +2259,7 @@ bool
 handle_added_monitor(xcb_randr_get_output_info_reply_t *info,
 					 xcb_randr_output_t					id)
 {
+	/* each CRT controller has a rectangle(x,y,w,h) we are interested in.*/
 	xcb_randr_get_crtc_info_cookie_t crtc_c =
 		xcb_randr_get_crtc_info(wm->connection, info->crtc, XCB_CURRENT_TIME);
 	xcb_randr_get_crtc_info_reply_t *crtc =
@@ -2069,8 +2268,10 @@ handle_added_monitor(xcb_randr_get_output_info_reply_t *info,
 		_LOG_(ERROR, "failed to query crtc for %d", id);
 		return false;
 	}
+	/* give me the ouput name, like HDMI-* or eDP etc*/
 	char	  *name		= (char *)xcb_randr_get_output_info_name(info);
 	size_t	   name_len = xcb_randr_get_output_info_name_length(info);
+	/* build up the monitor using the info we gathered so far */
 	monitor_t *m		= init_monitor();
 	if (!m) {
 		_LOG_(ERROR, "failed to allocate single monitor for output %d", id);
@@ -2109,18 +2310,30 @@ handle_added_monitor(xcb_randr_get_output_info_reply_t *info,
 void
 destroy_monitor(monitor_t *m)
 {
+	if (!m) {
+		_LOG_(ERROR, "attempted to destroy a NULL monitor.");
+		return;
+	}
+
+	_LOG_(INFO, "destroying monitor %s", m->name);
 	for (int i = 0; i < m->n_of_desktops; i++) {
-		if (m->desktops[i]) {
-			if (m->desktops[i]->tree) {
-				free_tree(m->desktops[i]->tree);
-			}
-			_FREE_(m->desktops[i]);
+		desktop_t *desktop = m->desktops[i];
+		if (!desktop) {
+			continue;
 		}
+		if (!desktop->tree) {
+			continue;
+		}
+		_LOG_(INFO, "freeing tree for desktop %d on monitor %s", i, m->name);
+		free_tree(desktop->tree);
+		_FREE_(desktop);
 	}
 	_FREE_(m->desktops);
+	_LOG_(INFO, "removing m from linked list");
 	xcb_randr_output_t id = m->randr_id;
-	remove_monitor_by_id(&head_monitor, m->randr_id);
+	remove_monitor_by_id(&head_monitor, id);
 	assert(!get_monitor_by_randr_id(id));
+	_LOG_(INFO, "monitor was destroyed.");
 }
 
 static bool
@@ -2145,6 +2358,68 @@ is_monitor_layout_changed(xcb_randr_get_output_info_reply_t *info,
 			r->height != r_out->height);
 }
 
+/* merge_monitors - is called when a monitor *m* was disconnected.
+ *
+ * Instead of losing what was in *m* , this function transfers the
+ * windows from *m* to any other avaialble monitor.
+ * Note: it transfers windows from desktop[i] to the same desktop[i] in the
+ * target monitor */
+static bool
+merge_monitors(monitor_t *om, monitor_t *nm)
+{
+	assert(om->n_of_desktops == nm->n_of_desktops);
+
+	for (int i = 0; i < om->n_of_desktops; i++) {
+		desktop_t *od = om->desktops[i];
+		desktop_t *nd = nm->desktops[i];
+
+		if (!od->tree) {
+			continue;
+		}
+
+		queue_t *q = create_queue();
+		if (!q)
+			return false;
+
+		enqueue(q, od->tree);
+		while (!is_queue_empty(q)) {
+			node_t *node = dequeue(q);
+			if (node->first_child) {
+				enqueue(q, node->first_child);
+			}
+			if (node->second_child) {
+				enqueue(q, node->second_child);
+			}
+			if (!IS_INTERNAL(node) && node->client) {
+				if (unlink_node(node, od)) {
+					transfer_node(node, nd);
+				} else {
+					_LOG_(ERROR, "could not unlink node.. abort");
+					free_queue(q);
+					return false;
+				}
+				if (nd->layout == STACK) {
+					set_focus(node, true);
+				}
+				nd->n_count++;
+			}
+		}
+		free_queue(q);
+		arrange_tree(od->tree, od->layout);
+		arrange_tree(nd->tree, nd->layout);
+		// assert(!od->tree);
+	}
+	return true;
+}
+
+/* update_monitors - queries current outputs, and checks if anything was changed
+ * since we last queried the outputs in setup_monitor().
+ *
+ * It asks xrandr for a list of connected monitors/outputs and
+ * checks for changes like new monitors being connected, existing ones being
+ * disconnected, or changes in the layout (resolution, position, etc.).
+ * It then updates the monitor list accordingly and handles adding, removing, or
+ * updating layouts. */
 static void
 update_monitors(uint32_t *changes)
 {
@@ -2152,6 +2427,8 @@ update_monitors(uint32_t *changes)
 	xcb_connection_t *conn = wm->connection;
 	xcb_randr_get_screen_resources_current_cookie_t rc		  = {0};
 	xcb_randr_get_screen_resources_current_reply_t *resources = NULL;
+
+	/* get screen resources (primary output, crtcs, outputs, modes, etc) */
 	rc		  = xcb_randr_get_screen_resources_current(conn, wm->root_window);
 	resources = xcb_randr_get_screen_resources_current_reply(conn, rc, NULL);
 
@@ -2160,15 +2437,18 @@ update_monitors(uint32_t *changes)
 		return;
 	}
 
+	/* an output is eDP, HDMI-* VGA-*, etc. (a physical video outputs) */
 	int len = xcb_randr_get_screen_resources_current_outputs_length(resources);
 	xcb_randr_output_t *outputs =
 		xcb_randr_get_screen_resources_current_outputs(resources);
-	int monitor_count = 0;
+	int								   monitor_count = 0;
+	xcb_randr_get_output_info_cookie_t ic			 = {0};
+	xcb_randr_get_output_info_reply_t *info			 = NULL;
+	/* loop through all outputs available for this X screen */
 	for (int i = 0; i < len; i++) {
-		xcb_randr_get_output_info_cookie_t info_cookie =
-			xcb_randr_get_output_info(conn, outputs[i], XCB_CURRENT_TIME);
-		xcb_randr_get_output_info_reply_t *info =
-			xcb_randr_get_output_info_reply(conn, info_cookie, NULL);
+		/* request information for each output */
+		ic	 = xcb_randr_get_output_info(conn, outputs[i], XCB_CURRENT_TIME);
+		info = xcb_randr_get_output_info_reply(conn, ic, NULL);
 		if (!info)
 			continue;
 		if (info->connection == XCB_RANDR_CONNECTION_DISCONNECTED) {
@@ -2215,20 +2495,28 @@ update_monitors(uint32_t *changes)
 				}
 			}
 		}
+		_FREE_(info);
 	}
+	_FREE_(resources);
 	/* check for disconnected monitors */
 	if (dl) {
-		/* windows from disconnected monitors are supposed to be moved
-		 * to any other available monitor. BUT, this require some
-		 * extra work to merge trees/desktops without triggering other
-		 * inner calls that may cause craches */
-
-		/* for now, a disconneced monitor is freed entirely, this includes
-		 * its desktops and trees, things will be lost as a result */
+		/* find the primary monitor to transfer desktops to */
+		monitor_t *m = prim_monitor;
+		if (!m) {
+			_LOG_(ERROR, "no primary monitor found to merge with");
+			return;
+		}
+		/* merge and destroy each disconnected monitor */
 		while (dl) {
-			monitor_t *to_remove = dl;
-			dl					 = dl->next;
-			destroy_monitor(to_remove);
+			monitor_t *r = dl;
+			dl			 = dl->next;
+			_LOG_(INFO, "merging desktops from %s to %s", r->name, m->name);
+			/* merge desktops */
+			if (!merge_monitors(r, m)) {
+				_LOG_(ERROR, "failed to merge desktops from %s", r->name);
+			}
+			/* destroy the disconnected monitor */
+			destroy_monitor(r);
 		}
 		*changes &= ~_NONE;
 		*changes |= DISCONNECTED;
@@ -2236,6 +2524,9 @@ update_monitors(uint32_t *changes)
 	_LOG_(INFO, "%d newly connected monitor", monitor_count);
 }
 
+/* TODO: the api for this is ugly, figure out a better way to do it */
+/* handle_monitor_changes - handles RandR screen change events,
+ * that is when the user changes the screen configuration */
 static void
 handle_monitor_changes(void)
 {
@@ -2244,35 +2535,56 @@ handle_monitor_changes(void)
 	 * list and assign desktops to it.
 	 * 2- an exisitng monitor was
 	 * disconnected, we need to merge its desktops with the primary monitor
-	 * then remove it and free its desktops and trees.
+	 * then remove it and free its desktops.
 	 * 3- a resolution or oreintation was changed for an existing
 	 * monitor, we need to recaluclate the rectangle for it and resize its
 	 * trees
 	 */
+
 	if (using_xinerama) {
 		return;
 	}
-	uint32_t m_change = 0 | _NONE; /* set the none flag */
+
+	uint32_t m_change = 0 | _NONE; /* flags for post processing */
+	bool	 render	  = false;
 	update_monitors(&m_change);
+
 	if (m_change & _NONE) {
 		_LOG_(INFO, "no monitor changes was found");
 		return;
 	}
+	/* post processsing */
 	if (m_change & CONNECTED) {
 		_LOG_(INFO, "a monitor was connected");
+		/* a new monitor was added, we need to assign desktops to it */
 		setup_desktops();
 	} else if (m_change & DISCONNECTED) {
 		_LOG_(INFO, "a monitor was disconnected");
-		/* nothing to do here. in future i may merge diconnected monitor's
-		 * desktops here in here */
+		/* a monitor was disconnected, we need to render and re-arrange the
+		 * trees */
 		curr_monitor = prim_monitor = head_monitor;
+		render						= true;
 	} else if (m_change & LAYOUT) {
 		_LOG_(INFO, "a monitor's layout was changed");
+		/* layout was changed, we need to adopt its new rectangle, render and
+		 * re-arrange the trees */
+		render = true;
+	}
+
+	if (render) {
 		arrange_trees();
 		render_trees();
 	}
 	log_monitors();
-	// TODO: update ewmh
+	if (get_monitors_count() > 1) {
+		multi_monitors = true;
+	} else {
+		multi_monitors = false;
+	}
+	_LOG_(INFO,
+		  "in update: multi monitors = %s",
+		  multi_monitors ? "true" : "false");
+	/* TODO: update ewmh */
 }
 
 static monitor_t *
@@ -2951,16 +3263,16 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	_LOG_(INFO, "----grabbing default keys------");
-	const size_t n = sizeof(keys_) / sizeof(keys_[0]);
+	const size_t n = sizeof(_keys_) / sizeof(_keys_[0]);
 
 	for (size_t i = n; i--;) {
-		xcb_keycode_t *key = get_keycode(keys_[i].keysym, conn);
+		xcb_keycode_t *key = get_keycode(_keys_[i].keysym, conn);
 		if (key == NULL)
 			return -1;
 		xcb_void_cookie_t cookie = xcb_grab_key_checked(conn,
 														1,
 														win,
-														(uint16_t)keys_[i].mod,
+														(uint16_t)_keys_[i].mod,
 														*key,
 														XCB_GRAB_MODE_ASYNC,
 														XCB_GRAB_MODE_ASYNC);
@@ -4064,9 +4376,11 @@ handle_map_request(const xcb_generic_event_t *event)
 	xcb_map_request_event_t *ev	 = (xcb_map_request_event_t *)event;
 	xcb_window_t			 win = ev->window;
 
-	monitor_t				*mm	 = get_focused_monitor();
-	if (mm && mm != curr_monitor) {
-		curr_monitor = mm;
+	if (multi_monitors) {
+		monitor_t *mm = get_focused_monitor();
+		if (mm && mm != curr_monitor) {
+			curr_monitor = mm;
+		}
 	}
 
 	if (!should_manage(win, wm->connection)) {
@@ -4109,6 +4423,7 @@ handle_map_request(const xcb_generic_event_t *event)
 		map_floating(win);
 		return 0;
 	}
+
 	switch (wint) {
 	case WINDOW_TYPE_UNKNOWN:
 	case WINDOW_TYPE_NORMAL: return handle_tiled_window_request(win, d);
@@ -4127,16 +4442,17 @@ handle_enter_notify(const xcb_generic_event_t *event)
 	xcb_enter_notify_event_t *ev  = (xcb_enter_notify_event_t *)event;
 	xcb_window_t			  win = ev->event;
 
-	monitor_t				 *mm  = get_focused_monitor();
-	if (mm && mm != curr_monitor) {
-		curr_monitor = mm;
+	if (multi_monitors) {
+		monitor_t *mm = get_focused_monitor();
+		if (mm && mm != curr_monitor) {
+			curr_monitor = mm;
+		}
 	}
 #ifdef _DEBUG__
 	char *name = win_name(win);
 	_LOG_(DEBUG, "recieved enter notify for %d, name %s ", win, name);
 	_FREE_(name);
 #endif
-
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
 		ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) {
 		return 0;
@@ -4317,12 +4633,12 @@ handle_key_press(const xcb_generic_event_t *event)
 		return 0;
 	}
 
-	size_t n = sizeof(keys_) / sizeof(keys_[0]);
+	size_t n = sizeof(_keys_) / sizeof(_keys_[0]);
 	for (size_t i = n; i--;) {
-		if (cleaned_state == (keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
-			if (keys_[i].keysym == k) {
-				arg_t	 *a	  = keys_[i].arg;
-				const int ret = keys_[i].function_ptr(a);
+		if (cleaned_state == (_keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
+			if (_keys_[i].keysym == k) {
+				arg_t	 *a	  = _keys_[i].arg;
+				const int ret = _keys_[i].function_ptr(a);
 				if (ret != 0) {
 					_LOG_(ERROR, "error while executing function_ptr(..)");
 				}
@@ -4342,14 +4658,12 @@ handle_state(node_t		 *n,
 	if (n == NULL)
 		return -1;
 
-	char *name = win_name(n->client->window);
+	char		*name = win_name(n->client->window);
+	xcb_window_t w	  = n->client->window;
 
 	if (state == wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
 		state_ == wm->ewmh->_NET_WM_STATE_FULLSCREEN) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_FULLSCREEN received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_FULLSCREEN received for win %d:%s", w, name);
 		if (action == XCB_EWMH_WM_STATE_ADD) {
 			_FREE_(name);
 			return set_fullscreen(n, true);
@@ -4366,38 +4680,23 @@ handle_state(node_t		 *n,
 			return set_fullscreen(n, mode == XCB_EWMH_WM_STATE_ADD);
 		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_BELOW received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_BELOW received for win %d:%s", w, name);
 		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
 			STACK) {
-			lower_window(n->client->window);
+			lower_window(w);
 		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_ABOVE received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_ABOVE received for win %d:%s", w, name);
 		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
 			STACK) {
-			raise_window(n->client->window);
+			raise_window(w);
 		}
 	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_HIDDEN received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_HIDDEN received for win %d:%s", w, name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_STICKY) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_STICKY received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_STICKY received for win %d:%s", w, name);
 	} else if (state == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-		_LOG_(INFO,
-			  "_NET_WM_STATE_DEMANDS_ATTENTION received for win %d:%s",
-			  n->client->window,
-			  name);
+		_LOG_(INFO, "STATE_DEMANDS_ATTENTION received for win %d:%s", w, name);
 	}
 	_FREE_(name);
 	return 0;
@@ -4440,15 +4739,12 @@ handle_client_message(const xcb_generic_event_t *event)
 			_FREE_(s);
 			return -1;
 		}
-	} else if (ev->type == wm->ewmh->_NET_CLOSE_WINDOW) {
-		_LOG_(INFO, "window want to be closed %d", ev->window);
 	} else if (ev->type == wm->ewmh->_NET_WM_STATE) {
-		_LOG_(INFO, "wm_state for %d name %s", ev->window, s);
+		_LOG_(INFO, "NET_WM_STATE for %d name %s", ev->window, s);
 		handle_state(
 			n, ev->data.data32[1], ev->data.data32[2], ev->data.data32[0]);
 	} else if (ev->type == wm->ewmh->_NET_ACTIVE_WINDOW) {
-		_LOG_(
-			INFO, "wm_state _NET_ACTIVE_WINDOW for %d name %s", ev->window, s);
+		_LOG_(INFO, "_NET_ACTIVE_WINDOW for %d name %s", ev->window, s);
 		int di = find_desktop_by_window(ev->window);
 		if (di == -1)
 			goto out;
@@ -4458,19 +4754,13 @@ handle_client_message(const xcb_generic_event_t *event)
 			return -1;
 		}
 	} else if (ev->type == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-		_LOG_(INFO,
-			  "wm_state _NET_WM_STATE_DEMANDS_ATTENTION for %d name %s",
-			  ev->window,
-			  s);
+		_LOG_(INFO, "WM_STATE_DEMANDS_ATTENTION for %d name %s", ev->window, s);
 	} else if (ev->type == wm->ewmh->_NET_WM_STATE_STICKY) {
-		_LOG_(INFO,
-			  "wm_state _NET_WM_STATE_STICKY for %d name %s",
-			  ev->window,
-			  s);
+		_LOG_(INFO, "NET_WM_STATE_STICKY for %d name %s", ev->window, s);
 	} else if (ev->type == wm->ewmh->_NET_WM_DESKTOP) {
-		_LOG_(INFO, "wm_state _NET_WM_DESKTOP for %d name %s", ev->window, s);
+		_LOG_(INFO, "NET_WM_DESKTOP for %d name %s", ev->window, s);
 	} else if (ev->type == wm->ewmh->_NET_CLOSE_WINDOW) {
-		_LOG_(INFO, "wm_state _NET_CLOSE_WINDOW for %d name %s", ev->window, s);
+		_LOG_(INFO, "NET_CLOSE_WINDOW for %d name %s", ev->window, s);
 		close_or_kill(ev->window);
 	}
 out:
@@ -4546,7 +4836,6 @@ handle_configure_request(const xcb_generic_event_t *event)
 		  ev->width,
 		  ev->height);
 #endif
-
 	const int d = get_focused_desktop_idx();
 	if (d == -1) {
 		return d;
@@ -4780,12 +5069,14 @@ static int
 handle_motion_notify(const xcb_generic_event_t *event)
 {
 	xcb_motion_notify_event_t *ev = (xcb_motion_notify_event_t *)event;
+#ifdef _DEBUG__
 	_LOG_(INFO,
-		  "recevied motion notify on root %dx%d even %dx%d",
+		  "recevied motion notify on root %dx%d event %dx%d",
 		  ev->root_x,
 		  ev->root_y,
 		  ev->event_x,
 		  ev->event_y);
+#endif
 	/* skip events where the pointer was over a child window, we are only
 	 * interested in events on the root window. */
 	if (ev->child != XCB_NONE) {
@@ -4793,21 +5084,14 @@ handle_motion_notify(const xcb_generic_event_t *event)
 	}
 	int16_t	   rx = ev->root_x;
 	int16_t	   ry = ev->root_y;
-	int16_t	   ex = ev->event_x;
-	int16_t	   ey = ev->event_y;
 	/* find out if this crosses monitor boundary */
 	monitor_t *m  = get_monitor_within_coordinate(rx, ry);
 	if (!m) {
-		_LOG_(
-			INFO, "cannot find monitor crossing from this event %dx%d", rx, ry);
-	} else {
-		_LOG_(INFO,
-			  "found monitor %s crossing from this event %dx%d",
-			  m->name,
-			  rx,
-			  ry);
+		return 0;
 	}
-
+	if (curr_monitor && curr_monitor != m) {
+		curr_monitor = m;
+	}
 	return 0;
 }
 
@@ -4892,10 +5176,10 @@ handle_event(xcb_generic_event_t *event)
 		return 0;
 	}
 
-	size_t n = sizeof(event_handlers) / sizeof(event_handlers[0]);
+	size_t n = sizeof(_handlers_) / sizeof(_handlers_[0]);
 	for (size_t i = 0; i < n; i++) {
-		if (event_handlers[i].type == event_type) {
-			return event_handlers[i].handler(event);
+		if (_handlers_[i].type == event_type) {
+			return _handlers_[i].handler(event);
 		}
 	}
 
@@ -4907,11 +5191,10 @@ event_loop(wm_t *w)
 {
 	xcb_generic_event_t *event;
 	while ((event = xcb_wait_for_event(w->connection))) {
-		int r = handle_event(event);
-		if (r != 0) {
+		if (handle_event(event) != 0) {
 			uint8_t		type = event->response_type & ~0x80;
-			const char *en	 = xcb_event_to_string(type);
-			_LOG_(ERROR, "error processing event: %s ", en);
+			const char *es	 = xcb_event_to_string(type);
+			_LOG_(ERROR, "error processing event: %s ", es);
 		}
 		free(event);
 	}
@@ -4936,6 +5219,8 @@ int
 main(int argc, char **argv)
 {
 
+	/* if loading the config file went sideways, we use the default values,
+	 * and default keys */
 	if (load_config(&conf) != 0) {
 		_LOG_(ERROR, "error while loading config -> using default macros");
 		conf.active_border_color  = ACTIVE_BORDER_COLOR;
@@ -4961,7 +5246,8 @@ main(int argc, char **argv)
 		parse_args(argc, argv);
 	}
 
-	if (0 != grab_keys(wm->connection, wm->root_window)) {
+	/* do not wait for mapping event. Grab the keys as soon as zwm starts */
+	if (grab_keys(wm->connection, wm->root_window) != 0) {
 		_LOG_(ERROR, "cannot grab keys");
 	}
 
