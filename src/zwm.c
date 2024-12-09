@@ -106,7 +106,7 @@ xcb_cursor_t		  cursors[CURSOR_MAX];
 
 /* clang-format off */
 
-/* keys_[] is used as a fallback in case of an 
+/* keys_[] is used as a fallback in case of an
  * error while loading the keys from the config file */
 
 /* see X11/keysymdef.h */
@@ -170,7 +170,7 @@ static void ungrab_keys(xcb_conn_t *, xcb_window_t);
 static void arrange_trees(void);
 static int grab_keys(xcb_conn_t *, xcb_window_t);
 static desktop_t *init_desktop();
-static int ewmh_update_current_desktop(xcb_ewmh_connection_t *, int, uint32_t);
+static int ewmh_update_current_desktop(xcb_ewmh_conn_t *, int, uint32_t);
 static int ewmh_update_number_of_desktops(void);
 static int set_active_window_name(xcb_window_t);
 static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
@@ -189,19 +189,19 @@ static int hide_window(xcb_window_t win);
 static xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *conn);
 static bool setup_desktops(void);
 static node_t *get_foucsed_desktop_tree(void);
-static int handle_map_request(const xcb_generic_event_t *);
-static int handle_unmap_notify(const xcb_generic_event_t *);
-static int handle_destroy_notify(const xcb_generic_event_t *);
-static int handle_client_message(const xcb_generic_event_t *);
-static int handle_configure_request(const xcb_generic_event_t *);
-static int handle_enter_notify(const xcb_generic_event_t *);
-static int handle_button_press_event(const xcb_generic_event_t *);
-static int handle_key_press(const xcb_generic_event_t *);
-static int handle_mapping_notify(const xcb_generic_event_t *);
-static int handle_leave_notify(const xcb_generic_event_t *);
-static int handle_motion_notify(const xcb_generic_event_t *);
+static int handle_map_request(const xcb_event_t *);
+static int handle_unmap_notify(const xcb_event_t *);
+static int handle_destroy_notify(const xcb_event_t *);
+static int handle_client_message(const xcb_event_t *);
+static int handle_configure_request(const xcb_event_t *);
+static int handle_enter_notify(const xcb_event_t *);
+static int handle_button_press_event(const xcb_event_t *);
+static int handle_key_press(const xcb_event_t *);
+static int handle_mapping_notify(const xcb_event_t *);
+static int handle_leave_notify(const xcb_event_t *);
+static int handle_motion_notify(const xcb_event_t *);
 
-/* an array of xcb events we need to handle */
+/* array of xcb events we need to handle -> {event, handler function} */
 static const event_handler_entry_t _handlers_[] = {
 	/* core window management events */
 	/* map request - is generated when a window wants to be mapped (displayed) on the screen */
@@ -211,12 +211,12 @@ static const event_handler_entry_t _handlers_[] = {
 	/* destroy notify - is generated when a window is killed */
     DEFINE_MAPPING(XCB_DESTROY_NOTIFY, handle_destroy_notify),
     /* communication and configuration events */
-	/* client message (ewmh): 
+	/* client message (ewmh):
 	 * These events are sent by other applications through ewmh protocol to zwm;
 	 * I am only responding to requestes where:
 	 * 1- the state of the window is changed (below, above, or fullscreen only, rest is ignored)
 	 * 		this generates a _NET_WM_STATE message
-	 * 2- an application wants to know where a window is located (_NET_ACTIVE_WINDOW), 
+	 * 2- an application wants to know where a window is located (_NET_ACTIVE_WINDOW),
 	 * 		as result, zwm switches to the desktop containing that window.
 	 * 3- application wants to be closed (when a user clicks the close button at the corner)
 	 * 		this generates a NET_CLOSE_WINDOW message
@@ -224,23 +224,23 @@ static const event_handler_entry_t _handlers_[] = {
 	 * 		this generates _NET_CURRENT_DESKTOP message
 	 * other messages like are ignored intentionally.*/
     DEFINE_MAPPING(XCB_CLIENT_MESSAGE, handle_client_message),
-	/* configure request - this is used when a client wants to set or update its 
+	/* configure request - this is used when a client wants to set or update its
 	 * rectangle/positions or stacking mode.
-	 * since zwm is a tiling wm, i am mostly ignoring this event even though it 
+	 * since zwm is a tiling wm, i am mostly ignoring this event even though it
 	 * reveals important info for splash screens */
     DEFINE_MAPPING(XCB_CONFIGURE_REQUEST, handle_configure_request),
     /* input and interaction events */
-	/* enter notify - is generated when a cursor enters a window, as a result, 
+	/* enter notify - is generated when a cursor enters a window, as a result,
 	 * i redirect the focus and do some book keeping for floating windows */
     DEFINE_MAPPING(XCB_ENTER_NOTIFY, handle_enter_notify),
-	/* button press - is generated when a button is pressed, this event is handled 
+	/* button press - is generated when a button is pressed, this event is handled
 	 * when focus_follow_pointer is set to false (the focus is redirected as a result) */
     DEFINE_MAPPING(XCB_BUTTON_PRESS, handle_button_press_event),
-    /* key press - is generated when a key is pressed, this event allows certain 
-     * actions to be performed when a key is pressed, and this is how 
+    /* key press - is generated when a key is pressed, this event allows certain
+     * actions to be performed when a key is pressed, and this is how
 	 * keybinds take action */
     DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
-    /* key press - is generated when keyboard mapping is changed, 
+    /* key press - is generated when keyboard mapping is changed,
     * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
    	/* will be implemented if needed */
@@ -262,7 +262,7 @@ load_cursors(void)
 		_LOG_(ERROR, "failed to allocate xcursor context");
 		return;
 	}
-	/* _LOAD_CURSOR_ is reserved by some other lib */
+/* _LOAD_CURSOR_ is reserved by some other lib */
 #define __LOAD__CURSOR__(cursor, name)                                         \
 	do {                                                                       \
 		cursors[cursor] = xcb_cursor_load_cursor(cursor_ctx, name);            \
@@ -286,15 +286,15 @@ get_cursor(cursor_t c)
 static void
 set_cursor(int cursor_id)
 {
-	xcb_cursor_t	  c		   = get_cursor(cursor_id);
-	uint32_t		  values[] = {c};
-	xcb_void_cookie_t cookie   = xcb_change_window_attributes_checked(
+	xcb_cursor_t c		  = get_cursor(cursor_id);
+	uint32_t	 values[] = {c};
+	xcb_cookie_t cookie	  = xcb_change_window_attributes_checked(
 		  wm->connection, wm->root_window, XCB_CW_CURSOR, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 
 	if (err) {
 		_LOG_(ERROR, "Error setting cursor on root window %d", err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 	xcb_flush(wm->connection);
 }
@@ -455,7 +455,7 @@ change_state(arg_t *arg)
 				(curr_monitor->rectangle.height / 2) - (h / 2);
 		rectangle_t rc		  = {.x = x, .y = y, .width = wi, .height = h};
 		n->floating_rectangle = rc;
-		free(g);
+		_FREE_(g);
 		n->client->state = FLOATING;
 		if (parent) {
 			if (parent->first_child == n) {
@@ -475,7 +475,7 @@ change_state(arg_t *arg)
 	return render_tree(root);
 }
 
-static xcb_ewmh_connection_t *
+static xcb_ewmh_conn_t *
 ewmh_init(xcb_conn_t *conn)
 {
 	if (conn == 0x00) {
@@ -483,7 +483,7 @@ ewmh_init(xcb_conn_t *conn)
 		return NULL;
 	}
 
-	xcb_ewmh_connection_t *ewmh = calloc(1, sizeof(xcb_ewmh_connection_t));
+	xcb_ewmh_conn_t *ewmh = calloc(1, sizeof(xcb_ewmh_conn_t));
 	if (ewmh == NULL) {
 		_LOG_(ERROR, "Cannot calloc ewmh");
 		return NULL;
@@ -504,37 +504,37 @@ ewmh_init(xcb_conn_t *conn)
 }
 
 static int
-ewmh_set_supporting(xcb_window_t win, xcb_ewmh_connection_t *ewmh)
+ewmh_set_supporting(xcb_window_t win, xcb_ewmh_conn_t *ewmh)
 {
-	pid_t			  wm_pid = getpid();
-	xcb_void_cookie_t supporting_cookie_root =
+	pid_t		 wm_pid = getpid();
+	xcb_cookie_t supporting_cookie_root =
 		xcb_ewmh_set_supporting_wm_check_checked(ewmh, wm->root_window, win);
-	xcb_void_cookie_t supporting_cookie =
+	xcb_cookie_t supporting_cookie =
 		xcb_ewmh_set_supporting_wm_check_checked(ewmh, win, win);
-	xcb_void_cookie_t name_cookie =
+	xcb_cookie_t name_cookie =
 		xcb_ewmh_set_wm_name_checked(ewmh, win, strlen(WM_NAME), WM_NAME);
-	xcb_void_cookie_t pid_cookie =
+	xcb_cookie_t pid_cookie =
 		xcb_ewmh_set_wm_pid_checked(ewmh, win, (uint32_t)wm_pid);
 
-	xcb_generic_error_t *err;
+	xcb_error_t *err;
 	if ((err = xcb_request_check(ewmh->connection, supporting_cookie_root))) {
 		_LOG_(ERROR, "Error setting supporting window: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	if ((err = xcb_request_check(ewmh->connection, supporting_cookie))) {
 		_LOG_(ERROR, "Error setting supporting window: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	if ((err = xcb_request_check(ewmh->connection, name_cookie))) {
 		fprintf(stderr, "Error setting WM name: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	if ((err = xcb_request_check(ewmh->connection, pid_cookie))) {
 		fprintf(stderr, "Error setting WM PID: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -572,16 +572,14 @@ get_focused_desktop(void)
 }
 
 static int
-ewmh_set_number_of_desktops(xcb_ewmh_connection_t *ewmh,
-							int					   screen_nbr,
-							uint32_t			   nd)
+ewmh_set_number_of_desktops(xcb_ewmh_conn_t *ewmh, int screen_nbr, uint32_t nd)
 {
-	xcb_void_cookie_t cookie =
+	xcb_cookie_t cookie =
 		xcb_ewmh_set_number_of_desktops_checked(ewmh, screen_nbr, nd);
-	xcb_generic_error_t *err = xcb_request_check(ewmh->connection, cookie);
+	xcb_error_t *err = xcb_request_check(ewmh->connection, cookie);
 	if (err) {
 		_LOG_(ERROR, "Error setting number of desktops: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -608,13 +606,13 @@ ewmh_update_desktop_names(void)
 		}
 	}
 
-	names_len			= offset - 1;
-	xcb_void_cookie_t c = xcb_ewmh_set_desktop_names_checked(
+	names_len	   = offset - 1;
+	xcb_cookie_t c = xcb_ewmh_set_desktop_names_checked(
 		wm->ewmh, wm->screen_nbr, names_len, names);
-	xcb_generic_error_t *err = xcb_request_check(wm->ewmh->connection, c);
+	xcb_error_t *err = xcb_request_check(wm->ewmh->connection, c);
 	if (err) {
 		_LOG_(ERROR, "Error setting names of desktops: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -656,8 +654,8 @@ modfield_from_keysym(xcb_keysym_t keysym)
 
 end:
 	xcb_key_symbols_free(symbols);
-	free(keycodes);
-	free(reply);
+	_FREE_(keycodes);
+	_FREE_(reply);
 	return modfield;
 }
 
@@ -700,7 +698,7 @@ remove_property(xcb_connection_t *con,
 
 release_grab:
 	if (reply)
-		free(reply);
+		_FREE_(reply);
 	xcb_ungrab_server(con);
 }
 
@@ -713,15 +711,15 @@ window_above(xcb_window_t win1, xcb_window_t win2)
 	}
 	uint16_t mask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
 	uint32_t values[] = {win2, XCB_STACK_MODE_ABOVE};
-	xcb_void_cookie_t cookie =
+	xcb_cookie_t cookie =
 		xcb_configure_window_checked(wm->connection, win1, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
 			  win2,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 }
 
@@ -734,49 +732,49 @@ window_below(xcb_window_t win1, xcb_window_t win2)
 	}
 	uint16_t mask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
 	uint32_t values[] = {win2, XCB_STACK_MODE_BELOW};
-	xcb_void_cookie_t cookie =
+	xcb_cookie_t cookie =
 		xcb_configure_window_checked(wm->connection, win1, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
 			  win2,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 }
 
 void
 lower_window(xcb_window_t win)
 {
-	uint32_t		  values[] = {XCB_STACK_MODE_BELOW};
-	uint16_t		  mask	   = XCB_CONFIG_WINDOW_STACK_MODE;
-	xcb_void_cookie_t cookie =
+	uint32_t	 values[] = {XCB_STACK_MODE_BELOW};
+	uint16_t	 mask	  = XCB_CONFIG_WINDOW_STACK_MODE;
+	xcb_cookie_t cookie =
 		xcb_configure_window_checked(wm->connection, win, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 }
 
 void
 raise_window(xcb_window_t win)
 {
-	uint32_t		  values[] = {XCB_STACK_MODE_ABOVE};
-	uint16_t		  mask	   = XCB_CONFIG_WINDOW_STACK_MODE;
-	xcb_void_cookie_t cookie =
+	uint32_t	 values[] = {XCB_STACK_MODE_ABOVE};
+	uint16_t	 mask	  = XCB_CONFIG_WINDOW_STACK_MODE;
+	xcb_cookie_t cookie =
 		xcb_configure_window_checked(wm->connection, win, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 	}
 }
 
@@ -1027,19 +1025,18 @@ set_fullscreen(node_t *n, bool flag)
 			move_window(n->client->window, r.x, r.y) != 0) {
 			return -1;
 		}
-		xcb_void_cookie_t c =
-			xcb_change_property_checked(wm->connection,
-										XCB_PROP_MODE_REPLACE,
-										n->client->window,
-										wm->ewmh->_NET_WM_STATE,
-										XCB_ATOM_ATOM,
-										32,
-										true,
-										data);
-		xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+		xcb_cookie_t c	 = xcb_change_property_checked(wm->connection,
+													   XCB_PROP_MODE_REPLACE,
+													   n->client->window,
+													   wm->ewmh->_NET_WM_STATE,
+													   XCB_ATOM_ATOM,
+													   32,
+													   true,
+													   data);
+		xcb_error_t *err = xcb_request_check(wm->connection, c);
 		if (err) {
 			_LOG_(ERROR, "Error changing window property: %d", err->error_code);
-			free(err);
+			_FREE_(err);
 			return -1;
 		}
 		goto out;
@@ -1299,8 +1296,7 @@ reload_config_wrapper()
 							free_tree(current_monitor->desktops[j]->tree);
 							current_monitor->desktops[j]->tree = NULL;
 						}
-						free(current_monitor->desktops[j]);
-						current_monitor->desktops[j] = NULL;
+						_FREE_(current_monitor->desktops[j]);
 					}
 				}
 				current_monitor->n_of_desktops = conf.virtual_desktops;
@@ -1418,7 +1414,7 @@ cycle_win_wrapper(arg_t *arg)
 #ifdef _DEBUG__
 	char *s = win_name(next->client->window);
 	_LOG_(DEBUG, "found node %d name %s", next->client->window, s);
-	free(s);
+	_FREE_(s);
 #endif
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
@@ -1521,22 +1517,17 @@ ewmh_update_client_list(void)
 		curr = curr->next;
 	}
 	xcb_ewmh_set_client_list(wm->ewmh, wm->screen_nbr, size, active_clients);
-	_LOG_(DEBUG, "set client size done");
-	free(active_clients);
-	active_clients = NULL;
+	_FREE_(active_clients);
 }
 
 static int
-ewmh_update_current_desktop(xcb_ewmh_connection_t *ewmh,
-							int					   screen_nbr,
-							uint32_t			   i)
+ewmh_update_current_desktop(xcb_ewmh_conn_t *ewmh, int screen_nbr, uint32_t i)
 {
-	xcb_void_cookie_t c =
-		xcb_ewmh_set_current_desktop_checked(ewmh, screen_nbr, i);
-	xcb_generic_error_t *err = xcb_request_check(ewmh->connection, c);
+	xcb_cookie_t c = xcb_ewmh_set_current_desktop_checked(ewmh, screen_nbr, i);
+	xcb_error_t *err = xcb_request_check(ewmh->connection, c);
 	if (err) {
 		_LOG_(ERROR, "Error setting number of desktops: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -1546,14 +1537,14 @@ static xcb_get_geometry_reply_t *
 get_geometry(xcb_window_t win, xcb_conn_t *conn)
 {
 	xcb_get_geometry_cookie_t gc = xcb_get_geometry_unchecked(conn, win);
-	xcb_generic_error_t		 *err;
+	xcb_error_t				 *err;
 	xcb_get_geometry_reply_t *gr = xcb_get_geometry_reply(conn, gc, &err);
 	if (err) {
 		_LOG_(ERROR,
 			  "Error getting geometry for window %u: %d",
 			  win,
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return NULL;
 	}
 
@@ -1571,21 +1562,21 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	if (c == 0x00)
 		return NULL;
 
-	c->window				   = win;
-	c->type					   = wtype;
-	c->border_width			   = (uint32_t)-1;
-	const uint32_t	  mask	   = XCB_CW_EVENT_MASK;
-	const uint32_t	  values[] = {CLIENT_EVENT_MASK};
-	xcb_void_cookie_t cookie =
+	c->window				= win;
+	c->type					= wtype;
+	c->border_width			= (uint32_t)-1;
+	const uint32_t mask		= XCB_CW_EVENT_MASK;
+	const uint32_t values[] = {CLIENT_EVENT_MASK};
+	xcb_cookie_t   cookie =
 		xcb_change_window_attributes_checked(conn, c->window, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+	xcb_error_t *err = xcb_request_check(conn, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "Error setting window attributes for client %u: %d",
 			  c->window,
 			  err->error_code);
-		free(err);
-		free(c);
+		_FREE_(err);
+		_FREE_(c);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1595,8 +1586,7 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 						   conf.border_width,
 						   false) != 0) {
 		_LOG_(ERROR, "Failed to change border attr for window %d", win);
-		free(c);
-		c = NULL;
+		_FREE_(c);
 		return NULL;
 	}
 
@@ -1710,7 +1700,7 @@ init_wm(void)
 	wm->connection = xcb_connect(NULL, &default_screen);
 	if (xcb_connection_has_error(wm->connection) > 0) {
 		_LOG_(ERROR, "Error: Unable to open X connection");
-		free(wm);
+		_FREE_(wm);
 		return NULL;
 	}
 
@@ -1719,18 +1709,18 @@ init_wm(void)
 	for (i = 0; i < default_screen; ++i) {
 		xcb_screen_next(&iter);
 	}
-	wm->screen				   = iter.data;
-	wm->root_window			   = iter.data->root;
-	wm->screen_nbr			   = default_screen;
-	wm->split_type			   = DYNAMIC_TYPE;
-	wm->bar					   = NULL;
-	const uint32_t	  mask	   = XCB_CW_EVENT_MASK;
-	const uint32_t	  values[] = {ROOT_EVENT_MASK};
+	wm->screen				= iter.data;
+	wm->root_window			= iter.data->root;
+	wm->screen_nbr			= default_screen;
+	wm->split_type			= DYNAMIC_TYPE;
+	wm->bar					= NULL;
+	const uint32_t mask		= XCB_CW_EVENT_MASK;
+	const uint32_t values[] = {ROOT_EVENT_MASK};
 
 	/* register events */
-	xcb_void_cookie_t cookie   = xcb_change_window_attributes_checked(
-		  wm->connection, wm->root_window, mask, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_cookie_t   cookie	= xcb_change_window_attributes_checked(
+		wm->connection, wm->root_window, mask, values);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "Error registering for substructure redirection "
@@ -1738,8 +1728,8 @@ init_wm(void)
 			  "%u: %d",
 			  wm->root_window,
 			  err->error_code);
-		free(wm);
-		free(err);
+		_FREE_(wm);
+		_FREE_(err);
 		return NULL;
 	}
 
@@ -1806,13 +1796,13 @@ get_focused_monitor()
 			pointer_x < (current->rectangle.x + current->rectangle.width) &&
 			pointer_y >= current->rectangle.y &&
 			pointer_y < (current->rectangle.y + current->rectangle.height)) {
-			free(pointer_reply);
+			_FREE_(pointer_reply);
 			return current;
 		}
 		current = current->next;
 	}
 
-	free(pointer_reply);
+	_FREE_(pointer_reply);
 	return NULL;
 }
 
@@ -1824,7 +1814,7 @@ get_connected_monitor_count_xinerama()
 	xcb_xinerama_query_screens_reply_t *xquery =
 		xcb_xinerama_query_screens_reply(wm->connection, c, NULL);
 	int len = xcb_xinerama_query_screens_screen_info_length(xquery);
-	free(xquery);
+	_FREE_(xquery);
 	return len;
 }
 
@@ -1852,10 +1842,10 @@ get_connected_monitor_count_xrandr()
 			if (info->connection == XCB_RANDR_CONNECTION_CONNECTED) {
 				monitor_count++;
 			}
-			free(info);
+			_FREE_(info);
 		}
 	}
-	free(sres);
+	_FREE_(sres);
 	return monitor_count;
 }
 
@@ -2001,7 +1991,7 @@ setup_monitors_via_xinerama()
 		monitor_t *m = init_monitor();
 		if (m == NULL) {
 			_LOG_(ERROR, "Failed to allocate single monitor");
-			free(query_screens_r);
+			_FREE_(query_screens_r);
 			return false;
 		}
 		memset(m->name, 0, sizeof(m->name));
@@ -2014,7 +2004,7 @@ setup_monitors_via_xinerama()
 		add_monitor(&head_monitor, m);
 	}
 
-	free(query_screens_r);
+	_FREE_(query_screens_r);
 	return true;
 }
 
@@ -2029,11 +2019,11 @@ free_monitors(void)
 				if (current->desktops[j]->tree) {
 					free_tree(current->desktops[j]->tree);
 				}
-				free(current->desktops[j]);
+				_FREE_(current->desktops[j]);
 			}
 		}
-		free(current->desktops);
-		free(current);
+		_FREE_(current->desktops);
+		_FREE_(current);
 		current = next;
 	}
 	head_monitor = NULL;
@@ -2115,7 +2105,7 @@ setup_monitors(void)
 			xcb_xinerama_is_active_reply(wm->connection, xc, NULL);
 		if (xis_active) {
 			xinerama_is_active = xis_active->state;
-			free(xis_active);
+			_FREE_(xis_active);
 			/* enable xinerama based on its state */
 			using_xinerama = xinerama_is_active;
 		}
@@ -2180,7 +2170,7 @@ setup_monitors(void)
 		return false;
 	}
 
-	/* set monitors roots */
+/* set monitors roots */
 #if 0
 	monitor_t *curr = head_monitor;
 	while (curr) {
@@ -2244,7 +2234,7 @@ setup_monitors(void)
 		  prim_monitor->rectangle.width,
 		  prim_monitor->rectangle.height);
 
-	free(primary_output_reply);
+	_FREE_(primary_output_reply);
 
 out:
 	if (get_monitors_count() > 1) {
@@ -2373,6 +2363,7 @@ merge_monitors(monitor_t *om, monitor_t *nm)
 		desktop_t *od = om->desktops[i];
 		desktop_t *nd = nm->desktops[i];
 
+		/* skip if the old desktop has no tree - nothing to transfer */
 		if (!od->tree) {
 			continue;
 		}
@@ -2384,30 +2375,35 @@ merge_monitors(monitor_t *om, monitor_t *nm)
 		enqueue(q, od->tree);
 		while (!is_queue_empty(q)) {
 			node_t *node = dequeue(q);
+			/* we only want to transfer leaf nodes with clients.
+			 * internal nodes (containers) stay where they are */
+			if (!IS_INTERNAL(node) && node->client) {
+				/* try to unlink the node. If unlink fails, abort */
+				if (!unlink_node(node, od)) {
+					_LOG_(ERROR, "failed to unlink node.... abort");
+					_FREE_(q);
+					return false;
+				}
+
+				/* try to transfer the node. If transfer fails, abort */
+				if (!transfer_node(node, nd)) {
+					_LOG_(ERROR, "Failed to transfer node... abort");
+					_FREE_(q);
+					return false;
+				}
+			}
+
 			if (node->first_child) {
 				enqueue(q, node->first_child);
 			}
 			if (node->second_child) {
 				enqueue(q, node->second_child);
 			}
-			if (!IS_INTERNAL(node) && node->client) {
-				if (unlink_node(node, od)) {
-					transfer_node(node, nd);
-				} else {
-					_LOG_(ERROR, "could not unlink node.. abort");
-					free_queue(q);
-					return false;
-				}
-				if (nd->layout == STACK) {
-					set_focus(node, true);
-				}
-				nd->n_count++;
-			}
 		}
 		free_queue(q);
-		arrange_tree(od->tree, od->layout);
+		assert(!od->tree);
+		/* rearrange the trees - apply visual changes */
 		arrange_tree(nd->tree, nd->layout);
-		// assert(!od->tree);
 	}
 	return true;
 }
@@ -2456,7 +2452,7 @@ update_monitors(uint32_t *changes)
 			 * to the list so we can remove it later */
 			monitor_t *exist = get_monitor_by_randr_id(outputs[i]);
 			if (!exist) {
-				free(info);
+				_FREE_(info);
 				continue;
 			}
 			/* append to the list */
@@ -2464,7 +2460,7 @@ update_monitors(uint32_t *changes)
 			dl			= exist;
 		}
 		if (info->crtc == XCB_NONE) {
-			free(info);
+			_FREE_(info);
 			continue;
 		}
 		if (info->connection == XCB_RANDR_CONNECTION_CONNECTED) {
@@ -2655,14 +2651,14 @@ setup_desktops(void)
 static int
 ewmh_update_number_of_desktops(void)
 {
-	uint32_t desktops_count	 = 0;
-	desktops_count			 = prim_monitor->n_of_desktops;
-	xcb_void_cookie_t cookie = xcb_ewmh_set_number_of_desktops_checked(
+	uint32_t desktops_count = 0;
+	desktops_count			= prim_monitor->n_of_desktops;
+	xcb_cookie_t cookie		= xcb_ewmh_set_number_of_desktops_checked(
 		wm->ewmh, wm->screen_nbr, desktops_count);
-	xcb_generic_error_t *err = xcb_request_check(wm->ewmh->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->ewmh->connection, cookie);
 	if (err) {
 		_LOG_(ERROR, "Error setting number of desktops: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -2676,40 +2672,40 @@ setup_ewmh(void)
 		return false;
 	}
 
-	xcb_atom_t		  net_atoms[] = {wm->ewmh->_NET_SUPPORTED,
-									 wm->ewmh->_NET_SUPPORTING_WM_CHECK,
-									 wm->ewmh->_NET_DESKTOP_NAMES,
-									 wm->ewmh->_NET_DESKTOP_VIEWPORT,
-									 wm->ewmh->_NET_NUMBER_OF_DESKTOPS,
-									 wm->ewmh->_NET_CURRENT_DESKTOP,
-									 wm->ewmh->_NET_CLIENT_LIST,
-									 wm->ewmh->_NET_ACTIVE_WINDOW,
-									 wm->ewmh->_NET_WM_NAME,
-									 wm->ewmh->_NET_CLOSE_WINDOW,
-									 wm->ewmh->_NET_WM_STRUT_PARTIAL,
-									 wm->ewmh->_NET_WM_DESKTOP,
-									 wm->ewmh->_NET_WM_STATE,
-									 wm->ewmh->_NET_WM_STATE_HIDDEN,
-									 wm->ewmh->_NET_WM_STATE_FULLSCREEN,
-									 wm->ewmh->_NET_WM_STATE_BELOW,
-									 wm->ewmh->_NET_WM_STATE_ABOVE,
-									 wm->ewmh->_NET_WM_STATE_STICKY,
-									 wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_DOCK,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_DESKTOP,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_SPLASH,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_UTILITY,
-									 wm->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR};
+	xcb_atom_t	 net_atoms[] = {wm->ewmh->_NET_SUPPORTED,
+								wm->ewmh->_NET_SUPPORTING_WM_CHECK,
+								wm->ewmh->_NET_DESKTOP_NAMES,
+								wm->ewmh->_NET_DESKTOP_VIEWPORT,
+								wm->ewmh->_NET_NUMBER_OF_DESKTOPS,
+								wm->ewmh->_NET_CURRENT_DESKTOP,
+								wm->ewmh->_NET_CLIENT_LIST,
+								wm->ewmh->_NET_ACTIVE_WINDOW,
+								wm->ewmh->_NET_WM_NAME,
+								wm->ewmh->_NET_CLOSE_WINDOW,
+								wm->ewmh->_NET_WM_STRUT_PARTIAL,
+								wm->ewmh->_NET_WM_DESKTOP,
+								wm->ewmh->_NET_WM_STATE,
+								wm->ewmh->_NET_WM_STATE_HIDDEN,
+								wm->ewmh->_NET_WM_STATE_FULLSCREEN,
+								wm->ewmh->_NET_WM_STATE_BELOW,
+								wm->ewmh->_NET_WM_STATE_ABOVE,
+								wm->ewmh->_NET_WM_STATE_STICKY,
+								wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION,
+								wm->ewmh->_NET_WM_WINDOW_TYPE,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_DOCK,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_DESKTOP,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_NOTIFICATION,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_DIALOG,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_SPLASH,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_UTILITY,
+								wm->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR};
 
-	xcb_void_cookie_t c			  = xcb_ewmh_set_supported_checked(
+	xcb_cookie_t c			 = xcb_ewmh_set_supported_checked(
 		  wm->ewmh, wm->screen_nbr, LEN(net_atoms), net_atoms);
-	xcb_generic_error_t *err = xcb_request_check(wm->ewmh->connection, c);
+	xcb_error_t *err = xcb_request_check(wm->ewmh->connection, c);
 	if (err) {
 		_LOG_(ERROR, "error setting supported ewmh masks: %d", err->error_code);
-		free(err);
+		_FREE_(err);
 		return false;
 	}
 
@@ -2777,17 +2773,17 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 	if (win == 0 || win == XCB_NONE)
 		return 0;
 
-	const uint32_t	  values[] = {width, height};
-	xcb_void_cookie_t cookie =
+	const uint32_t values[] = {width, height};
+	xcb_cookie_t   cookie =
 		xcb_configure_window_checked(wm->connection, win, RESIZE, values);
 
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "error resizing window (ID %u): %s",
 			  win,
 			  strerror(err->error_code));
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -2801,14 +2797,14 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 		return 0;
 	}
 
-	const uint32_t	  values[] = {x, y};
-	xcb_void_cookie_t cookie =
+	const uint32_t values[] = {x, y};
+	xcb_cookie_t   cookie =
 		xcb_configure_window_checked(wm->connection, win, MOVE, values);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 
 	if (err) {
 		_LOG_(ERROR, "error moving window (ID %u): %d", win, err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 
@@ -2880,8 +2876,8 @@ win_focus(xcb_window_t win, bool set_focus)
 static void
 hide_bar(xcb_window_t win)
 {
-	xcb_void_cookie_t	 cookie = xcb_unmap_window(wm->connection, win);
-	xcb_generic_error_t *err	= xcb_request_check(wm->connection, cookie);
+	xcb_cookie_t cookie = xcb_unmap_window(wm->connection, win);
+	xcb_error_t *err	= xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in unmapping window %d: error code %d",
@@ -2937,14 +2933,14 @@ change_window_attr(xcb_conn_t  *conn,
 				   uint32_t		attr,
 				   const void  *val)
 {
-	xcb_void_cookie_t attr_cookie =
+	xcb_cookie_t attr_cookie =
 		xcb_change_window_attributes_checked(conn, win, attr, val);
-	xcb_generic_error_t *err = xcb_request_check(conn, attr_cookie);
+	xcb_error_t *err = xcb_request_check(conn, attr_cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "failed to change window attributes: error code %d",
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -2956,14 +2952,14 @@ configure_window(xcb_conn_t	 *conn,
 				 uint16_t	  attr,
 				 const void	 *val)
 {
-	xcb_void_cookie_t config_cookie =
+	xcb_cookie_t config_cookie =
 		xcb_configure_window_checked(conn, win, attr, val);
-	xcb_generic_error_t *err = xcb_request_check(conn, config_cookie);
+	xcb_error_t *err = xcb_request_check(conn, config_cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "failed to configure window : error code %d",
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -2975,14 +2971,14 @@ set_input_focus(xcb_conn_t	   *conn,
 				xcb_window_t	win,
 				xcb_timestamp_t time)
 {
-	xcb_void_cookie_t focus_cookie =
+	xcb_cookie_t focus_cookie =
 		xcb_set_input_focus_checked(conn, revert_to, win, time);
-	xcb_generic_error_t *err = xcb_request_check(conn, focus_cookie);
+	xcb_error_t *err = xcb_request_check(conn, focus_cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "failed to set input focus : error code %d",
 			  err->error_code);
-		free(err);
+		_FREE_(err);
 		return -1;
 	}
 	return 0;
@@ -3011,9 +3007,9 @@ tile(node_t *node)
 		return -1;
 	}
 
-	xcb_void_cookie_t cookie =
+	xcb_cookie_t cookie =
 		xcb_map_window_checked(wm->connection, node->client->window);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in mapping window %d: error code %d",
@@ -3063,8 +3059,8 @@ display_client(rectangle_t r, xcb_window_t win)
 		return -1;
 	}
 
-	xcb_void_cookie_t	 cookie = xcb_map_window_checked(wm->connection, win);
-	xcb_generic_error_t *err	= xcb_request_check(wm->connection, cookie);
+	xcb_cookie_t cookie = xcb_map_window_checked(wm->connection, win);
+	xcb_error_t *err	= xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(
 			ERROR, "in mapping window %d: error code %d", win, err->error_code);
@@ -3168,10 +3164,10 @@ window_grab_buttons(xcb_window_t win)
 static void
 window_ungrab_buttons(xcb_window_t win)
 {
-	xcb_void_cookie_t cookie = xcb_ungrab_button_checked(
+	xcb_cookie_t cookie = xcb_ungrab_button_checked(
 		wm->connection, XCB_BUTTON_INDEX_ANY, win, XCB_MOD_MASK_ANY);
 
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 	if (err) {
 		_LOG_(ERROR,
 			  "in ungrab buttons for window %d: error code %d",
@@ -3235,22 +3231,20 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	if (key_head) {
-		_LOG_(INFO, "----grabbing conf keys------");
 		conf_key_t *current = key_head;
 		while (current) {
 			xcb_keycode_t *key = get_keycode(current->keysym, conn);
 			if (key == NULL)
 				return -1;
-			xcb_void_cookie_t cookie =
-				xcb_grab_key_checked(conn,
-									 1,
-									 win,
-									 (uint16_t)current->mod,
-									 *key,
-									 XCB_GRAB_MODE_ASYNC,
-									 XCB_GRAB_MODE_ASYNC);
+			xcb_cookie_t cookie = xcb_grab_key_checked(conn,
+													   1,
+													   win,
+													   (uint16_t)current->mod,
+													   *key,
+													   XCB_GRAB_MODE_ASYNC,
+													   XCB_GRAB_MODE_ASYNC);
 			_FREE_(key);
-			xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+			xcb_error_t *err = xcb_request_check(conn, cookie);
 			if (err) {
 				_LOG_(ERROR, "error grabbing key %d", err->error_code);
 				_FREE_(err);
@@ -3269,15 +3263,15 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 		xcb_keycode_t *key = get_keycode(_keys_[i].keysym, conn);
 		if (key == NULL)
 			return -1;
-		xcb_void_cookie_t cookie = xcb_grab_key_checked(conn,
-														1,
-														win,
-														(uint16_t)_keys_[i].mod,
-														*key,
-														XCB_GRAB_MODE_ASYNC,
-														XCB_GRAB_MODE_ASYNC);
+		xcb_cookie_t cookie = xcb_grab_key_checked(conn,
+												   1,
+												   win,
+												   (uint16_t)_keys_[i].mod,
+												   *key,
+												   XCB_GRAB_MODE_ASYNC,
+												   XCB_GRAB_MODE_ASYNC);
 		_FREE_(key);
-		xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+		xcb_error_t *err = xcb_request_check(conn, cookie);
 		if (err) {
 			_LOG_(ERROR, "error grabbing key %d", err->error_code);
 			_FREE_(err);
@@ -3319,10 +3313,10 @@ send_client_message(xcb_window_t win,
 	e->format					  = 32;
 	e->data.data32[0]			  = value;
 	e->data.data32[1]			  = XCB_CURRENT_TIME;
-	xcb_void_cookie_t c			  = xcb_send_event_checked(
-		  conn, false, win, XCB_EVENT_MASK_NO_EVENT, (char *)e);
+	xcb_cookie_t c				  = xcb_send_event_checked(
+		   conn, false, win, XCB_EVENT_MASK_NO_EVENT, (char *)e);
 
-	xcb_generic_error_t *err = xcb_request_check(conn, c);
+	xcb_error_t *err = xcb_request_check(conn, c);
 	if (err) {
 		_LOG_(ERROR, "error sending event: %d", err->error_code);
 		_FREE_(e);
@@ -3373,8 +3367,8 @@ close_or_kill(xcb_window_t win)
 		return 0;
 	}
 
-	xcb_void_cookie_t	 c	 = xcb_kill_client_checked(wm->connection, win);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+	xcb_cookie_t c	 = xcb_kill_client_checked(wm->connection, win);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(
 			ERROR, "error closing window: %d, error: %d", win, err->error_code);
@@ -3392,9 +3386,9 @@ ungrab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 
 	const xcb_keycode_t modifier = (xcb_keycode_t)XCB_MOD_MASK_ANY;
-	xcb_void_cookie_t	cookie =
+	xcb_cookie_t		cookie =
 		xcb_ungrab_key_checked(conn, XCB_GRAB_ANY, win, modifier);
-	xcb_generic_error_t *err = xcb_request_check(conn, cookie);
+	xcb_error_t *err = xcb_request_check(conn, cookie);
 	if (err) {
 		_LOG_(ERROR, "error ungrabbing keys: %d", err->error_code);
 		_FREE_(err);
@@ -3506,8 +3500,8 @@ kill_window(xcb_window_t win)
 		}
 	}
 
-	xcb_void_cookie_t	 cookie = xcb_unmap_window(wm->connection, c->window);
-	xcb_generic_error_t *err	= xcb_request_check(wm->connection, cookie);
+	xcb_cookie_t cookie = xcb_unmap_window(wm->connection, c->window);
+	xcb_error_t *err	= xcb_request_check(wm->connection, cookie);
 
 	if (err) {
 		_LOG_(ERROR,
@@ -3538,21 +3532,21 @@ kill_window(xcb_window_t win)
 int
 set_visibility(xcb_window_t win, bool is_visible)
 {
-	// zwm must NOT recieve events before mapping (showing) or unmapping
-	// (hiding) windows
-	// otherwise, it will recieve unmap/map notify and handle it as it
-	// should, this results in deleting or spanning the window that is
-	// meant to be hidden or shown
-	const uint32_t		 _off[] = {ROOT_EVENT_MASK &
-								   ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
-	const uint32_t		 _on[]	= {ROOT_EVENT_MASK};
-	xcb_generic_error_t *err;
-	xcb_void_cookie_t	 c;
-	int					 ret = 0;
+	/* zwm must NOT recieve events before mapping (showing) or unmapping
+	 * (hiding) windows.
+	 * otherwise, it will recieve unmap/map notify and handle it as it
+	 * should, this results in deleting or spanning the window that is
+	 * meant to be hidden or shown */
+	const uint32_t _off[] = {ROOT_EVENT_MASK &
+							 ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
+	const uint32_t _on[]  = {ROOT_EVENT_MASK};
+	xcb_error_t	  *err;
+	xcb_cookie_t   c;
+	int			   ret = 0;
 
-	// stop zwm from recieving events
-	c						 = xcb_change_window_attributes_checked(
-		   wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
+	/* stop zwm from recieving events */
+	c				   = xcb_change_window_attributes_checked(
+		 wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
 	err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
@@ -3569,7 +3563,7 @@ set_visibility(xcb_window_t win, bool is_visible)
 			ERROR, "cannot set visibilty to %s", is_visible ? "true" : "false");
 	}
 
-	// subscribe for events again
+	/* subscribe for events again */
 	c = xcb_change_window_attributes_checked(
 		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _on);
 	err = xcb_request_check(wm->connection, c);
@@ -3587,15 +3581,14 @@ set_visibility(xcb_window_t win, bool is_visible)
 static int
 show_window(xcb_window_t win)
 {
-	xcb_generic_error_t *err;
-	xcb_void_cookie_t	 c;
+	xcb_error_t		*err;
+	xcb_cookie_t	 c;
 	/* According to ewmh:
 	 * Mapped windows should be placed in NormalState, according to
-	 * the ICCCM.
-	 **/
-	const long			 data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
-	const xcb_atom_t	 wm_s	= get_atom("WM_STATE", wm->connection);
-	c							= xcb_change_property_checked(
+	 * the ICCCM */
+	const long		 data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
+	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
+	c						= xcb_change_property_checked(
 		  wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
 	err = xcb_request_check(wm->connection, c);
 
@@ -3625,8 +3618,8 @@ show_window(xcb_window_t win)
 static int
 hide_window(xcb_window_t win)
 {
-	xcb_generic_error_t *err;
-	xcb_void_cookie_t	 c;
+	xcb_error_t		*err;
+	xcb_cookie_t	 c;
 	/* According to ewmh:
 	 * Unmapped windows should be placed in IconicState, according to
 	 * the ICCCM. Windows which are actually iconified or minimized
@@ -3634,9 +3627,9 @@ hide_window(xcb_window_t win)
 	 * communicate to pagers that the window should not be represented
 	 * as "onscreen."
 	 **/
-	const long			 data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
-	const xcb_atom_t	 wm_s	= get_atom("WM_STATE", wm->connection);
-	c							= xcb_change_property_checked(
+	const long		 data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
+	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
+	c						= xcb_change_property_checked(
 		  wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
 	err = xcb_request_check(wm->connection, c);
 
@@ -3718,8 +3711,6 @@ set_focus(node_t *n, bool flag)
 		return -1;
 	}
 
-	// flag ? raise_window(n->client->window) :
-	// lower_window(n->client->window);
 	if (flag)
 		raise_window(n->client->window);
 
@@ -3836,9 +3827,9 @@ cycle_desktop_wrapper(arg_t *arg)
 static int
 set_active_window_name(xcb_window_t win)
 {
-	xcb_void_cookie_t aw_cookie =
+	xcb_cookie_t aw_cookie =
 		xcb_ewmh_set_active_window_checked(wm->ewmh, wm->screen_nbr, win);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, aw_cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, aw_cookie);
 
 	if (err) {
 		_LOG_(ERROR, "cannot setting active window: %d", err->error_code);
@@ -3852,11 +3843,11 @@ set_active_window_name(xcb_window_t win)
 static int
 set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 {
-	const long		  data[] = {state, XCB_NONE};
-	xcb_atom_t		  t		 = get_atom("WM_STATE", wm->connection);
-	xcb_void_cookie_t c		 = xcb_change_property_checked(
+	const long	 data[] = {state, XCB_NONE};
+	xcb_atom_t	 t		= get_atom("WM_STATE", wm->connection);
+	xcb_cookie_t c		= xcb_change_property_checked(
 		 wm->connection, XCB_PROP_MODE_REPLACE, win, t, t, 32, 2, data);
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in changing property window %d: error code %d",
@@ -3906,7 +3897,6 @@ apply_floating_hints(xcb_window_t win)
 		int32_t mxh = size_hints.max_height;
 
 		if ((size_hints.flags & size_mask) && (miw == mxw) && (mih == mxh)) {
-			// window should be floated
 			return 0;
 		}
 	}
@@ -3931,7 +3921,7 @@ find_desktop_by_window(xcb_window_t win)
 }
 
 static ewmh_window_type_t
-determine_window_type(xcb_ewmh_connection_t *ewmh, xcb_atom_t atom)
+determine_window_type(xcb_ewmh_conn_t *ewmh, xcb_atom_t atom)
 {
 	if (atom == ewmh->_NET_WM_WINDOW_TYPE_NORMAL) {
 		/* WINDOW_TYPE_NORMAL indicates a normal, top-level window.
@@ -4091,13 +4081,10 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
 	node_t		*n	= NULL;
-	/*if (wi == wm->root_window || wi == 0) {
-		return 0;
-	}*/
+
 	if (wm->bar && wi == wm->bar->window) {
 		n = find_any_leaf(d->tree);
 	} else {
-		/* n = find_node_by_window_id(d->tree, wi);*/
 		n = get_focused_node(d->tree);
 		if (n == NULL || n->client == NULL) {
 			_LOG_(ERROR, "cannot find focused node");
@@ -4173,11 +4160,10 @@ handle_floating_window(client_t *client, desktop_t *d)
 		xcb_window_t wi =
 			get_window_under_cursor(wm->connection, wm->root_window);
 		if (wi == wm->root_window || wi == 0) {
-			free(client);
+			_FREE_(client);
 			return 0;
 		}
 		node_t *n = find_node_by_window_id(d->tree, wi);
-		// node_t *n = get_focused_node(d->tree);
 		n		  = n == NULL ? find_any_leaf(d->tree) : n;
 		if (n == NULL || n->client == NULL) {
 			_FREE_(client);
@@ -4363,15 +4349,17 @@ handle_bar_request(xcb_window_t win, desktop_t *d)
 	wm->bar->rectangle = (rectangle_t){
 		.height = g->height, .width = g->width, .x = g->x, .y = g->y};
 	_FREE_(g);
+
 	arrange_trees();
 	if (display_client(wm->bar->rectangle, wm->bar->window) != 0) {
 		return -1;
 	}
+
 	return render_tree(d->tree);
 }
 
 static int
-handle_map_request(const xcb_generic_event_t *event)
+handle_map_request(const xcb_event_t *event)
 {
 	xcb_map_request_event_t *ev	 = (xcb_map_request_event_t *)event;
 	xcb_window_t			 win = ev->window;
@@ -4437,7 +4425,7 @@ handle_map_request(const xcb_generic_event_t *event)
 }
 
 static int
-handle_enter_notify(const xcb_generic_event_t *event)
+handle_enter_notify(const xcb_event_t *event)
 {
 	xcb_enter_notify_event_t *ev  = (xcb_enter_notify_event_t *)event;
 	xcb_window_t			  win = ev->event;
@@ -4547,7 +4535,7 @@ handle_enter_notify(const xcb_generic_event_t *event)
 }
 
 static int
-handle_leave_notify(const xcb_generic_event_t *event)
+handle_leave_notify(const xcb_event_t *event)
 {
 	if (!conf.focus_follow_pointer) {
 		return 0;
@@ -4608,20 +4596,19 @@ handle_leave_notify(const xcb_generic_event_t *event)
 }
 
 static int
-handle_key_press(const xcb_generic_event_t *event)
+handle_key_press(const xcb_event_t *event)
 {
 	xcb_key_press_event_t *ev			 = (xcb_key_press_event_t *)event;
 	uint16_t			   cleaned_state = (ev->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t		   k = get_keysym(ev->detail, wm->connection);
 
 	if (key_head) {
-		_LOG_(INFO, "----grabbing conf keys------");
 		conf_key_t *current = key_head;
 		while (current) {
 			if (cleaned_state == (current->mod & ~(XCB_MOD_MASK_LOCK))) {
 				if (current->keysym == k) {
 					arg_t	 *a	  = current->arg;
-					const int ret = current->function_ptr(a);
+					const int ret = current->execute(a);
 					if (ret != 0) {
 						_LOG_(ERROR, "error while executing function_ptr(..)");
 					}
@@ -4638,7 +4625,7 @@ handle_key_press(const xcb_generic_event_t *event)
 		if (cleaned_state == (_keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
 			if (_keys_[i].keysym == k) {
 				arg_t	 *a	  = _keys_[i].arg;
-				const int ret = _keys_[i].function_ptr(a);
+				const int ret = _keys_[i].execute(a);
 				if (ret != 0) {
 					_LOG_(ERROR, "error while executing function_ptr(..)");
 				}
@@ -4703,7 +4690,7 @@ handle_state(node_t		 *n,
 }
 
 static int
-handle_client_message(const xcb_generic_event_t *event)
+handle_client_message(const xcb_event_t *event)
 {
 	xcb_client_message_event_t *ev = (xcb_client_message_event_t *)event;
 #ifdef _DEBUG__
@@ -4769,7 +4756,7 @@ out:
 }
 
 static int
-handle_unmap_notify(const xcb_generic_event_t *event)
+handle_unmap_notify(const xcb_event_t *event)
 {
 	xcb_unmap_notify_event_t *ev  = (xcb_unmap_notify_event_t *)event;
 	xcb_window_t			  win = ev->window;
@@ -4811,7 +4798,7 @@ handle_unmap_notify(const xcb_generic_event_t *event)
 }
 
 static int
-handle_configure_request(const xcb_generic_event_t *event)
+handle_configure_request(const xcb_event_t *event)
 {
 	xcb_configure_request_event_t *ev  = (xcb_configure_request_event_t *)event;
 	xcb_window_t				   win = ev->window;
@@ -4891,13 +4878,13 @@ handle_configure_request(const xcb_generic_event_t *event)
 				  ev->window);
 			return 0;
 		}
-		// TODO: deal with *node
+		/* TODO: deal with *node */
 	}
 	return 0;
 }
 
 static int
-handle_destroy_notify(const xcb_generic_event_t *event)
+handle_destroy_notify(const xcb_event_t *event)
 {
 	xcb_destroy_notify_event_t *ev	= (xcb_destroy_notify_event_t *)event;
 	xcb_window_t				win = ev->window;
@@ -4955,7 +4942,7 @@ update_grabbed_window(node_t *root, node_t *n)
 }
 
 static int
-handle_button_press_event(const xcb_generic_event_t *event)
+handle_button_press_event(const xcb_event_t *event)
 {
 	if (conf.focus_follow_pointer) {
 		return 0;
@@ -5043,7 +5030,7 @@ handle_button_press_event(const xcb_generic_event_t *event)
 }
 
 static int
-handle_mapping_notify(const xcb_generic_event_t *event)
+handle_mapping_notify(const xcb_event_t *event)
 {
 	xcb_mapping_notify_event_t *ev = (xcb_mapping_notify_event_t *)event;
 
@@ -5066,7 +5053,7 @@ handle_mapping_notify(const xcb_generic_event_t *event)
 }
 
 static int
-handle_motion_notify(const xcb_generic_event_t *event)
+handle_motion_notify(const xcb_event_t *event)
 {
 	xcb_motion_notify_event_t *ev = (xcb_motion_notify_event_t *)event;
 #ifdef _DEBUG__
@@ -5165,7 +5152,7 @@ xcb_event_to_string(uint8_t type)
 }
 
 static int
-handle_event(xcb_generic_event_t *event)
+handle_event(xcb_event_t *event)
 {
 	uint8_t event_type = event->response_type & ~0x80;
 
@@ -5179,7 +5166,7 @@ handle_event(xcb_generic_event_t *event)
 	size_t n = sizeof(_handlers_) / sizeof(_handlers_[0]);
 	for (size_t i = 0; i < n; i++) {
 		if (_handlers_[i].type == event_type) {
-			return _handlers_[i].handler(event);
+			return _handlers_[i].handle(event);
 		}
 	}
 
@@ -5189,14 +5176,14 @@ handle_event(xcb_generic_event_t *event)
 static void
 event_loop(wm_t *w)
 {
-	xcb_generic_event_t *event;
+	xcb_event_t *event;
 	while ((event = xcb_wait_for_event(w->connection))) {
 		if (handle_event(event) != 0) {
 			uint8_t		type = event->response_type & ~0x80;
 			const char *es	 = xcb_event_to_string(type);
 			_LOG_(ERROR, "error processing event: %s ", es);
 		}
-		free(event);
+		_FREE_(event);
 	}
 }
 
