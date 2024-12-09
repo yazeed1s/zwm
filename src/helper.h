@@ -41,10 +41,14 @@
 
 #define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, handler, arg}
 #define DEFINE_MAPPING(name, value)			   {name, value}
+
+/* spent way too many hours hunting double-free bugs. This should handle it. */
 #define _FREE_(ptr)                                                            \
 	do {                                                                       \
-		free(ptr);                                                             \
-		ptr = NULL;                                                            \
+		if (ptr) {                                                             \
+			free(ptr);                                                         \
+			ptr = NULL;                                                        \
+		}                                                                      \
 	} while (0)
 
 #define _LOG_(level, format, ...)                                              \
