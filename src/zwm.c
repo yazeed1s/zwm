@@ -1639,21 +1639,23 @@ add_monitor(monitor_t **head, monitor_t *m)
 }
 
 static void
-remove_monitor_by_id(monitor_t **head, xcb_randr_output_t randr_id)
+unlink_monitor(monitor_t **head, monitor_t *m)
 {
-	if (!head || !*head) {
+	if (!head || !*head || !m) {
 		return;
 	}
+
 	monitor_t *curr = *head;
 	monitor_t *prev = NULL;
+
 	while (curr) {
-		if (curr->randr_id == randr_id) {
+		if (curr == m) {
 			if (prev == NULL) {
 				*head = curr->next;
 			} else {
 				prev->next = curr->next;
 			}
-			_FREE_(curr);
+			curr->next = NULL;
 			return;
 		}
 		prev = curr;
@@ -2018,6 +2020,7 @@ free_monitors(void)
 			if (current->desktops[j]) {
 				if (current->desktops[j]->tree) {
 					free_tree(current->desktops[j]->tree);
+					current->desktops[j]->tree = NULL;
 				}
 				_FREE_(current->desktops[j]);
 			}
@@ -2237,9 +2240,7 @@ setup_monitors(void)
 	_FREE_(primary_output_reply);
 
 out:
-	if (get_monitors_count() > 1) {
-		multi_monitors = true;
-	}
+	multi_monitors = (get_monitors_count() > 1);
 	_LOG_(INFO, "multi monitors = %s", multi_monitors ? "true" : "false");
 	xcb_flush(wm->connection);
 	return true;
@@ -2305,24 +2306,24 @@ destroy_monitor(monitor_t *m)
 		return;
 	}
 
+	_LOG_(INFO, "removing m from linked list");
+	unlink_monitor(&head_monitor, m);
+	assert(!get_monitor_by_randr_id(m->randr_id));
+
 	_LOG_(INFO, "destroying monitor %s", m->name);
 	for (int i = 0; i < m->n_of_desktops; i++) {
 		desktop_t *desktop = m->desktops[i];
 		if (!desktop) {
 			continue;
 		}
-		if (!desktop->tree) {
-			continue;
+		if (desktop->tree) {
+			free_tree(desktop->tree);
+			desktop->tree = NULL;
 		}
-		_LOG_(INFO, "freeing tree for desktop %d on monitor %s", i, m->name);
-		free_tree(desktop->tree);
 		_FREE_(desktop);
 	}
 	_FREE_(m->desktops);
-	_LOG_(INFO, "removing m from linked list");
-	xcb_randr_output_t id = m->randr_id;
-	remove_monitor_by_id(&head_monitor, id);
-	assert(!get_monitor_by_randr_id(id));
+	_FREE_(m);
 	_LOG_(INFO, "monitor was destroyed.");
 }
 
@@ -2348,7 +2349,7 @@ is_monitor_layout_changed(xcb_randr_get_output_info_reply_t *info,
 			r->height != r_out->height);
 }
 
-/* merge_monitors - is called when a monitor *m* was disconnected.
+/* merge_monitors - is called when monitor *m* was disconnected.
  *
  * Instead of losing what was in *m* , this function transfers the
  * windows from *m* to any other avaialble monitor.
@@ -2510,6 +2511,7 @@ update_monitors(uint32_t *changes)
 			/* merge desktops */
 			if (!merge_monitors(r, m)) {
 				_LOG_(ERROR, "failed to merge desktops from %s", r->name);
+				continue;
 			}
 			/* destroy the disconnected monitor */
 			destroy_monitor(r);
@@ -2571,12 +2573,11 @@ handle_monitor_changes(void)
 		arrange_trees();
 		render_trees();
 	}
+
 	log_monitors();
-	if (get_monitors_count() > 1) {
-		multi_monitors = true;
-	} else {
-		multi_monitors = false;
-	}
+
+	multi_monitors = (get_monitors_count() > 1);
+
 	_LOG_(INFO,
 		  "in update: multi monitors = %s",
 		  multi_monitors ? "true" : "false");
@@ -4982,7 +4983,7 @@ handle_button_press_event(const xcb_event_t *event)
 		return 0;
 	}
 
-	window_ungrab_buttons(client->window);
+	// window_ungrab_buttons(client->window);
 
 	const int r = set_active_window_name(win);
 	if (r != 0) {
@@ -5025,6 +5026,7 @@ handle_button_press_event(const xcb_event_t *event)
 
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
 	/* set_cursor(CURSOR_POINTER); */
+	xcb_allow_events(wm->connection, XCB_ALLOW_REPLAY_POINTER, ev->time);
 	xcb_flush(wm->connection);
 	return 0;
 }
@@ -5125,7 +5127,7 @@ parse_args(int argc, char **argv)
 	exec_process(&((arg_t){.argc = 1, .cmd = (char *[]){c}}));
 }
 
-static const char *
+static char *
 xcb_event_to_string(uint8_t type)
 {
 	switch (type) {
@@ -5178,9 +5180,13 @@ event_loop(wm_t *w)
 {
 	xcb_event_t *event;
 	while ((event = xcb_wait_for_event(w->connection))) {
+		if (event->response_type == 0) {
+			_FREE_(event);
+			continue;
+		}
 		if (handle_event(event) != 0) {
-			uint8_t		type = event->response_type & ~0x80;
-			const char *es	 = xcb_event_to_string(type);
+			uint8_t type = event->response_type & ~0x80;
+			char   *es	 = xcb_event_to_string(type);
 			_LOG_(ERROR, "error processing event: %s ", es);
 		}
 		_FREE_(event);
