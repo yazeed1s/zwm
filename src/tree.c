@@ -45,13 +45,13 @@
 #include "type.h"
 #include "zwm.h"
 
-// clang-format off
+/* clang-format off */
 static void master_layout(node_t *parent, node_t *);
 static void stack_layout(node_t *parent);
 static void default_layout(node_t *parent);
 static node_t *find_tree_root(node_t *);
 static bool is_parent_null(const node_t *node);
-// clang-format on
+/* clang-format on */
 
 node_t *
 create_node(client_t *c)
@@ -1394,7 +1394,7 @@ delete_node(node_t *node, desktop_t *d)
 		_LOG_(ERROR, "could not unlink node.. abort");
 		return;
 	}
-	
+
 	if (check) {
 		assert(!d->tree);
 	}
