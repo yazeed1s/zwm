@@ -30,8 +30,8 @@
 #define ZWM_LOGGER_H
 
 #include "type.h"
-// clang-format off
+/* clang-format off */
 void log_message(log_level_t level, const char *format, ...);
 void log_window_id(xcb_window_t window, const char *message);
-// clang-format on
-#endif // ZWM_LOGGER_H
+/* clang-format on */
+#endif /* ZWM_LOGGER_H */

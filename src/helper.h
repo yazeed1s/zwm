@@ -30,23 +30,17 @@
 
 #include "logger.h"
 
-#define LEN(x)			 (sizeof(x) / sizeof(*x))
-#define CLEANMASK(mask)	 (mask & ~(0 | XCB_MOD_MASK_LOCK))
-#define IS_TILED(c)		 (c->state == TILED)
-#define IS_FLOATING(c)	 (c->state == FLOATING)
-#define IS_FULLSCREEN(c) (c->state == FULLSCREEN)
-#define IS_EXTERNAL(n)	 (n->node_type == EXTERNAL_NODE)
-#define IS_INTERNAL(n)	 (n->node_type == INTERNAL_NODE)
-#define IS_ROOT(n)		 (n->node_type == ROOT_NODE)
+#define LEN(x)								   (sizeof(x) / sizeof(*x))
+#define CLEANMASK(mask)						   (mask & ~(0 | XCB_MOD_MASK_LOCK))
+#define IS_TILED(c)							   (c->state == TILED)
+#define IS_FLOATING(c)						   (c->state == FLOATING)
+#define IS_FULLSCREEN(c)					   (c->state == FULLSCREEN)
+#define IS_EXTERNAL(n)						   (n->node_type == EXTERNAL_NODE)
+#define IS_INTERNAL(n)						   (n->node_type == INTERNAL_NODE)
+#define IS_ROOT(n)							   (n->node_type == ROOT_NODE)
 
-#define DEFINE_KEY(mask, keysym, handler, arg)                                 \
-	{                                                                          \
-		mask, keysym, handler, arg                                             \
-	}
-#define DEFINE_MAPPING(name, value)                                            \
-	{                                                                          \
-		name, value                                                            \
-	}
+#define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, handler, arg}
+#define DEFINE_MAPPING(name, value)			   {name, value}
 #define _FREE_(ptr)                                                            \
 	do {                                                                       \
 		free(ptr);                                                             \
@@ -70,4 +64,4 @@
 		_a > _b ? _a : _b;                                                     \
 	})
 
-#endif // ZWM_HELPER_H
+#endif /* ZWM_HELPER_H */

@@ -1226,7 +1226,7 @@ free_rules(void)
 	rule_t *current = rule_head;
 	while (current) {
 		rule_t *next = current->next;
-		free(current);
+		_FREE_(current);
 		current = next;
 	}
 	rule_head = NULL;

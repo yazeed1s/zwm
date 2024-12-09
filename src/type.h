@@ -313,4 +313,4 @@ typedef struct {
 	int (*handle)(const xcb_generic_event_t *);
 } event_handler_entry_t;
 
-#endif // ZWM_TYPE_H
+#endif /* ZWM_TYPE_H */
