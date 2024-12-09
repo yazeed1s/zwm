@@ -368,18 +368,12 @@ find_node_by_window_id(node_t *root, xcb_window_t win)
 void
 free_tree(node_t *root)
 {
-	if (root == NULL)
+	if (root == NULL) {
 		return;
-
-	if (root->client) {
-		_FREE_(root->client);
 	}
-	node_t *f = root->first_child;
-	free_tree(f);
-	root->first_child = NULL;
-	node_t *s		  = root->second_child;
-	free_tree(s);
-	root->second_child = NULL;
+	free_tree(root->first_child);
+	free_tree(root->second_child);
+	_FREE_(root->client);
 	_FREE_(root);
 }
 
