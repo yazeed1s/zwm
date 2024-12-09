@@ -28,7 +28,11 @@
 
 #include "queue.h"
 #include "type.h"
+#include "helper.h"
+#include "zwm.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <xcb/xcb_icccm.h>
 
 queue_t *
 create_queue(void)

@@ -27,7 +27,6 @@
  */
 #include "config_parser.h"
 #include "helper.h"
-#include "tree.h"
 #include "type.h"
 #include "zwm.h"
 #include <ctype.h>
@@ -121,7 +120,7 @@ static int (*str_to_func(char *ch))(arg_t *)
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
 		if (strcmp(_cmapper_[i].func_name, ch) == 0) {
-			return _cmapper_[i].function_ptr;
+			return _cmapper_[i].execute;
 		}
 	}
 	return NULL;
@@ -132,7 +131,7 @@ func_to_str(int (*ptr)(arg_t *))
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (_cmapper_[i].function_ptr == ptr) {
+		if (_cmapper_[i].execute == ptr) {
 			return _cmapper_[i].func_name;
 		}
 	}
@@ -194,7 +193,7 @@ print_key_array(void)
 				  c,
 				  key_to_str(current->mod),
 				  key_to_str(current->keysym),
-				  func_to_str(current->function_ptr),
+				  func_to_str(current->execute),
 				  current->arg->idx,
 				  current->arg->d,
 				  current->arg->r,
@@ -538,7 +537,7 @@ key_exist(conf_key_t *key)
 {
 	conf_key_t *current = key_head;
 	while (current) {
-		if (current->function_ptr == key->function_ptr &&
+		if (current->execute == key->execute &&
 			current->keysym == key->keysym) {
 			return true;
 		}
@@ -781,8 +780,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			return -1;
 		}
 	} else {
-		_LOG_(
-			INFO, "keysym is null, func must be switch or transfer %s", func);
+		_LOG_(INFO, "keysym is null, func must be switch or transfer %s", func);
 	}
 
 	if (strncmp(func, "run", 3) == 0) {
@@ -822,9 +820,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			_FREE_(s);
 			return -1;
 		}
-		key->mod		  = _mod;
-		key->keysym		  = _keysym;
-		key->function_ptr = ptr;
+		key->mod	 = _mod;
+		key->keysym	 = _keysym;
+		key->execute = ptr;
 
 		set_key_args(key, f, a);
 		free_tokens(s, count);
@@ -843,7 +841,7 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			return -1;
 		}
 		build_run_func(func_param, key, _mod, _keysym);
-		key->function_ptr = ptr;
+		key->execute = ptr;
 		_FREE_(func_param);
 		return 0;
 	}
@@ -856,9 +854,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		return -1;
 	}
 
-	key->mod		  = _mod;
-	key->keysym		  = _keysym;
-	key->function_ptr = ptr;
+	key->mod	 = _mod;
+	key->keysym	 = _keysym;
+	key->execute = ptr;
 	_FREE_(func_param);
 	return 0;
 }

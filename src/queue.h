@@ -33,9 +33,9 @@
 
 // clang-format off
 queue_t *create_queue(void);
-void    enqueue(queue_t *queue, node_t *node);
-node_t  *dequeue(queue_t *queue);
+void    enqueue(queue_t *q, node_t *n);
+node_t  *dequeue(queue_t *q);
 bool    is_queue_empty(queue_t *q);
-void    free_queue(queue_t *queue);
+void    free_queue(queue_t *q);
 // clang-format on
 #endif // ZWM_QUEUE_H

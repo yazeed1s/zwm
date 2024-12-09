@@ -48,7 +48,12 @@
 #define BORDER_WIDTH		 2			   /* default border width */
 #define FOCUS_FOLLOW_POINTER true		   /* default focus follows mouse */
 
-typedef xcb_connection_t xcb_conn_t;
+/* type aliases */
+typedef xcb_connection_t	  xcb_conn_t;
+typedef xcb_generic_error_t	  xcb_error_t;
+typedef xcb_void_cookie_t	  xcb_cookie_t;
+typedef xcb_ewmh_connection_t xcb_ewmh_conn_t;
+typedef xcb_generic_event_t	  xcb_event_t;
 
 typedef enum {
 	HORIZONTAL_TYPE,
@@ -240,10 +245,10 @@ typedef struct {
 
 /* key binding structure. used for the global fallback array in zwm.c */
 typedef struct {
-	uint32_t	 mod;			  /* modifier key */
-	xcb_keysym_t keysym;		  /* key symbol */
-	int (*function_ptr)(arg_t *); /* action function */
-	arg_t *arg;					  /* function arguments */
+	uint32_t	 mod;		 /* modifier key */
+	xcb_keysym_t keysym;	 /* key symbol */
+	int (*execute)(arg_t *); /* action function */
+	arg_t *arg;				 /* function arguments */
 } _key__t;
 
 /* config key structure (linked list),
@@ -251,17 +256,17 @@ typedef struct {
  */
 typedef struct conf_key_t conf_key_t;
 struct conf_key_t {
-	uint32_t	 mod;			  /* modifier key */
-	xcb_keysym_t keysym;		  /* key symbol */
-	int (*function_ptr)(arg_t *); /* action function */
-	arg_t	   *arg;			  /* function arguments */
-	conf_key_t *next;			  /* next key */
+	uint32_t	 mod;		 /* modifier key */
+	xcb_keysym_t keysym;	 /* key symbol */
+	int (*execute)(arg_t *); /* action function */
+	arg_t	   *arg;		 /* function arguments */
+	conf_key_t *next;		 /* next key */
 };
 
 /* function mapping structure */
 typedef struct {
-	char *func_name;			  /* function name */
-	int (*function_ptr)(arg_t *); /* function pointer */
+	char *func_name;		 /* function name */
+	int (*execute)(arg_t *); /* function pointer */
 } conf_mapper_t;
 
 /* key mapping structure */
@@ -302,13 +307,10 @@ typedef struct {
 	queue_node_t *rear;	 /* rear of queue */
 } queue_t;
 
-/* event handler function pointer type */
-typedef int (*event_handler_t)(const xcb_generic_event_t *);
-
 /* event handler registration structure */
 typedef struct {
-	uint8_t			type;
-	event_handler_t handler;
+	uint8_t type;
+	int (*handle)(const xcb_generic_event_t *);
 } event_handler_entry_t;
 
 #endif // ZWM_TYPE_H
