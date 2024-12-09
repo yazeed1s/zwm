@@ -30,36 +30,42 @@
 
 #include "logger.h"
 
-#define LEN(x)			 (sizeof(x) / sizeof(*x))
-#define CLEANMASK(mask)	 (mask & ~(0 | XCB_MOD_MASK_LOCK))
-#define IS_TILED(c)		 (c->state == TILED)
-#define IS_FLOATING(c)	 (c->state == FLOATING)
-#define IS_FULLSCREEN(c) (c->state == FULLSCREEN)
-#define IS_EXTERNAL(n)	 (n->node_type == EXTERNAL_NODE)
-#define IS_INTERNAL(n)	 (n->node_type == INTERNAL_NODE)
-#define IS_ROOT(n)		 (n->node_type == ROOT_NODE)
+#define LEN(x)								   (sizeof(x) / sizeof(*x))
+#define CLEANMASK(mask)						   (mask & ~(0 | XCB_MOD_MASK_LOCK))
+#define IS_TILED(c)							   (c->state == TILED)
+#define IS_FLOATING(c)						   (c->state == FLOATING)
+#define IS_FULLSCREEN(c)					   (c->state == FULLSCREEN)
+#define IS_EXTERNAL(n)						   (n->node_type == EXTERNAL_NODE)
+#define IS_INTERNAL(n)						   (n->node_type == INTERNAL_NODE)
+#define IS_ROOT(n)							   (n->node_type == ROOT_NODE)
 
-#define _FREE_(ptr)                                                       \
-	do {                                                                  \
-		free(ptr);                                                        \
-		ptr = NULL;                                                       \
+#define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, handler, arg}
+#define DEFINE_MAPPING(name, value)			   {name, value}
+
+/* spent way too many hours hunting double-free bugs. This should handle it. */
+#define _FREE_(ptr)                                                            \
+	do {                                                                       \
+		if (ptr) {                                                             \
+			free(ptr);                                                         \
+			ptr = NULL;                                                        \
+		}                                                                      \
 	} while (0)
 
-#define _LOG_(level, format, ...)                                         \
-	do {                                                                  \
-		log_message(level,                                                \
-					"[%s:%s():%d] " format,                               \
-					__FILE__,                                             \
-					__func__,                                             \
-					__LINE__,                                             \
-					##__VA_ARGS__);                                       \
+#define _LOG_(level, format, ...)                                              \
+	do {                                                                       \
+		log_message(level,                                                     \
+					"[%s:%s():%d] " format,                                    \
+					__FILE__,                                                  \
+					__func__,                                                  \
+					__LINE__,                                                  \
+					##__VA_ARGS__);                                            \
 	} while (0)
 
-#define MAX(a, b)                                                         \
-	({                                                                    \
-		__typeof__(a) _a = (a);                                           \
-		__typeof__(b) _b = (b);                                           \
-		_a > _b ? _a : _b;                                                \
+#define MAX(a, b)                                                              \
+	({                                                                         \
+		__typeof__(a) _a = (a);                                                \
+		__typeof__(b) _b = (b);                                                \
+		_a > _b ? _a : _b;                                                     \
 	})
 
-#endif // ZWM_HELPER_H
+#endif /* ZWM_HELPER_H */
