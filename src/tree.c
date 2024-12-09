@@ -726,8 +726,20 @@ get_internal_sibling(node_t *node)
 	return (sibling && IS_INTERNAL(sibling)) ? sibling : NULL;
 }
 
+node_t *
+get_sibling(node_t *n)
+{
+	if (n == NULL || n->parent == NULL) {
+		return NULL;
+	}
+	node_t *parent = n->parent;
+	node_t *sibling =
+		(parent->first_child == n) ? parent->second_child : parent->first_child;
+	return sibling;
+}
+
 static node_t *
-get_sibling(node_t *node, node_type_t *type)
+get_sibling_by_type(node_t *node, node_type_t *type)
 {
 	if (node == NULL || node->parent == NULL) {
 		return NULL;
@@ -1373,17 +1385,18 @@ delete_node(node_t *node, desktop_t *d)
 		return;
 	}
 
-	// early check if only single node/client is mapped to the screen
+	bool check = false;
 	if (node == d->tree) {
-		_FREE_(node->client);
-		_FREE_(node);
-		d->tree = NULL;
-		goto out;
+		check = true;
 	}
 
 	if (!unlink_node(node, d)) {
 		_LOG_(ERROR, "could not unlink node.. abort");
 		return;
+	}
+	
+	if (check) {
+		assert(!d->tree);
 	}
 
 	_FREE_(node->client);
@@ -1429,26 +1442,31 @@ is_parent_internal(const node_t *node)
 void
 log_tree_nodes(node_t *node)
 {
-	if (!node || !node->client)
+	if (!node) {
 		return;
-
-	xcb_icccm_get_text_property_reply_t t_reply;
-	xcb_get_property_cookie_t			cn =
-		xcb_icccm_get_wm_name(wm->connection, node->client->window);
-	uint8_t wr =
-		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
-	char name[256];
-	if (wr == 1) {
-		snprintf(name, sizeof(name), "%s", t_reply.name);
-		xcb_icccm_get_text_property_reply_wipe(&t_reply);
 	}
-	_LOG_(DEBUG,
-		  "node Type: %d, client Window ID: %u, name: %s, "
-		  "is_focused %s",
-		  node->node_type,
-		  node->client->window,
-		  name,
-		  node->is_focused ? "true" : "false");
+
+	if (node->client) {
+		xcb_icccm_get_text_property_reply_t t_reply;
+		xcb_get_property_cookie_t			cn =
+			xcb_icccm_get_wm_name(wm->connection, node->client->window);
+		uint8_t wr =
+			xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+		char name[256];
+		if (wr == 1) {
+			snprintf(name, sizeof(name), "%s", t_reply.name);
+			xcb_icccm_get_text_property_reply_wipe(&t_reply);
+		}
+		_LOG_(DEBUG,
+			  "node Type: %d, client Window ID: %u, name: %s, "
+			  "is_focused %s",
+			  node->node_type,
+			  node->client->window,
+			  name,
+			  node->is_focused ? "true" : "false");
+	} else {
+		_LOG_(DEBUG, "node Type: %d", node->node_type);
+	}
 
 	log_tree_nodes(node->first_child);
 	log_tree_nodes(node->second_child);
@@ -1765,142 +1783,44 @@ find_any_leaf(node_t *root)
  * no longer needed.
  */
 bool
-unlink_node(node_t *node, desktop_t *d)
+unlink_node(node_t *n, desktop_t *d)
 {
-	if (node == NULL)
+	if (d == NULL || n == NULL) {
 		return false;
+	}
 
-	if (d->tree == node) {
+	/* If the node `n` is the root, the tree becomes NULL */
+	if (is_parent_null(n)) {
 		d->tree = NULL;
 		return true;
 	}
 
-	/* node to unlink = N, internal node = I, external node = E
-	 *         I
-	 *    	 /   \
-	 *     N||E   N||E
-	 *
-	 * logic:
-	 * just unlink N and replace E with I and give it full I's
-	 * rectangle
-	 */
-	if (is_sibling_external(node)) {
-		node_t *e = get_external_sibling(node);
-		if (e == NULL) {
-			return false;
-		}
-		/* if I has no parent */
-		if (IS_ROOT(node->parent)) {
-			node->parent->client	   = e->client;
-			node->parent->first_child  = NULL;
-			node->parent->second_child = NULL;
-		} else {
-			/* if I has a prent
-			 *         I
-			 *    	 /   \
-			 *   	E    [I]
-			 *    	 	/   \
-			 *   	   N     E
-			 */
-			node_t *g = node->parent->parent;
-			if (g->first_child == node->parent) {
-				g->first_child->node_type	 = EXTERNAL_NODE;
-				g->first_child->client		 = e->client;
-				g->first_child->first_child	 = NULL;
-				g->first_child->second_child = NULL;
-			} else {
-				g->second_child->node_type	  = EXTERNAL_NODE;
-				g->second_child->client		  = e->client;
-				g->second_child->first_child  = NULL;
-				g->second_child->second_child = NULL;
-			}
-		}
-		e->parent = NULL;
-		_FREE_(e);
-		node->parent = NULL;
-		return true;
+	node_t *parent	= n->parent;
+	node_t *sibling = NULL;
+	if ((sibling = get_sibling(n)) == NULL) {
+		_LOG_(ERROR, "could not get sibling of n");
+		return false;
 	}
-	/*
-	 * Node to be unlinked: N
-	 * Parent of N (internal node): IN
-	 * External nodes: E1 and E2
-	 * Parent of E1 and E2 (internal node): IE
-	 *
-	 *            IN
-	 *           /  \
-	 *          N    IE
-	 *              /  \
-	 *            E1    E2
-	 *
-	 * Logic:
-	 * - If N is in the left subtree, unlink N, delete IN and replace
-	 * IN with IE.
-	 * - If N is in the right subtree, unlink N delete IN and replace
-	 * IN with IE.
-	 *
-	 * Essentially, both IN and N are deleted. IE takes the place of
-	 * IN, and the layout of IE's children (E1 and E2) is adjusted
-	 * accordingly.
-	 */
-	if (is_sibling_internal(node)) {
-		node_t *n = NULL;
-		/* if IN has no parent */
-		if (IS_ROOT(node->parent)) {
-			n = get_internal_sibling(node);
-			if (n == NULL) {
-				_LOG_(ERROR, "internal node is null");
-				return false;
-			}
-			if (d->tree == node->parent) {
-				d->tree->first_child	= n->first_child;
-				n->first_child->parent	= d->tree;
-				d->tree->second_child	= n->second_child;
-				n->second_child->parent = d->tree;
-			} else {
-				d->tree->second_child	= n->first_child;
-				n->first_child->parent	= d->tree;
-				d->tree->first_child	= n->second_child;
-				n->second_child->parent = d->tree;
-			}
-		} else {
-			/* if IN has a parent */
-			/*            ...
-			 *              \
-			 *              IN
-			 *       	  /   \
-			 *           N     IE
-			 *                 / \
-			 *               E1   E2
-			 */
-			if (is_sibling_internal(node)) {
-				n = get_internal_sibling(node);
-			} else {
-				_LOG_(ERROR, "internal node is null");
-				return false;
-			}
-			if (n == NULL)
-				return false;
 
-			if (node->parent->first_child == node) {
-				node->parent->first_child  = n->first_child;
-				n->first_child->parent	   = node->parent;
-				node->parent->second_child = n->second_child;
-				n->second_child->parent	   = node->parent;
-			} else {
-				node->parent->second_child = n->first_child;
-				n->first_child->parent	   = node->parent;
-				node->parent->first_child  = n->second_child;
-				n->second_child->parent	   = node->parent;
-			}
+	node_t *grandparent = parent->parent;
+
+	sibling->parent		= grandparent;
+	if (grandparent) {
+		if (grandparent->first_child == parent) {
+			grandparent->first_child = sibling;
+		} else {
+			grandparent->second_child = sibling;
 		}
-		n->parent		= NULL;
-		n->first_child	= NULL;
-		n->second_child = NULL;
-		node->parent	= NULL;
-		_FREE_(n);
-		return true;
+	} else {
+		sibling->node_type = ROOT_NODE;
+		d->tree			   = sibling;
 	}
-	return false;
+
+	parent->second_child = NULL;
+	parent->first_child	 = NULL;
+	_FREE_(parent);
+	n->parent = NULL;
+	return true;
 }
 
 /* transfer_node - moves a node to a new desktop's tree.
