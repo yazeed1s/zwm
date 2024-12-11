@@ -2216,7 +2216,7 @@ setup_monitors(void)
 		xcb_randr_get_output_primary_reply(wm->connection, ccc, NULL);
 	if (primary_output_reply) {
 		monitor_t *mm = get_monitor_by_randr_id(primary_output_reply->output);
-		if (!mm) {
+		if (mm) {
 			mm->is_primary = true;
 			prim_monitor = curr_monitor = mm;
 		} else {
@@ -4637,123 +4637,249 @@ handle_key_press(const xcb_event_t *event)
 	return 0;
 }
 
-static int
-handle_state(node_t		 *n,
-			 xcb_atom_t	  state,
-			 xcb_atom_t	  state_,
-			 unsigned int action)
+static inline window_state_action_t
+convert_state_action(uint32_t action)
 {
-	if (n == NULL)
-		return -1;
-
-	char		*name = win_name(n->client->window);
-	xcb_window_t w	  = n->client->window;
-
-	if (state == wm->ewmh->_NET_WM_STATE_FULLSCREEN ||
-		state_ == wm->ewmh->_NET_WM_STATE_FULLSCREEN) {
-		_LOG_(INFO, "STATE_FULLSCREEN received for win %d:%s", w, name);
-		if (action == XCB_EWMH_WM_STATE_ADD) {
-			_FREE_(name);
-			return set_fullscreen(n, true);
-		} else if (action == XCB_EWMH_WM_STATE_REMOVE) {
-			/* if (n->client->state == FULLSCREEN) { */
-			_FREE_(name);
-			return set_fullscreen(n, false);
-			/* } */
-		} else if (action == XCB_EWMH_WM_STATE_TOGGLE) {
-			uint32_t mode = (n->client->state == FULLSCREEN)
-								? XCB_EWMH_WM_STATE_REMOVE
-								: XCB_EWMH_WM_STATE_ADD;
-			_FREE_(name);
-			return set_fullscreen(n, mode == XCB_EWMH_WM_STATE_ADD);
-		}
-	} else if (state == wm->ewmh->_NET_WM_STATE_BELOW) {
-		_LOG_(INFO, "STATE_BELOW received for win %d:%s", w, name);
-		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
-			STACK) {
-			lower_window(w);
-		}
-	} else if (state == wm->ewmh->_NET_WM_STATE_ABOVE) {
-		_LOG_(INFO, "STATE_ABOVE received for win %d:%s", w, name);
-		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
-			STACK) {
-			raise_window(w);
-		}
-	} else if (state == wm->ewmh->_NET_WM_STATE_HIDDEN) {
-		_LOG_(INFO, "STATE_HIDDEN received for win %d:%s", w, name);
-	} else if (state == wm->ewmh->_NET_WM_STATE_STICKY) {
-		_LOG_(INFO, "STATE_STICKY received for win %d:%s", w, name);
-	} else if (state == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-		_LOG_(INFO, "STATE_DEMANDS_ATTENTION received for win %d:%s", w, name);
+	switch (action) {
+	case XCB_EWMH_WM_STATE_REMOVE: return STATE_ACTION_REMOVE;
+	case XCB_EWMH_WM_STATE_ADD: return STATE_ACTION_ADD;
+	case XCB_EWMH_WM_STATE_TOGGLE: return STATE_ACTION_TOGGLE;
+	default: return STATE_ACTION_INVALID;
 	}
+}
+
+static inline client_message_type_t
+get_client_message_type(xcb_atom_t type, xcb_ewmh_conn_t *ewmh)
+{
+	if (type == ewmh->_NET_CURRENT_DESKTOP)
+		return CLIENT_MESSAGE_CURRENT_DESKTOP;
+	if (type == ewmh->_NET_WM_STATE)
+		return CLIENT_MESSAGE_WINDOW_STATE;
+	if (type == ewmh->_NET_ACTIVE_WINDOW)
+		return CLIENT_MESSAGE_ACTIVE_WINDOW;
+	if (type == ewmh->_NET_WM_DESKTOP)
+		return CLIENT_MESSAGE_WINDOW_DESKTOP;
+	if (type == ewmh->_NET_CLOSE_WINDOW)
+		return CLIENT_MESSAGE_CLOSE_WINDOW;
+
+	return CLIENT_MESSAGE_UNSUPPORTED;
+}
+
+static inline window_state_type_t
+get_window_state_type(uint32_t state, xcb_ewmh_conn_t *ewmh)
+{
+	if (state == ewmh->_NET_WM_STATE_FULLSCREEN)
+		return STATE_FULLSCREEN;
+	if (state == ewmh->_NET_WM_STATE_BELOW)
+		return STATE_BELOW;
+	if (state == ewmh->_NET_WM_STATE_ABOVE)
+		return STATE_ABOVE;
+	if (state == ewmh->_NET_WM_STATE_HIDDEN)
+		return STATE_HIDDEN;
+	if (state == ewmh->_NET_WM_STATE_STICKY)
+		return STATE_STICKY;
+	if (state == ewmh->_NET_WM_STATE_DEMANDS_ATTENTION)
+		return STATE_DEMANDS_ATTENTION;
+
+	return STATE_UNSUPPORTED;
+}
+
+static int
+handle_fullscreen_state(node_t				 *node,
+						window_state_action_t action,
+						const char			 *name)
+{
+	if (!node || !node->client || !name) {
+		return -1;
+	}
+
+	xcb_window_t		w	  = node->client->window;
+	window_state_type_t state = STATE_FULLSCREEN;
+#define _LOG_WM_STATE_ACTION_(action, state, w, name)                          \
+	_LOG_(INFO, "received %s %s for window %d:%s", #action, #state, w, name)
+
+	switch (action) {
+	case STATE_ACTION_ADD: {
+		_LOG_WM_STATE_ACTION_(ADD, FULLSCREEN, w, name);
+		return set_fullscreen(node, true);
+	}
+	case STATE_ACTION_REMOVE: {
+		_LOG_WM_STATE_ACTION_(REMOVE, FULLSCREEN, w, name);
+		return set_fullscreen(node, false);
+	}
+	case STATE_ACTION_TOGGLE: {
+		bool is_fullscreen = (node->client->state == FULLSCREEN);
+		_LOG_WM_STATE_ACTION_(TOGGLE, FULLSCREEN, w, name);
+		return set_fullscreen(node, !is_fullscreen);
+	}
+	default: return 0;
+	}
+}
+
+static int
+handle_net_wm_state(xcb_window_t win_event, uint32_t action, uint32_t state)
+{
+	if (state == 0) {
+		return 0;
+	}
+
+	node_t *root = get_foucsed_desktop_tree();
+	if (!root) {
+		return -1;
+	}
+
+	node_t *node = find_node_by_window_id(root, win_event);
+	if (!node) {
+		return 0;
+	}
+
+	xcb_window_t win  = node->client->window;
+	char		*name = win_name(win);
+	if (!name) {
+		return -1;
+	}
+
+	int					  result	   = 0;
+	window_state_type_t	  type		   = get_window_state_type(state, wm->ewmh);
+	window_state_action_t state_action = convert_state_action(action);
+
+#define _LOG_WM_STATE_(state, w, name)                                         \
+	_LOG_(INFO, "received %s for window %d:%s", #state, w, name)
+
+	switch (type) {
+	case STATE_FULLSCREEN:
+		_LOG_WM_STATE_(FULLSCREEN, win, name);
+		result = handle_fullscreen_state(node, state_action, name);
+		break;
+	case STATE_BELOW: {
+		_LOG_WM_STATE_(BELOW, win, name);
+		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
+			STACK) {
+			lower_window(win);
+		}
+		break;
+	}
+	case STATE_ABOVE: {
+		_LOG_WM_STATE_(ABOVE, win, name);
+		if (curr_monitor->desktops[get_focused_desktop_idx()]->layout !=
+			STACK) {
+			raise_window(win);
+		}
+		break;
+	}
+	case STATE_HIDDEN: {
+		_LOG_WM_STATE_(HIDDEN, win, name);
+		break;
+	}
+	case STATE_STICKY: {
+		_LOG_WM_STATE_(STICKY, win, name);
+		break;
+	}
+	case STATE_DEMANDS_ATTENTION: {
+		_LOG_WM_STATE_(DEMANDS_ATTENTION, win, name);
+		break;
+	}
+	default: break;
+	}
+
 	_FREE_(name);
+	return result;
+}
+
+static int
+handle_net_desktop_change(uint32_t nd)
+{
+	if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
+		return -1;
+	}
+	return switch_desktop(nd);
+}
+
+static int
+handle_net_active_window(xcb_window_t win)
+{
+	int d = find_desktop_by_window(win);
+	if (d == -1) {
+		return 0;
+	}
+	return switch_desktop(d);
+}
+
+static int
+handle_net_wm_desktop(xcb_window_t win, uint32_t index)
+{
+	if (index > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
+		return -1;
+	}
+	/* todo */
 	return 0;
 }
 
 static int
 handle_client_message(const xcb_event_t *event)
 {
+	if (!event) {
+		return -1;
+	}
+
 	xcb_client_message_event_t *ev = (xcb_client_message_event_t *)event;
-#ifdef _DEBUG__
-	char *name = win_name(ev->window);
-	_LOG_(DEBUG, "recieved client message for %d, name %s ", ev->window, name);
-	_FREE_(name);
-#endif
+
 	if (ev->format != 32) {
 		return 0;
 	}
 
-	int d = get_focused_desktop_idx();
-	if (d == -1)
-		return d;
+	xcb_window_t		  win	 = ev->window;
+	client_message_type_t type	 = get_client_message_type(ev->type, wm->ewmh);
+	char				 *name	 = win_name(win);
+	int					  result = 0;
 
-	node_t *root = curr_monitor->desktops[d]->tree;
-	/* reciever fonctions will perform the null check for n */
-	node_t *n	 = find_node_by_window_id(root, ev->window);
-#ifdef _DEBUG__
-	_LOG_(DEBUG, "received data32 for win %d:", ev->window);
-	for (ulong i = 0; i < LEN(ev->data.data32); i++) {
-		_LOG_(DEBUG, "data32[%d]: %u", i, ev->data.data32[i]);
-	}
-#endif
-	char *s = win_name(ev->window);
-	if (ev->type == wm->ewmh->_NET_CURRENT_DESKTOP) {
-		uint32_t nd = ev->data.data32[0];
-		_LOG_(INFO, "recieved desktop change to %d", nd);
-		if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
-			return -1;
-		}
-		if (switch_desktop(nd) != 0) {
-			_FREE_(s);
-			return -1;
-		}
-	} else if (ev->type == wm->ewmh->_NET_WM_STATE) {
-		_LOG_(INFO, "NET_WM_STATE for %d name %s", ev->window, s);
-		handle_state(
-			n, ev->data.data32[1], ev->data.data32[2], ev->data.data32[0]);
-	} else if (ev->type == wm->ewmh->_NET_ACTIVE_WINDOW) {
-		_LOG_(INFO, "_NET_ACTIVE_WINDOW for %d name %s", ev->window, s);
-		int di = find_desktop_by_window(ev->window);
-		if (di == -1)
-			goto out;
+#define _LOG_CLIENT_MESSAGE_(type, w, name)                                    \
+	_LOG_(INFO, "received %s for window %d:%s", #type, w, name)
 
-		if (switch_desktop(di) != 0) {
-			_FREE_(s);
-			return -1;
-		}
-	} else if (ev->type == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION) {
-		_LOG_(INFO, "WM_STATE_DEMANDS_ATTENTION for %d name %s", ev->window, s);
-	} else if (ev->type == wm->ewmh->_NET_WM_STATE_STICKY) {
-		_LOG_(INFO, "NET_WM_STATE_STICKY for %d name %s", ev->window, s);
-	} else if (ev->type == wm->ewmh->_NET_WM_DESKTOP) {
-		_LOG_(INFO, "NET_WM_DESKTOP for %d name %s", ev->window, s);
-	} else if (ev->type == wm->ewmh->_NET_CLOSE_WINDOW) {
-		_LOG_(INFO, "NET_CLOSE_WINDOW for %d name %s", ev->window, s);
-		close_or_kill(ev->window);
+	switch (type) {
+	case CLIENT_MESSAGE_CURRENT_DESKTOP: {
+		_LOG_CLIENT_MESSAGE_(CURRENT_DESKTOP, win, name);
+		/* if a pager wants to switch to another virtual desktop, it MUST send
+		 * a _NET_CURRENT_DESKTOP client message to the root window */
+		result = handle_net_desktop_change(ev->data.data32[0]);
+		break;
 	}
-out:
-	_FREE_(s);
-	return 0;
+	case CLIENT_MESSAGE_WINDOW_STATE: {
+		_LOG_CLIENT_MESSAGE_(WM_STATE, win, name);
+		size_t n = sizeof(ev->data.data32) / sizeof(ev->data.data32[0]);
+		for (size_t i = 0; i < n - 1; i++) {
+			uint32_t state = ev->data.data32[i + 1];
+			result = handle_net_wm_state(win, ev->data.data32[0], state);
+		}
+		break;
+	}
+	case CLIENT_MESSAGE_ACTIVE_WINDOW: {
+		/*  if a client wants to activate another window, it MUST send a
+		 * _NET_ACTIVE_WINDOW client message to the root window. I should just
+		 * switch to the desktop where the window is located */
+		_LOG_CLIENT_MESSAGE_(ACTIVE_WINDOW, win, name);
+		result = handle_net_active_window(win);
+		break;
+	}
+	case CLIENT_MESSAGE_WINDOW_DESKTOP: {
+		/* this is a request to move window from one destkop to another */
+		_LOG_CLIENT_MESSAGE_(WM_DESKTOP, win, name);
+		uint32_t index = ev->data.data32[0];
+		result		   = handle_net_wm_desktop(win, index);
+		break;
+	}
+	case CLIENT_MESSAGE_CLOSE_WINDOW: {
+		/* pagers wanting to close a window MUST send a _NET_CLOSE_WINDOW client
+		 * message request to the root window */
+		_LOG_CLIENT_MESSAGE_(CLOSE_WINDOW, win, name);
+		close_or_kill(win);
+		break;
+	}
+	default: break;
+	}
+
+	_FREE_(name);
+	return result;
 }
 
 static int
