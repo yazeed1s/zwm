@@ -4809,10 +4809,48 @@ static int
 handle_net_wm_desktop(xcb_window_t win, uint32_t index)
 {
 	if (index > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
+		return 0;
+	}
+	desktop_t *td	 = curr_monitor->desktops[index];
+	node_t	  *n	 = NULL;
+	desktop_t *d	 = NULL;
+	bool	   found = false;
+	find_window_in_desktops(&d, &n, win, &found);
+	if (!found) {
+		return 0;
+	}
+	if (!n || !d) {
+		_LOG_(ERROR, "desktop or node is null");
 		return -1;
 	}
-	/* todo */
-	return 0;
+	if (set_visibility(n->client->window, false) != 0) {
+		_LOG_(ERROR, "cannot hide window %d", n->client->window);
+		return -1;
+	}
+	if (unlink_node(n, d)) {
+		if (!transfer_node(n, td)) {
+			_LOG_(ERROR, "could not transfer node.. abort");
+			return -1;
+		}
+	} else {
+		_LOG_(ERROR, "could not unlink node.. abort");
+		return -1;
+	}
+
+	d->n_count--;
+	td->n_count++;
+	arrange_tree(td->tree, td->layout);
+	if (td->layout == STACK) {
+		set_focus(n, true);
+	}
+	if (!is_tree_empty(d->tree)) {
+		arrange_tree(d->tree, d->layout);
+	}
+
+	int	 i		= get_focused_desktop_idx();
+	bool render = curr_monitor->desktops[i] == d;
+
+	return render ? render_tree(d->tree) : 0;
 }
 
 static int
