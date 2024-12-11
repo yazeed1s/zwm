@@ -26,22 +26,65 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_CONFIG_PARSER_H
-#define ZWM_CONFIG_PARSER_H
-
+#include "queue.h"
 #include "type.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <xcb/xcb_icccm.h>
 
-#define MAX_RULES (2 << 2)
+queue_t *
+create_queue(void)
+{
+	queue_t *q = (queue_t *)malloc(sizeof(queue_t));
+	if (!q)
+		return NULL;
+	q->front = q->rear = NULL;
+	return q;
+}
 
-extern rule_t	  *rule_head;
-extern conf_key_t *key_head;
+void
+enqueue(queue_t *q, node_t *n)
+{
+	queue_node_t *nnode = (queue_node_t *)malloc(sizeof(queue_node_t));
+	if (!nnode)
+		return;
+	nnode->tree_node = n;
+	nnode->next		 = NULL;
+	if (!q->rear) {
+		q->front = q->rear = nnode;
+		return;
+	}
+	q->rear->next = nnode;
+	q->rear		  = nnode;
+}
 
-/* clang-format off */
-rule_t *get_window_rule(xcb_window_t win);
-int load_config(config_t *c);
-void free_keys(void);
-void free_rules(void);
-int reload_config(config_t *c);
-/* clang-format on */
+node_t *
+dequeue(queue_t *q)
+{
+	if (!q->front)
+		return NULL;
+	queue_node_t *temp = q->front;
+	node_t		 *node = temp->tree_node;
+	q->front		   = q->front->next;
+	if (!q->front)
+		q->rear = NULL;
+	free(temp);
+	return node;
+}
 
-#endif /* ZWM_CONFIG_PARSER_H */
+bool
+is_queue_empty(queue_t *q)
+{
+	return q->front == NULL;
+}
+
+void
+free_queue(queue_t *q)
+{
+	while (q->front) {
+		queue_node_t *temp = q->front;
+		q->front		   = q->front->next;
+		free(temp);
+	}
+	free(q);
+}
