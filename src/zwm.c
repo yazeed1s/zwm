@@ -203,33 +203,32 @@ static int handle_motion_notify(const xcb_event_t *);
 
 /* array of xcb events we need to handle -> {event, handler function} */
 static const event_handler_entry_t _handlers_[] = {
-	/* core window management events */
 	/* map request - is generated when a window wants to be mapped (displayed) on the screen */
     DEFINE_MAPPING(XCB_MAP_REQUEST, handle_map_request),
 	/* unmap request - is generated when a window wants to be unmapped (removed) from the screen */
     DEFINE_MAPPING(XCB_UNMAP_NOTIFY, handle_unmap_notify),
 	/* destroy notify - is generated when a window is killed */
     DEFINE_MAPPING(XCB_DESTROY_NOTIFY, handle_destroy_notify),
-    /* communication and configuration events */
 	/* client message (ewmh):
 	 * These events are sent by other applications through ewmh protocol to zwm;
-	 * I am only responding to requestes where:
+	 * I am only responding to requests where:
 	 * 1- the state of the window is changed (below, above, or fullscreen only, rest is ignored)
 	 * 		this generates a _NET_WM_STATE message
-	 * 2- an application wants to know where a window is located (_NET_ACTIVE_WINDOW),
+	 * 2- application wants to know where a window is located (_NET_ACTIVE_WINDOW),
 	 * 		as result, zwm switches to the desktop containing that window.
-	 * 3- application wants to be closed (when a user clicks the close button at the corner)
+	 * 3- application wants to close a window (issued by pagers)
 	 * 		this generates a NET_CLOSE_WINDOW message
 	 * 4- a desktop change was requested (usually through a status bar)
 	 * 		this generates _NET_CURRENT_DESKTOP message
-	 * other messages like are ignored intentionally.*/
+	 * 5- some application wants a window moved from one virtual desktop to another
+	 * 		this generates _NET_WM_DESKTOP message
+	 * other messages are ignored intentionally.*/
     DEFINE_MAPPING(XCB_CLIENT_MESSAGE, handle_client_message),
 	/* configure request - this is used when a client wants to set or update its
 	 * rectangle/positions or stacking mode.
 	 * since zwm is a tiling wm, i am mostly ignoring this event even though it
 	 * reveals important info for splash screens */
     DEFINE_MAPPING(XCB_CONFIGURE_REQUEST, handle_configure_request),
-    /* input and interaction events */
 	/* enter notify - is generated when a cursor enters a window, as a result,
 	 * i redirect the focus and do some book keeping for floating windows */
     DEFINE_MAPPING(XCB_ENTER_NOTIFY, handle_enter_notify),
@@ -240,7 +239,7 @@ static const event_handler_entry_t _handlers_[] = {
      * actions to be performed when a key is pressed, and this is how
 	 * keybinds take action */
     DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
-    /* key press - is generated when keyboard mapping is changed,
+    /* mapping notify - is generated when keyboard mapping is changed,
     * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
    	/* will be implemented if needed */
@@ -807,21 +806,10 @@ swap_node_wrapper()
 
 /* transfer_node_wrapper - handles transferring a node between desktops.
  *
- * This function moves the focused window (or the one under the cursor)
+ * Moves the focused window (or the one under the cursor)
  * from the currently active desktop to another desktop.
  *
- * How it works:
- * 1. Determines the focused desktop and retrieves the focused node.
- * 2. If the window is already on the target desktop, it logs a message and
- * exits.
- * 3. Hides the window visually before unlinking it from the source desktop.
- * 4. Calls `transfer_node` to handle the actual node relocation.
- * 5. Updates node counts for both desktops and re-renders the source desktop.
- *
- * Handles:
- * - Rearranging the source and target desktop trees to keep things consistent.
- *
- * Notes:
+ * notes:
  * - This wrapper is focused on coordinating the high-level flow,
  *   it leaves layout-specific handling to the `transfer_node` function.
  */
