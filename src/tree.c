@@ -499,10 +499,10 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 /* stack_and_lower - collects floating windows and optionally lowers
  * non-floating ones.
  *
- * This function goes through the tree and:
- * - Adds floating windows to a stack, and resize the stack if it fills up.
- * - Lowers non-floating windows unless the layout is stacked.
- * - Calls itself on each child node to cover the whole tree. */
+ * goes through the tree and:
+ * - adds floating windows to a stack, and resize the stack if it fills up.
+ * - lowers non-floating windows unless the layout is stacked.
+ * - calls itself on each child node to cover the whole tree. */
 static void
 stack_and_lower(
 	node_t *root, node_t **stack, int *top, int max_size, bool is_stacked)
@@ -816,7 +816,7 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 
 /* apply_default_layout - applies the default tiling layout to a given tree
  *
- * this function recursively applies the default tiling layout to a node and its
+ * recursively applies the default tiling layout to a node and its
  * descendants in the tree. The default layout splits nodes either
  * vertically or horizontally based on their dimensions. */
 void
@@ -896,7 +896,7 @@ apply_default_layout(node_t *root)
 
 /* default_layout - applies the default layout to the tree.
  *
- * This function initializes the default layout for the entire screen or
+ * initializes the default layout for the entire screen or
  * monitor. It sets up the initial rectangle for the root node with window gaps
  * and border widths in mind, then calls apply_default_layout to recursively
  * layout child nodes. */
@@ -929,7 +929,7 @@ default_layout(node_t *root)
 
 /* apply_master_layout - applies the master layout to a tree.
  *
- * This function implements a master-stack layout, where one window (the master)
+ * implements a master-stack layout, where one window (the master)
  * takes up a larger portion of the screen (70%), and the rest are stacked.
  * TODO: use next_node() to implement this
  */
@@ -973,7 +973,7 @@ apply_master_layout(node_t *parent)
 
 /* master_layout - initializes and applies the master layout to the tree.
  *
- * This function sets up the initial rectangles for the master and stack areas,
+ * This func sets up the initial rectangles for the master and stack areas,
  * marks the appropriate node as the master, and then calls apply_master_layout
  * to recursively apply the layout to the entire tree. */
 static void
@@ -1050,7 +1050,7 @@ master_clean_up(node_t *root)
 
 /* apply_stack_layout - applies the stack layout to a given tree .
  *
- * This function recursively applies the stack layout to a node and its
+ * recursively applies the stack layout to a node and its
  * children in the tree. In a stack layout, all windows occupy
  * the same space, effectively stacking on top of each other. */
 void
@@ -1081,7 +1081,7 @@ apply_stack_layout(node_t *root)
 /**
  * stack_layout - initializes and applies the stack layout to the tree.
  *
- * This function sets up the initial rectangle for the entire stack.
+ * sets up the initial rectangle for the entire stack.
  * It then calls apply_stack_layout to recursively apply the layout
  * to all nodes in the tree. */
 static void
@@ -1113,8 +1113,8 @@ stack_layout(node_t *root)
 
 /* apply_layout - applies the specified layout to the given tree.
  *
- * This function is responsible for switching between different layout
- * types (DEFAULT, MASTER, STACK, GRID) and applying the chosen layout
+ * responsible for switching between different layout
+ * types (DEFAULT, MASTER, STACK) and applying the chosen layout
  * to the desktop's tree. */
 void
 apply_layout(desktop_t *d, layout_t t)
@@ -1759,18 +1759,9 @@ find_any_leaf(node_t *root)
 /* unlink_node - removes a node from the tree while keeping the structure
  * intact.
  *
- * This function cleanly disconnects a node from the tree without freeing its
+ * disconnects a node from the tree without freeing its
  * memory. It tweaks the parent and sibling relationships to keep the tree
- * consistent.
- *
- * what it's being handled:
- * 1. If the node is the root, it essentially clears the tree.
- * 2. If the node has an external sibling:
- *    - The sibling takes over as the parent, and both the unlinked node and the
- * old parent are dropped.
- * 3. If the node has an internal sibling:
- *    - The sibling's children step up to replace the parent, and again, the
- * unlinked node and the old parent are removed.
+ * intact.
  *
  * Note: this function does not free the memory of the unlinked node.
  * The caller is responsible for freeing the memory of the unlinked node if it's
@@ -1819,7 +1810,7 @@ unlink_node(node_t *n, desktop_t *d)
 
 /* transfer_node - moves a node to a new desktop's tree.
  *
- * This function takes a node and places it into the tree of the target desktop.
+ * takes a node and places it into the tree of the target desktop.
  * It handles three main scenarios:
  * 1. If the target tree is empty:
  *   - The node becomes the root of the tree.
@@ -2150,7 +2141,7 @@ is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
  * specific direction. It is used to move focus to another node using the
  * keyboard
  *
- * This function searches through the tree (using a bfs) to
+ * searches through the tree (using a bfs) to
  * find the closest external node (a leaf node with a client) that is within a
  * certain range of the given node in the specified direction. It keeps track of
  * the closest node found and returns it.
@@ -2210,7 +2201,7 @@ find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 
 /* cycle_win - cycles focus to the nearest window in a specified direction.
  *
- * This function calls find_closest_neighbor` to get the closest node in the
+ * calls find_closest_neighbor` to get the closest node in the
  * specified direction.
  *
  * If either the root or the neighbor can't be found, it logs an error and
