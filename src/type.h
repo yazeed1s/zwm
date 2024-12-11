@@ -147,6 +147,32 @@ typedef enum {
 	WINDOW_TYPE_UNKNOWN		 = -1
 } ewmh_window_type_t;
 
+typedef enum {
+	STATE_UNSUPPORTED = 0,
+	STATE_FULLSCREEN,
+	STATE_BELOW,
+	STATE_ABOVE,
+	STATE_HIDDEN,
+	STATE_STICKY,
+	STATE_DEMANDS_ATTENTION
+} window_state_type_t;
+
+typedef enum {
+	STATE_ACTION_INVALID = 0,
+	STATE_ACTION_REMOVE,
+	STATE_ACTION_ADD,
+	STATE_ACTION_TOGGLE
+} window_state_action_t;
+
+typedef enum {
+	CLIENT_MESSAGE_UNSUPPORTED = 0,
+	CLIENT_MESSAGE_CURRENT_DESKTOP,
+	CLIENT_MESSAGE_WINDOW_STATE,
+	CLIENT_MESSAGE_ACTIVE_WINDOW,
+	CLIENT_MESSAGE_WINDOW_DESKTOP,
+	CLIENT_MESSAGE_CLOSE_WINDOW
+} client_message_type_t;
+
 /* defines the client, like an opened application like firefox of a text editor.
  * every leaf node in the tree contains a non-null client, internal nodes ALWAYS
  * have null clients.
