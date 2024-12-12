@@ -162,8 +162,8 @@ static const uint32_t _buttons_[] = {
 static monitor_t *get_focused_monitor();
 static int set_fullscreen(node_t *, bool);
 static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
-static int resize_window(xcb_window_t, uint16_t x, uint16_t y);
-static int move_window(xcb_window_t, int16_t x, int16_t y);
+static int resize_window(xcb_window_t, uint16_t, uint16_t);
+static int move_window(xcb_window_t, int16_t, int16_t);
 static int win_focus(xcb_window_t, bool);
 static void update_grabbed_window(node_t *, node_t *);
 static void ungrab_keys(xcb_conn_t *, xcb_window_t);
@@ -180,7 +180,7 @@ static int set_input_focus(xcb_conn_t *, uint8_t, xcb_window_t, xcb_timestamp_t)
 static xcb_atom_t get_atom(char *, xcb_conn_t *);
 static bool window_exists(xcb_conn_t *, xcb_window_t);
 static int close_or_kill(xcb_window_t);
-static int switch_desktop(const int);
+static int switch_desktop(int);
 static int handle_tiled_window_request(xcb_window_t, desktop_t *);
 static int handle_floating_window_request(xcb_window_t, desktop_t *);
 static int handle_bar_request(xcb_window_t, desktop_t *);
@@ -446,12 +446,12 @@ change_state(arg_t *arg)
 			return 0;
 		xcb_get_geometry_reply_t *g =
 			get_geometry(n->client->window, wm->connection);
-		int h  = g->height / 2;
-		int wi = g->width / 2;
-		int x  = curr_monitor->rectangle.x +
-				(curr_monitor->rectangle.width / 2) - (wi / 2);
-		int y = curr_monitor->rectangle.y +
-				(curr_monitor->rectangle.height / 2) - (h / 2);
+		uint16_t h	= g->height / 2;
+		uint16_t wi = g->width / 2;
+		int16_t	 x	= curr_monitor->rectangle.x +
+					(curr_monitor->rectangle.width / 2) - (wi / 2);
+		int16_t y = curr_monitor->rectangle.y +
+					(curr_monitor->rectangle.height / 2) - (h / 2);
 		rectangle_t rc		  = {.x = x, .y = y, .width = wi, .height = h};
 		n->floating_rectangle = rc;
 		_FREE_(g);
@@ -921,10 +921,10 @@ shift_floating_window(arg_t *arg)
 	const int16_t pxl			 = 10;
 	int16_t		  new_x			 = n->floating_rectangle.x;
 	int16_t		  new_y			 = n->floating_rectangle.y;
+	uint16_t	  monitor_width	 = curr_monitor->rectangle.width;
+	uint16_t	  monitor_height = curr_monitor->rectangle.height;
 	int16_t		  monitor_x		 = curr_monitor->rectangle.x;
 	int16_t		  monitor_y		 = curr_monitor->rectangle.y;
-	int16_t		  monitor_width	 = curr_monitor->rectangle.width;
-	int16_t		  monitor_height = curr_monitor->rectangle.height;
 
 	switch (arg->d) {
 	case LEFT:
@@ -1085,17 +1085,20 @@ apply_monitor_layout_changes(monitor_t *m)
 		layout_t l	  = m->desktops[d]->layout;
 		node_t	*tree = m->desktops[d]->tree;
 		if (l == DEFAULT) {
-			rectangle_t	   r = {0};
-			uint16_t	   w = m->rectangle.width;
-			uint16_t	   h = m->rectangle.height;
-			const uint16_t x = m->rectangle.x;
-			const uint16_t y = m->rectangle.y;
+			rectangle_t r = {0};
+			uint16_t	w = m->rectangle.width;
+			uint16_t	h = m->rectangle.height;
+			int16_t		x = m->rectangle.x;
+			int16_t		y = m->rectangle.y;
 			if (wm->bar && m == prim_monitor) {
-				r.x		 = x + conf.window_gap;
-				r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-				r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-				r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-						   2 * conf.border_width;
+				r.x = (int16_t)(x + conf.window_gap);
+				r.y =
+					(int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+				r.width =
+					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+				r.height =
+					(uint16_t)(h - wm->bar->rectangle.height -
+							   2 * conf.window_gap - 2 * conf.border_width);
 			} else {
 				r.x		 = x + conf.window_gap;
 				r.y		 = y + conf.window_gap;
@@ -1105,14 +1108,14 @@ apply_monitor_layout_changes(monitor_t *m)
 			tree->rectangle = r;
 			apply_default_layout(tree);
 		} else if (l == MASTER) {
-			node_t		  *ms			= find_master_node(tree);
-			const double   ratio		= 0.70;
-			uint16_t	   w			= m->rectangle.width;
-			uint16_t	   h			= m->rectangle.height;
-			const uint16_t x			= m->rectangle.x;
-			const uint16_t y			= m->rectangle.y;
-			uint16_t	   master_width = w * ratio;
-			uint16_t	   r_width		= (uint16_t)(w * (1 - ratio));
+			node_t		*ms			  = find_master_node(tree);
+			const double ratio		  = 0.70;
+			uint16_t	 w			  = m->rectangle.width;
+			uint16_t	 h			  = m->rectangle.height;
+			int16_t		 x			  = m->rectangle.x;
+			int16_t		 y			  = m->rectangle.y;
+			uint16_t	 master_width = (uint16_t)(w * ratio);
+			uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
 			if (ms == NULL) {
 				ms = find_any_leaf(tree);
 				if (ms == NULL) {
@@ -1122,14 +1125,14 @@ apply_monitor_layout_changes(monitor_t *m)
 			ms->is_master = true;
 			uint16_t bar_height =
 				wm->bar == NULL ? 0 : wm->bar->rectangle.height;
-			rectangle_t r1 = {
-				.x		= x + conf.window_gap,
+			const rectangle_t r1 = {
+				.x		= (int16_t)(x + conf.window_gap),
 				.y		= (int16_t)(y + bar_height + conf.window_gap),
 				.width	= (uint16_t)(master_width - 2 * conf.window_gap),
 				.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
 			};
-			rectangle_t r2 = {
-				.x		= (x + master_width),
+			const rectangle_t r2 = {
+				.x		= (int16_t)(x + master_width),
 				.y		= (int16_t)(y + bar_height + conf.window_gap),
 				.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
 				.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
@@ -1138,22 +1141,27 @@ apply_monitor_layout_changes(monitor_t *m)
 			tree->rectangle = r2;
 			apply_master_layout(tree);
 		} else if (l == STACK) {
-			rectangle_t	   r = {0};
-			uint16_t	   w = m->rectangle.width;
-			uint16_t	   h = m->rectangle.height;
-			const uint16_t x = m->rectangle.x;
-			const uint16_t y = m->rectangle.y;
+			rectangle_t r = {0};
+			uint16_t	w = m->rectangle.width;
+			uint16_t	h = m->rectangle.height;
+			int16_t		x = m->rectangle.x;
+			int16_t		y = m->rectangle.y;
 			if (wm->bar && m == prim_monitor) {
-				r.x		 = x + conf.window_gap;
-				r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-				r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-				r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-						   2 * conf.border_width;
+				r.x = (int16_t)(x + conf.window_gap);
+				r.y =
+					(int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+				r.width =
+					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+				r.height =
+					(uint16_t)(h - wm->bar->rectangle.height -
+							   2 * conf.window_gap - 2 * conf.border_width);
 			} else {
-				r.x		 = x + conf.window_gap;
-				r.y		 = y + conf.window_gap;
-				r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-				r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
+				r.x = x + conf.window_gap;
+				r.y = y + conf.window_gap;
+				r.width =
+					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+				r.height =
+					(uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
 			}
 			tree->rectangle = r;
 			apply_stack_layout(tree);
@@ -1173,7 +1181,6 @@ arrange_trees(void)
 	}
 }
 
-/* TODO: rewrite this ugly shit */
 int
 reload_config_wrapper()
 {
@@ -1261,7 +1268,7 @@ reload_config_wrapper()
 						_LOG_(ERROR, "failed to initialize new desktop");
 						goto out;
 					}
-					d->id		  = (uint8_t)j;
+					d->id		  = (uint16_t)j;
 					d->is_focused = false;
 					d->layout	  = DEFAULT;
 					snprintf(d->name, sizeof(d->name), "%d", j + 1);
@@ -2625,7 +2632,7 @@ setup_desktops(void)
 		curr->desktops = desktops;
 		for (int j = 0; j < curr->n_of_desktops; j++) {
 			desktop_t *d  = init_desktop();
-			d->id		  = (uint8_t)j;
+			d->id		  = (uint16_t)j;
 			d->is_focused = (j == 0);
 			d->layout	  = DEFAULT;
 			snprintf(d->name, sizeof(d->name), "%d", j + 1);
@@ -3768,8 +3775,8 @@ fill_root_rectangle(rectangle_t *r)
 {
 	const uint16_t w = curr_monitor->rectangle.width;
 	const uint16_t h = curr_monitor->rectangle.height;
-	const uint16_t x = curr_monitor->rectangle.x;
-	const uint16_t y = curr_monitor->rectangle.y;
+	const int16_t  x = curr_monitor->rectangle.x;
+	const int16_t  y = curr_monitor->rectangle.y;
 	if (wm->bar && curr_monitor == prim_monitor) {
 		(*r).x		= x + conf.window_gap;
 		(*r).y		= y + wm->bar->rectangle.height + conf.window_gap;
@@ -4204,8 +4211,8 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 		rectangle_t	   r = {0};
 		const uint16_t w = curr_monitor->rectangle.width;
 		const uint16_t h = curr_monitor->rectangle.height;
-		const uint16_t x = curr_monitor->rectangle.x;
-		const uint16_t y = curr_monitor->rectangle.y;
+		const int16_t  x = curr_monitor->rectangle.x;
+		const int16_t  y = curr_monitor->rectangle.y;
 		if (wm->bar && curr_monitor == prim_monitor) {
 			r.x		 = x + conf.window_gap;
 			r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
@@ -5135,7 +5142,7 @@ handle_button_press_event(const xcb_event_t *event)
 		return 0;
 	}
 
-	// window_ungrab_buttons(client->window);
+	window_ungrab_buttons(client->window);
 
 	const int r = set_active_window_name(win);
 	if (r != 0) {
@@ -5178,7 +5185,6 @@ handle_button_press_event(const xcb_event_t *event)
 
 	xcb_allow_events(wm->connection, XCB_ALLOW_SYNC_POINTER, ev->time);
 	/* set_cursor(CURSOR_POINTER); */
-	xcb_allow_events(wm->connection, XCB_ALLOW_REPLAY_POINTER, ev->time);
 	xcb_flush(wm->connection);
 	return 0;
 }
