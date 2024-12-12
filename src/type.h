@@ -212,8 +212,8 @@ struct node_t {
 typedef struct {
 	node_t	*tree;		 /* the tree in this desktop */
 	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
-	uint8_t	 id;		 /* the number of this desktop */
-	uint8_t	 n_count;	 /* the number of active windows/external nodes */
+	uint16_t id;		 /* the number of this desktop */
+	uint16_t n_count;	 /* the number of active windows/external nodes */
 	layout_t layout;	 /* the layout (master, default, stack) */
 	bool	 is_focused; /* whether this is focused, only focused desktops
 						  * are rendered */
@@ -236,7 +236,7 @@ struct monitor_t {
 	bool			   is_focused;	/* focus status */
 	bool			   is_occupied; /* window presence */
 	bool			   is_primary;	/* primary monitor */
-	uint8_t			   n_of_desktops; /* total desktops, defined in
+	uint16_t		   n_of_desktops; /* total desktops, defined in
 									   * the config file  */
 };
 
@@ -278,7 +278,7 @@ typedef struct {
 } _key__t;
 
 /* config key structure (linked list),
- * repesents the keys in the config file
+ * represents the keys in the config file
  */
 typedef struct conf_key_t conf_key_t;
 struct conf_key_t {

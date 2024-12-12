@@ -36,7 +36,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
@@ -909,19 +908,19 @@ default_layout(node_t *root)
 	rectangle_t	   r = {0};
 	uint16_t	   w = curr_monitor->rectangle.width;
 	uint16_t	   h = curr_monitor->rectangle.height;
-	const uint16_t x = curr_monitor->rectangle.x;
-	const uint16_t y = curr_monitor->rectangle.y;
+	uint16_t x = curr_monitor->rectangle.x;
+	uint16_t y = curr_monitor->rectangle.y;
 	if (wm->bar && curr_monitor == prim_monitor) {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-				   2 * conf.border_width;
+		r.x		 = (int16_t)(x + conf.window_gap);
+		r.y		 = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r.height = (uint16_t)(h - wm->bar->rectangle.height - 2 * conf.window_gap -
+				   2 * conf.border_width);
 	} else {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
+		r.x		 = (int16_t)(x + conf.window_gap);
+		r.y		 = (int16_t)(y + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r.height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
 	}
 	root->rectangle = r;
 	apply_default_layout(root);
@@ -949,15 +948,15 @@ apply_master_layout(node_t *parent)
 		r.y		= parent->rectangle.y;
 		r.width = parent->rectangle.width;
 		r.height =
-			(parent->rectangle.height - (conf.window_gap - conf.border_width)) /
-			2;
+			(uint16_t)((parent->rectangle.height - (conf.window_gap - conf.border_width)) /
+			2);
 
 		r2.x	  = parent->rectangle.x;
 		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
 						  conf.border_width);
 		r2.width  = parent->rectangle.width;
-		r2.height = parent->rectangle.height - r.height - conf.window_gap -
-					conf.border_width;
+		r2.height = (uint16_t)(parent->rectangle.height - r.height - conf.window_gap -
+					conf.border_width);
 		parent->first_child->rectangle	= r;
 		parent->second_child->rectangle = r2;
 	}
@@ -984,7 +983,7 @@ master_layout(node_t *root, node_t *n)
 	const uint16_t h			= curr_monitor->rectangle.height;
 	const uint16_t x			= curr_monitor->rectangle.x;
 	const uint16_t y			= curr_monitor->rectangle.y;
-	const uint16_t master_width = w * ratio;
+	const uint16_t master_width = (uint16_t)(w * ratio);
 	const uint16_t r_width		= (uint16_t)(w * (1 - ratio));
 	const uint16_t bar_height = wm->bar == NULL ? 0 : wm->bar->rectangle.height;
 
@@ -999,16 +998,16 @@ master_layout(node_t *root, node_t *n)
 	n->is_master   = true;
 
 	/* master rectangle */
-	rectangle_t r1 = {
-		.x		= x + conf.window_gap,
+	const rectangle_t r1 = {
+		.x		= (int16_t)(x + conf.window_gap),
 		.y		= (int16_t)(y + bar_height + conf.window_gap),
 		.width	= (uint16_t)(master_width - 2 * conf.window_gap),
 		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
 	};
 
 	/* stack rectangle */
-	rectangle_t r2 = {
-		.x		= (x + master_width),
+	const rectangle_t r2 = {
+		.x		= (int16_t)(x + master_width),
 		.y		= (int16_t)(y + bar_height + conf.window_gap),
 		.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
 		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
@@ -1020,7 +1019,7 @@ master_layout(node_t *root, node_t *n)
 	if (n->node_type == ROOT_NODE && n->first_child == NULL &&
 		n->second_child == NULL) {
 		n->rectangle = (rectangle_t){
-			.x		= x + conf.window_gap,
+			.x		= (int16_t)(x + conf.window_gap),
 			.y		= (int16_t)(y + bar_height + conf.window_gap),
 			.width	= (uint16_t)(w - 2 * conf.window_gap),
 			.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
@@ -1093,16 +1092,16 @@ stack_layout(node_t *root)
 	const uint16_t x = curr_monitor->rectangle.x;
 	const uint16_t y = curr_monitor->rectangle.y;
 	if (wm->bar && curr_monitor == prim_monitor) {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-				   2 * conf.border_width;
+		r.x		 = (int16_t)(x + conf.window_gap);
+		r.y		 = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r.height = (uint16_t)(h - wm->bar->rectangle.height - 2 * conf.window_gap -
+				   2 * conf.border_width);
 	} else {
-		r.x		 = x + conf.window_gap;
-		r.y		 = y + conf.window_gap;
-		r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-		r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
+		r.x		 = (int16_t)(x + conf.window_gap);
+		r.y		 = (int16_t)(y + conf.window_gap);
+		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r.height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
 	}
 	root->rectangle = r;
 	apply_stack_layout(root);
@@ -1839,19 +1838,19 @@ transfer_node(node_t *node, desktop_t *d)
 		rectangle_t	   r = {0};
 		uint16_t	   w = curr_monitor->rectangle.width;
 		uint16_t	   h = curr_monitor->rectangle.height;
-		const uint16_t x = curr_monitor->rectangle.x;
-		const uint16_t y = curr_monitor->rectangle.y;
+		uint16_t x = curr_monitor->rectangle.x;
+		uint16_t y = curr_monitor->rectangle.y;
 		if (wm->bar && curr_monitor == prim_monitor) {
-			r.x		 = x + conf.window_gap;
-			r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-			r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-					   2 * conf.border_width;
+			r.x		 = (int16_t)(x + conf.window_gap);
+			r.y		 = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+			r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+			r.height = (uint16_t)(h - wm->bar->rectangle.height - 2 * conf.window_gap -
+					   2 * conf.border_width);
 		} else {
-			r.x		 = x + conf.window_gap;
-			r.y		 = y + conf.window_gap;
-			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-			r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
+			r.x		 = (int16_t)(x + conf.window_gap);
+			r.y		 = (int16_t)(y + conf.window_gap);
+			r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+			r.height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
 		}
 		node->node_type	   = ROOT_NODE;
 		d->tree			   = node;
