@@ -1073,7 +1073,7 @@ change_colors(node_t *root)
 	return 0;
 }
 
-/* TODO: rewrite this shit */
+/* TODO: rewrite this */
 static void
 apply_monitor_layout_changes(monitor_t *m)
 {
