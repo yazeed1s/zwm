@@ -30,40 +30,40 @@
 #define ZWM_TREE_H
 
 #include "type.h"
-// clang-format off
-node_t   *create_node(client_t *c);
-node_t   *init_root(void);
-node_t   *find_node_by_window_id(node_t *root, xcb_window_t window_id);
-node_t   *find_master_node(node_t *root);
-node_t   *prev_node(node_t *current);
-node_t   *next_node(node_t *current);
-node_t   *cycle_win(node_t *node, direction_t);
-node_t   *find_left_leaf(node_t *root);
-node_t   *find_any_leaf(node_t *root);
-node_t 	 *get_focused_node(node_t *n);
-void     unlink_node(node_t *node, desktop_t *d);
-void 	 apply_master_layout(node_t *parent);
-void 	 apply_default_layout(node_t *root);
-void	 apply_stack_layout(node_t *root);
-void	 update_focus(node_t *root, node_t *n);
-void	 flip_node(node_t *node);
-void	 resize_subtree(node_t *parent);
-void	 apply_layout(desktop_t *d, layout_t t);
-void	 free_tree(node_t *root);
-void	 restack(void);
-void     restackv2(node_t *root);
-void	 delete_node(node_t *node, desktop_t *d);
-void	 insert_node(node_t *current_node, node_t *new_node, layout_t layout);
-void	 log_tree_nodes(node_t *node);
-void	 transfer_node(node_t *, desktop_t *);
-bool	 is_tree_empty(const node_t *root);
-bool	 client_exist(node_t *cn, xcb_window_t id);
-bool	 has_floating_window(node_t *root);
-int	   	 render_tree(node_t *current_node);
-int		 hide_windows(node_t *tree);
-int 	 show_windows(node_t *tree);
-int	     transfer_node_wrapper(arg_t *arg);
-int 	 horizontal_resize_wrapper(arg_t *arg);
-int	     swap_node(node_t *root);
-// clang-format on
-#endif // ZWM_TREE_H
+/* clang-format off */
+node_t *create_node(client_t *c);
+node_t *init_root(void);
+node_t *find_node_by_window_id(node_t *root, xcb_window_t window_id);
+node_t *find_master_node(node_t *root);
+node_t *prev_node(node_t *current);
+node_t *next_node(node_t *current);
+node_t *cycle_win(node_t *node, direction_t);
+node_t *find_left_leaf(node_t *root);
+node_t *find_any_leaf(node_t *root);
+node_t *get_focused_node(node_t *n);
+bool unlink_node(node_t *node, desktop_t *d);
+void horizontal_resize(node_t *n, resize_t t);
+void apply_master_layout(node_t *parent);
+void apply_default_layout(node_t *root);
+void apply_stack_layout(node_t *root);
+void update_focus(node_t *root, node_t *n);
+void flip_node(node_t *node);
+void resize_subtree(node_t *parent);
+void apply_layout(desktop_t *d, layout_t t);
+void free_tree(node_t *root);
+void restack(void);
+void restackv2(node_t *root);
+void delete_node(node_t *node, desktop_t *d);
+void insert_node(node_t *current_node, node_t *new_node, layout_t layout);
+void arrange_tree(node_t *tree, layout_t l);
+void log_tree_nodes(node_t *node);
+bool transfer_node(node_t *, desktop_t *);
+bool is_tree_empty(const node_t *root);
+bool client_exist(node_t *cn, xcb_window_t id);
+bool has_floating_window(node_t *root);
+int render_tree(node_t *current_node);
+int hide_windows(node_t *tree);
+int show_windows(node_t *tree);
+int swap_node(node_t *root);
+/* clang-format off */
+#endif /* ZWM_TREE_H */

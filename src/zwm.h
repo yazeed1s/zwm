@@ -33,42 +33,45 @@
 #include <xcb/xcb_icccm.h>
 #include <xcb/xproto.h>
 
-// clang-format off
+/* clang-format off */
 extern config_t 		  conf;
 extern wm_t 			  *wm;
 extern xcb_window_t 	  focused_win;
 extern monitor_t 		  *head_monitor;
 extern monitor_t		  *prim_monitor;
-extern monitor_t 		  *cur_monitor;
+extern monitor_t 		  *curr_monitor;
 extern bool 			  using_xrandr;
 extern bool 		      using_xinerama;
 extern uint8_t 			  randr_base;
 
 xcb_window_t get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win);
-void 		 raise_window(xcb_window_t win);
-void 		 lower_window(xcb_window_t win);
-void         window_grab_buttons(xcb_window_t win);
-void 		 window_above(xcb_window_t, xcb_window_t);
-void 		 window_below(xcb_window_t, xcb_window_t);
-void         grab_pointer(xcb_window_t, bool);
-void         ungrab_pointer(void);
-int          set_visibility(xcb_window_t win, bool is_visible);
-int          exec_process(arg_t *arg);
-int 	     layout_handler(arg_t *arg);
-int    	     cycle_win_wrapper(arg_t *arg);
-int  		 set_fullscreen_wrapper();
-int 		 flip_node_wrapper();
-int          reload_config_wrapper();
-int          get_focused_desktop_idx();
-int 		 switch_desktop_wrapper(arg_t *arg);
-int 		 gap_handler(arg_t *arg);
-int 		 cycle_desktop_wrapper(arg_t *arg);
-int 	     close_or_kill_wrapper();
-int 		 traverse_stack_wrapper(arg_t *arg);
-int 		 shift_floating_window(arg_t *arg);
-int          tile(node_t *node);
-int 		 set_focus(node_t *n, bool flag);
-int 		 swap_node_wrapper();
-int          change_state(arg_t *arg);
-char        *win_name(xcb_window_t);
-#endif // ZWM_ZWM_H
+void raise_window(xcb_window_t win);
+void lower_window(xcb_window_t win);
+void window_grab_buttons(xcb_window_t win);
+void window_above(xcb_window_t, xcb_window_t);
+void window_below(xcb_window_t, xcb_window_t);
+void grab_pointer(xcb_window_t, bool);
+void ungrab_pointer(void);
+char *win_name(xcb_window_t);
+int set_visibility(xcb_window_t win, bool is_visible);
+int exec_process(arg_t *arg);
+int layout_handler(arg_t *arg);
+int cycle_win_wrapper(arg_t *arg);
+int set_fullscreen_wrapper();
+int flip_node_wrapper();
+int reload_config_wrapper();
+int get_focused_desktop_idx();
+int switch_desktop_wrapper(arg_t *arg);
+int transfer_node_wrapper(arg_t *arg);
+int horizontal_resize_wrapper(arg_t *arg);
+int gap_handler(arg_t *arg);
+int cycle_desktop_wrapper(arg_t *arg);
+int close_or_kill_wrapper();
+int traverse_stack_wrapper(arg_t *arg);
+int shift_floating_window(arg_t *arg);
+int tile(node_t *node);
+int set_focus(node_t *n, bool flag);
+int swap_node_wrapper();
+int change_state(arg_t *arg);
+/* clang-format on */
+#endif /* ZWM_ZWM_H */

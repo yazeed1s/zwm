@@ -26,22 +26,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_CONFIG_PARSER_H
-#define ZWM_CONFIG_PARSER_H
+#ifndef ZWM_QUEUE_H
+#define ZWM_QUEUE_H
 
 #include "type.h"
 
-#define MAX_RULES (2 << 2)
-
-extern rule_t	  *rule_head;
-extern conf_key_t *key_head;
-
 /* clang-format off */
-rule_t *get_window_rule(xcb_window_t win);
-int load_config(config_t *c);
-void free_keys(void);
-void free_rules(void);
-int reload_config(config_t *c);
+queue_t *create_queue(void);
+void enqueue(queue_t *q, node_t *n);
+node_t *dequeue(queue_t *q);
+bool is_queue_empty(queue_t *q);
+void free_queue(queue_t *q);
 /* clang-format on */
 
-#endif /* ZWM_CONFIG_PARSER_H */
+#endif /* ZWM_QUEUE_H */

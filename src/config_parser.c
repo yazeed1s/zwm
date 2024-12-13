@@ -27,7 +27,6 @@
  */
 #include "config_parser.h"
 #include "helper.h"
-#include "tree.h"
 #include "type.h"
 #include "zwm.h"
 #include <ctype.h>
@@ -62,75 +61,66 @@ typedef enum {
 	QUOTATION
 } trim_token_t;
 
-// _key__t **conf_keys = NULL;
-// int		  _entries_ = 0;
-// rule_t	**_rules	 = NULL;
-// int		  rule_index = 0;
 rule_t	   *rule_head = NULL;
 conf_key_t *key_head  = NULL;
 
 static void
 free_tokens(char **, int);
 
-// clang-format off
-static conf_mapper_t _cmapper_[] = {
- 	{"run", 					 exec_process},
- 	{"kill", 		    close_or_kill_wrapper},
- 	{"switch_desktop", switch_desktop_wrapper},
- 	{"resize", 		horizontal_resize_wrapper},
- 	{"fullscreen", 	   set_fullscreen_wrapper},
- 	{"swap", 				swap_node_wrapper},
- 	{"transfer_node", 	transfer_node_wrapper},
- 	{"layout", 				   layout_handler},
- 	{"traverse",       traverse_stack_wrapper},
-	{"flip", 	            flip_node_wrapper},
-	{"cycle_window", 	    cycle_win_wrapper},
-	{"reload_config",   reload_config_wrapper},
-	{"cycle_desktop",   cycle_desktop_wrapper},
-	{"shift_window", 	shift_floating_window},
-	{"gap_handler", 			  gap_handler},
-	{"change_state",             change_state}
+/* clang-format off */
+static const conf_mapper_t _cmapper_[] = {
+    DEFINE_MAPPING("run",            exec_process),
+    DEFINE_MAPPING("kill",           close_or_kill_wrapper),
+    DEFINE_MAPPING("switch_desktop", switch_desktop_wrapper),
+    DEFINE_MAPPING("resize",         horizontal_resize_wrapper),
+    DEFINE_MAPPING("fullscreen",     set_fullscreen_wrapper),
+    DEFINE_MAPPING("swap",           swap_node_wrapper),
+    DEFINE_MAPPING("transfer_node",  transfer_node_wrapper),
+    DEFINE_MAPPING("layout",         layout_handler),
+    DEFINE_MAPPING("traverse",       traverse_stack_wrapper),
+    DEFINE_MAPPING("flip",           flip_node_wrapper),
+    DEFINE_MAPPING("cycle_window",   cycle_win_wrapper),
+    DEFINE_MAPPING("reload_config",  reload_config_wrapper),
+    DEFINE_MAPPING("cycle_desktop",  cycle_desktop_wrapper),
+    DEFINE_MAPPING("shift_window",   shift_floating_window),
+    DEFINE_MAPPING("gap_handler",    gap_handler),
+    DEFINE_MAPPING("change_state",   change_state),
 };
 
-static key_mapper_t	 _kmapper_[] = {
- 	{"0", 0x0030}, {"1", 0x0031},
-	{"2", 0x0032}, {"3", 0x0033},
-	{"4", 0x0034}, {"5", 0x0035},
- 	{"6", 0x0036}, {"7", 0x0037},
-	{"8", 0x0038}, {"9", 0x0039},
-	{"a", 0x0061}, {"b", 0x0062},
-	{"c", 0x0063}, {"d", 0x0064},
-	{"e", 0x0065}, {"f", 0x0066},
-	{"g", 0x0067}, {"h", 0x0068},
- 	{"i", 0x0069}, {"j", 0x006a},
-	{"k", 0x006b}, {"l", 0x006c},
-	{"m", 0x006d}, {"n", 0x006e},
-	{"o", 0x006f}, {"p", 0x0070},
-	{"q", 0x0071}, {"r", 0x0072},
-	{"s", 0x0073}, {"t", 0x0074},
-	{"u", 0x0075}, {"v", 0x0076},
-	{"w", 0x0077}, {"x", 0x0078},
-	{"y", 0x0079}, {"z", 0x007a},
-	{"space", 	   	     0x0020},
-	{"return", 	         0xff0d},
-	{"left", 	   	     0xff51},
-	{"up", 	   	         0xff52},
-	{"right", 	         0xff53},
-	{"down", 	         0xff54},
- 	{"super",             SUPER},
- 	{"alt",                 ALT},
- 	{"ctrl",    		   CTRL},
- 	{"shift", 		      SHIFT},
-    {"sup+sh",      SUPER|SHIFT},
+static key_mapper_t _kmapper_[] = {
+    DEFINE_MAPPING("0",        0x0030), DEFINE_MAPPING("1",        0x0031),
+    DEFINE_MAPPING("2",        0x0032), DEFINE_MAPPING("3",        0x0033),
+    DEFINE_MAPPING("4",        0x0034), DEFINE_MAPPING("5",        0x0035),
+    DEFINE_MAPPING("6",        0x0036), DEFINE_MAPPING("7",        0x0037),
+    DEFINE_MAPPING("8",        0x0038), DEFINE_MAPPING("9",        0x0039),
+    DEFINE_MAPPING("a",        0x0061), DEFINE_MAPPING("b",        0x0062),
+    DEFINE_MAPPING("c",        0x0063), DEFINE_MAPPING("d",        0x0064),
+    DEFINE_MAPPING("e",        0x0065), DEFINE_MAPPING("f",        0x0066),
+    DEFINE_MAPPING("g",        0x0067), DEFINE_MAPPING("h",        0x0068),
+    DEFINE_MAPPING("i",        0x0069), DEFINE_MAPPING("j",        0x006a),
+    DEFINE_MAPPING("k",        0x006b), DEFINE_MAPPING("l",        0x006c),
+    DEFINE_MAPPING("m",        0x006d), DEFINE_MAPPING("n",        0x006e),
+    DEFINE_MAPPING("o",        0x006f), DEFINE_MAPPING("p",        0x0070),
+    DEFINE_MAPPING("q",        0x0071), DEFINE_MAPPING("r",        0x0072),
+    DEFINE_MAPPING("s",        0x0073), DEFINE_MAPPING("t",        0x0074),
+    DEFINE_MAPPING("u",        0x0075), DEFINE_MAPPING("v",        0x0076),
+    DEFINE_MAPPING("w",        0x0077), DEFINE_MAPPING("x",        0x0078),
+    DEFINE_MAPPING("y",        0x0079), DEFINE_MAPPING("z",        0x007a),
+    DEFINE_MAPPING("space",    0x0020), DEFINE_MAPPING("return",   0xff0d),
+    DEFINE_MAPPING("left",     0xff51), DEFINE_MAPPING("up",       0xff52),
+    DEFINE_MAPPING("right",    0xff53), DEFINE_MAPPING("down",     0xff54),
+    DEFINE_MAPPING("super",     SUPER), DEFINE_MAPPING("alt",        ALT ),
+    DEFINE_MAPPING("ctrl",      CTRL ), DEFINE_MAPPING("shift",     SHIFT),
+    DEFINE_MAPPING("sup+sh", SUPER | SHIFT),
 };
-// clang-format on
+/* clang-format on */
 
 static int (*str_to_func(char *ch))(arg_t *)
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
 		if (strcmp(_cmapper_[i].func_name, ch) == 0) {
-			return _cmapper_[i].function_ptr;
+			return _cmapper_[i].execute;
 		}
 	}
 	return NULL;
@@ -141,7 +131,7 @@ func_to_str(int (*ptr)(arg_t *))
 {
 	int n = sizeof(_cmapper_) / sizeof(_cmapper_[0]);
 	for (int i = 0; i < n; i++) {
-		if (_cmapper_[i].function_ptr == ptr) {
+		if (_cmapper_[i].execute == ptr) {
 			return _cmapper_[i].func_name;
 		}
 	}
@@ -178,7 +168,7 @@ static int
 file_exists(const char *filename)
 {
 	FILE *file = fopen(filename, "r");
-	if (file != NULL) {
+	if (file) {
 		fclose(file);
 		return -1;
 	}
@@ -190,9 +180,9 @@ print_key_array(void)
 {
 	conf_key_t *current = key_head;
 	int			c		= 0;
-	while (current != NULL) {
-		if (current->arg != NULL) {
-			if (current->arg->cmd != NULL) {
+	while (current) {
+		if (current->arg) {
+			if (current->arg->cmd) {
 				for (int j = 0; j < current->arg->argc; ++j) {
 					_LOG_(DEBUG, "cmd = %s", current->arg->cmd[j]);
 				}
@@ -203,7 +193,7 @@ print_key_array(void)
 				  c,
 				  key_to_str(current->mod),
 				  key_to_str(current->keysym),
-				  func_to_str(current->function_ptr),
+				  func_to_str(current->execute),
 				  current->arg->idx,
 				  current->arg->d,
 				  current->arg->r,
@@ -218,8 +208,8 @@ print_key_array(void)
 static int
 write_default_config(const char *filename, config_t *c)
 {
-	// clang-format off
-const char *content =
+	/* clang-format off */
+	const char *content =
     "; ----------- ZWM Configuration File -------------\n"
     ";\n"
     "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
@@ -387,17 +377,17 @@ const char *content =
     "; reload the configuration file\n"
     "bind = super|shift + r -> func(reload_config)\n"
     "\n";
+	/* clang-format on */
 
-	// clang-format on
 	char dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
-	if (last_slash != NULL) {
+	if (last_slash) {
 		*last_slash = '\0';
 		struct stat st;
 		if (stat(dir_path, &st) == -1) {
 			if (mkdir(dir_path, 0777) == -1) {
-				_LOG_(ERROR, "Failed to create directory: %s\n", dir_path);
+				_LOG_(ERROR, "failed to create directory: %s", dir_path);
 				return -1;
 			}
 		}
@@ -405,7 +395,7 @@ const char *content =
 
 	FILE *file = fopen(filename, "w");
 	if (file == NULL) {
-		_LOG_(ERROR, "Failed to create config file: %s\n", filename);
+		_LOG_(ERROR, "failed to create config file: %s", filename);
 		return -1;
 	}
 
@@ -413,7 +403,7 @@ const char *content =
 	size_t written = fwrite(content, 1, len, file);
 	if (written != len) {
 		fclose(file);
-		_LOG_(ERROR, "Error writing to file: %s\n", filename);
+		_LOG_(ERROR, "error writing to file: %s", filename);
 		return -1;
 	}
 
@@ -474,8 +464,7 @@ trim(char *str, trim_token_t t)
 		end--;
 	}
 
-	while (*start == start_token ||
-		   (t == WHITE_SPACE && isspace(*start))) {
+	while (*start == start_token || (t == WHITE_SPACE && isspace(*start))) {
 		start++;
 	}
 
@@ -484,7 +473,7 @@ trim(char *str, trim_token_t t)
 	}
 }
 
-// caller must free using free_tokens(...)
+/* caller must free using free_tokens(...) */
 static char **
 split_string(const char *str, char delimiter, int *count)
 {
@@ -512,7 +501,7 @@ split_string(const char *str, char delimiter, int *count)
 	char  delim_str[2] = {delimiter, '\0'};
 	char *token		   = strtok(str_copy, delim_str);
 	i				   = 0;
-	while (token != NULL && i < num_tokens) {
+	while (token && i < num_tokens) {
 		tokens[i] = strdup(token);
 		if (tokens[i] == NULL) {
 			_LOG_(ERROR, "failed to duplicate token");
@@ -533,9 +522,9 @@ split_string(const char *str, char delimiter, int *count)
 static void
 free_tokens(char **tokens, int count)
 {
-	if (tokens != NULL) {
+	if (tokens) {
 		for (int i = 0; i < count; i++) {
-			if (tokens[i] != NULL) {
+			if (tokens[i]) {
 				_FREE_(tokens[i]);
 			}
 		}
@@ -547,8 +536,8 @@ static bool
 key_exist(conf_key_t *key)
 {
 	conf_key_t *current = key_head;
-	while (current != NULL) {
-		if (current->function_ptr == key->function_ptr &&
+	while (current) {
+		if (current->execute == key->execute &&
 			current->keysym == key->keysym) {
 			return true;
 		}
@@ -558,7 +547,7 @@ key_exist(conf_key_t *key)
 	return false;
 }
 
-// caller must free
+/* caller must free */
 static char *
 extract_body(const char *str)
 {
@@ -595,16 +584,16 @@ parse_mod_key(char *mod)
 		int	   count;
 		char **mods = split_string(mod, '|', &count);
 		if (mods == NULL) {
-			_LOG_(ERROR, "failed to split string %s\n", mod);
+			_LOG_(ERROR, "failed to split string %s", mod);
 			return -1;
 		}
 		uint32_t mask1 = str_to_key(mods[0]);
 		if ((int)mask1 == -1) {
-			_LOG_(ERROR, "failed to find key (%s)\n", mods[0]);
+			_LOG_(ERROR, "failed to find key (%s)", mods[0]);
 		}
 		uint32_t mask2 = str_to_key(mods[1]);
 		if ((int)mask2 == -1) {
-			_LOG_(ERROR, "failed to find key (%s)\n", mods[1]);
+			_LOG_(ERROR, "failed to find key (%s)", mods[1]);
 		}
 		mask = mask1 | mask2;
 		free_tokens(mods, count);
@@ -619,7 +608,7 @@ parse_keysym(char *keysym)
 {
 	uint32_t keysym_ = str_to_key(keysym);
 	if ((int)keysym_ == -1) {
-		_LOG_(ERROR, "failed to find keysym %s\n", keysym);
+		_LOG_(ERROR, "failed to find keysym %s", keysym);
 		return -1;
 	}
 
@@ -629,9 +618,9 @@ parse_keysym(char *keysym)
 static void
 err_cleanup(conf_key_t *k)
 {
-	if (k != NULL) {
-		if (k->arg != NULL) {
-			if (k->arg->cmd != NULL) {
+	if (k) {
+		if (k->arg) {
+			if (k->arg->cmd) {
 				for (int i = 0; i < k->arg->argc; i++) {
 					_FREE_(k->arg->cmd[i]);
 				}
@@ -644,10 +633,7 @@ err_cleanup(conf_key_t *k)
 }
 
 static void
-build_run_func(char		  *func_param,
-			   conf_key_t *key,
-			   uint32_t	   mod,
-			   uint32_t	   keysym)
+build_run_func(char *func_param, conf_key_t *key, uint32_t mod, uint32_t keysym)
 {
 	key->mod	= mod;
 	key->keysym = (xcb_keysym_t)keysym;
@@ -779,37 +765,34 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 	uint32_t _mod		= -1;
 	int (*ptr)(arg_t *) = NULL;
 
-	// parse mod key
+	/* parse mod key */
 	_mod				= parse_mod_key(mod);
 	if ((int)_mod == -1) {
-		_LOG_(
-			ERROR, "failed to parse mod key for %s, func %s\n", mod, func);
+		_LOG_(ERROR, "failed to parse mod key for %s, func %s", mod, func);
 		return -1;
 	}
 
-	// parse keysym if not null
-	if (keysym != NULL) {
+	/* parse keysym if not null */
+	if (keysym) {
 		_keysym = parse_keysym(keysym);
 		if ((int)_keysym == -1) {
-			_LOG_(ERROR, "failed to parse keysym for %s\n", keysym);
+			_LOG_(ERROR, "failed to parse keysym for %s", keysym);
 			return -1;
 		}
 	} else {
-		_LOG_(INFO,
-			  "keysym is null, func must be switch or transfer %s\n",
-			  func);
+		_LOG_(INFO, "keysym is null, func must be switch or transfer %s", func);
 	}
 
 	if (strncmp(func, "run", 3) == 0) {
 		run_func = true;
 #ifdef _DEBUG__
-		_LOG_(INFO, "found run func %s, ...\n", func);
+		_LOG_(INFO, "found run func %s, ...", func);
 #endif
 	}
 
 	char *func_param = extract_body(func);
 	if (func_param == NULL) {
-		_LOG_(ERROR, "failed to extract func body for %s\n", func);
+		_LOG_(ERROR, "failed to extract func body for %s", func);
 		return -1;
 	}
 
@@ -820,10 +803,10 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		char **s	 = split_string(func_param, ':', &count);
 		if (s == NULL || count != 2) {
 			_LOG_(ERROR,
-				  "failed to split string or incorrect count for %s\n",
+				  "failed to split string or incorrect count for %s",
 				  func_param);
 			_FREE_(func_param);
-			if (s != NULL)
+			if (s)
 				_FREE_(s);
 			return -1;
 		}
@@ -837,9 +820,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 			_FREE_(s);
 			return -1;
 		}
-		key->mod		  = _mod;
-		key->keysym		  = _keysym;
-		key->function_ptr = ptr;
+		key->mod	 = _mod;
+		key->keysym	 = _keysym;
+		key->execute = ptr;
 
 		set_key_args(key, f, a);
 		free_tokens(s, count);
@@ -849,23 +832,21 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		return 0;
 	}
 
-	// handle "run" functions
+	/* handle "run" functions */
 	if (run_func) {
 		ptr = str_to_func("run");
 		if (ptr == NULL) {
-			_LOG_(ERROR,
-				  "failed to find run func pointer for %s",
-				  func_param);
+			_LOG_(ERROR, "failed to find run func pointer for %s", func_param);
 			_FREE_(func_param);
 			return -1;
 		}
 		build_run_func(func_param, key, _mod, _keysym);
-		key->function_ptr = ptr;
+		key->execute = ptr;
 		_FREE_(func_param);
 		return 0;
 	}
 
-	// handle other functions
+	/* handle other functions */
 	ptr = str_to_func(func_param);
 	if (ptr == NULL) {
 		_LOG_(ERROR, "failed to find function pointer for %s", func_param);
@@ -873,9 +854,9 @@ construct_key(char *mod, char *keysym, char *func, conf_key_t *key)
 		return -1;
 	}
 
-	key->mod		  = _mod;
-	key->keysym		  = _keysym;
-	key->function_ptr = ptr;
+	key->mod	 = _mod;
+	key->keysym	 = _keysym;
+	key->execute = ptr;
 	_FREE_(func_param);
 	return 0;
 }
@@ -888,7 +869,6 @@ parse_keybinding(char *str, conf_key_t *key)
 		return -1;
 	}
 
-	// bool  keysym_exists = strchr(str, '+') != NULL;
 	char plus		   = '+';
 	bool keysym_exists = false;
 	int	 i			   = 0;
@@ -958,7 +938,7 @@ add_key(conf_key_t **head, conf_key_t *k)
 		return;
 	}
 	conf_key_t *current = *head;
-	while (current->next != NULL) {
+	while (current->next) {
 		current = current->next;
 	}
 	current->next = k;
@@ -985,7 +965,7 @@ add_rule(rule_t **head, rule_t *r)
 		return;
 	}
 	rule_t *current = *head;
-	while (current->next != NULL) {
+	while (current->next) {
 		current = current->next;
 	}
 	current->next = r;
@@ -1034,17 +1014,14 @@ handle_exec_cmd(char *cmd)
 }
 
 static int
-construct_rule(char *class,
-			   char	  *state,
-			   char	  *desktop_number,
-			   rule_t *rule)
+construct_rule(char *class, char *state, char *desktop_number, rule_t *rule)
 {
 	if (class == NULL || state == NULL || desktop_number == NULL) {
 		_LOG_(ERROR, "rules are empty");
 		return -1;
 	}
 
-	// wm_class
+	/* wm_class */
 	char *c = extract_body(class);
 	if (c == NULL) {
 		_LOG_(ERROR, "while extracting class rule body (%s)", class);
@@ -1056,7 +1033,7 @@ construct_rule(char *class,
 	uint32_t c_len = strlen(c);
 	strncpy(rule->win_name, c, c_len);
 
-	// w_state
+	/* w_state */
 	char *s = extract_body(state);
 	if (s == NULL) {
 		_LOG_(ERROR, "while extracting state rule body");
@@ -1071,7 +1048,7 @@ construct_rule(char *class,
 	}
 	rule->state = enum_state;
 
-	// w_desktop
+	/* w_desktop */
 	char *d		= extract_body(desktop_number);
 	if (d == NULL) {
 		_LOG_(ERROR, "while extracting desktop rule body");
@@ -1081,12 +1058,11 @@ construct_rule(char *class,
 	trim(d, PARENTHESIS);
 	rule->desktop_id = atoi(d);
 
-	_LOG_(
-		INFO,
-		"constructed rule = win name = (%s), state = (%s), desktop = (%d)",
-		rule->win_name,
-		rule->state == TILED ? "TILED" : "FLOATED",
-		rule->desktop_id);
+	_LOG_(INFO,
+		  "constructed rule = win name = (%s), state = (%s), desktop = (%d)",
+		  rule->win_name,
+		  rule->state == TILED ? "TILED" : "FLOATED",
+		  rule->desktop_id);
 	_FREE_(c);
 	_FREE_(s);
 	_FREE_(d);
@@ -1098,13 +1074,12 @@ rule_t *
 get_window_rule(xcb_window_t win)
 {
 	xcb_icccm_get_wm_class_reply_t t_reply;
-	xcb_get_property_cookie_t	   cn =
-		xcb_icccm_get_wm_class(wm->connection, win);
-	const uint8_t wr =
+	xcb_get_property_cookie_t cn = xcb_icccm_get_wm_class(wm->connection, win);
+	const uint8_t			  wr =
 		xcb_icccm_get_wm_class_reply(wm->connection, cn, &t_reply, NULL);
 	if (wr == 1) {
 		rule_t *current = rule_head;
-		while (current != NULL) {
+		while (current) {
 			if (strcasecmp(current->win_name, t_reply.class_name) == 0) {
 				xcb_icccm_get_wm_class_reply_wipe(&t_reply);
 				return current;
@@ -1139,7 +1114,7 @@ parse_rule(char *value, rule_t *rule)
 	char *win_state	  = rules[1];
 	char *win_desktop = rules[2];
 
-	int	  result = construct_rule(win_name, win_state, win_desktop, rule);
+	int	  result	  = construct_rule(win_name, win_state, win_desktop, rule);
 
 	free_tokens(rules, count);
 
@@ -1168,37 +1143,35 @@ parse_config_line(char *key, char *value, config_t *c, bool reload)
 		} else if (strcmp(value, "false") == 0) {
 			c->focus_follow_pointer = false;
 		} else {
-			_LOG_(ERROR,
-				  "Invalid value for focus_follow_pointer: %s\n",
-				  value);
+			_LOG_(ERROR, "invalid value for focus_follow_pointer: %s", value);
 			return -1;
 		}
 	} else if (strcmp(key, "rule") == 0) {
 		rule_t *rule = init_rule();
 		if (rule == NULL) {
-			_LOG_(ERROR, "Failed to allocate memory for rule_t\n");
+			_LOG_(ERROR, "failed to allocate memory for rule_t");
 			return -1;
 		}
 		if (parse_rule(value, rule) != 0) {
 			_FREE_(rule);
-			_LOG_(ERROR, "Error while parsing rule %s\n", value);
+			_LOG_(ERROR, "error while parsing rule %s", value);
 			return -1;
 		}
 		add_rule(&rule_head, rule);
 	} else if (strcmp(key, "bind") == 0) {
 		conf_key_t *k = init_key();
 		if (k == NULL) {
-			_LOG_(ERROR, "Failed to allocate memory for _key__t\n");
+			_LOG_(ERROR, "failed to allocate memory for _key__t");
 			return -1;
 		}
 		if (parse_keybinding(value, k) != 0) {
 			err_cleanup(k);
-			_LOG_(ERROR, "Error while parsing keys\n");
+			_LOG_(ERROR, "error while parsing keys");
 			return -1;
 		}
 		add_key(&key_head, k);
 	} else {
-		_LOG_(WARNING, "Unknown config key: %s\n", key);
+		_LOG_(WARNING, "unknown config key: %s", key);
 	}
 	return 0;
 }
@@ -1208,12 +1181,12 @@ parse_config(const char *filename, config_t *c, bool reload)
 {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
-		_LOG_(ERROR, "Error: Could not open file '%s'\n", filename);
+		_LOG_(ERROR, "error: could not open file '%s'", filename);
 		return -1;
 	}
 
 	char line[MAX_LINE_LENGTH];
-	while (fgets(line, MAX_LINE_LENGTH, file) != NULL) {
+	while (fgets(line, MAX_LINE_LENGTH, file)) {
 		if (line[0] == ' ' || line[0] == '\t' || line[0] == '\n' ||
 			line[0] == '\v' || line[0] == '\f' || line[0] == '\r' ||
 			line[0] == ';') {
@@ -1231,7 +1204,7 @@ parse_config(const char *filename, config_t *c, bool reload)
 
 #ifdef _DEBUG__
 		_LOG_(DEBUG,
-			  "config line = (%s) key = (%s) value = (%s)\n",
+			  "config line = (%s) key = (%s) value = (%s)",
 			  line,
 			  key,
 			  value);
@@ -1251,9 +1224,9 @@ void
 free_rules(void)
 {
 	rule_t *current = rule_head;
-	while (current != NULL) {
+	while (current) {
 		rule_t *next = current->next;
-		free(current);
+		_FREE_(current);
 		current = next;
 	}
 	rule_head = NULL;
@@ -1263,21 +1236,25 @@ void
 free_keys(void)
 {
 	conf_key_t *current = key_head;
-	while (current != NULL) {
+	while (current) {
 		conf_key_t *next = current->next;
-		if (current->arg != NULL) {
-			if (current->arg->cmd != NULL) {
-				for (int j = 0; j < current->arg->argc; j++) {
-					if (current->arg->cmd != NULL &&
-						current->arg->cmd[j] != NULL) {
-						_FREE_(current->arg->cmd[j]);
-					}
-				}
-				_FREE_(current->arg->cmd);
-			}
-			_FREE_(current->arg);
+		if (!current->arg) {
+			current = next;
+			continue;
 		}
+		if (!current->arg->cmd) {
+			current = next;
+			continue;
+		}
+		for (int j = 0; j < current->arg->argc; j++) {
+			if (current->arg->cmd && current->arg->cmd[j]) {
+				_FREE_(current->arg->cmd[j]);
+			}
+		}
+		_FREE_(current->arg->cmd);
+		_FREE_(current->arg);
 		_FREE_(current);
+		current = next;
 	}
 	key_head = NULL;
 }
