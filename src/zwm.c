@@ -82,7 +82,7 @@
 	(PROPERTY_CHANGE | FOCUS_CHANGE | ENTER_WINDOW | LEAVE_WINDOW)
 
 #define ROOT_EVENT_MASK                                                        \
-	(SUBSTRUCTURE | BUTTON_PRESS | FOCUS_CHANGE | POINTER_MOTION | ENTER_WINDOW)
+	(SUBSTRUCTURE | BUTTON_PRESS | FOCUS_CHANGE | ENTER_WINDOW)
 
 #define NUMBER_OF_DESKTOPS 7
 #define WM_NAME			   "zwm"
@@ -2142,6 +2142,7 @@ setup_monitors(void)
 		m->is_occupied = false;
 		m->is_wired	   = false;
 		m->randr_id	   = 0;
+		m->desktops	   = NULL;
 		add_monitor(&head_monitor, m);
 		prim_monitor = curr_monitor = m;
 		goto out; /* skip to the end of the function */
@@ -4426,12 +4427,11 @@ handle_enter_notify(const xcb_event_t *event)
 	xcb_enter_notify_event_t *ev  = (xcb_enter_notify_event_t *)event;
 	xcb_window_t			  win = ev->event;
 
-	if (multi_monitors) {
-		monitor_t *mm = get_focused_monitor();
-		if (mm && mm != curr_monitor) {
-			curr_monitor = mm;
-		}
+	monitor_t				 *mm  = get_focused_monitor();
+	if (mm && mm != curr_monitor) {
+		curr_monitor = mm;
 	}
+
 #ifdef _DEBUG__
 	char *name = win_name(win);
 	_LOG_(DEBUG, "recieved enter notify for %d, name %s ", win, name);
