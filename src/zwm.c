@@ -905,6 +905,117 @@ horizontal_resize_wrapper(arg_t *arg)
 }
 
 int
+grow_floating_window(arg_t *arg)
+{
+	node_t *root = get_foucsed_desktop_tree();
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
+	if (n == NULL)
+		return -1;
+
+	if (n->client && n->client->state != FLOATING)
+		return 0;
+
+	const uint16_t	   step			 = 10;
+	const resize_dir_t resize_dir	 = arg->rd;
+	uint16_t		  *dim_to_resize = (resize_dir == HORIZONTAL_DIR)
+										   ? &n->floating_rectangle.width
+										   : &n->floating_rectangle.height;
+	int16_t *pos = (resize_dir == HORIZONTAL_DIR) ? &n->floating_rectangle.x
+												  : &n->floating_rectangle.y;
+	*dim_to_resize += step;
+	*pos -= step;
+	grab_pointer(wm->root_window, false);
+	if (resize_window(n->client->window,
+					  n->floating_rectangle.width,
+					  n->floating_rectangle.height) != 0 ||
+		move_window(n->client->window,
+					n->floating_rectangle.x,
+					n->floating_rectangle.y) != 0) {
+		return -1;
+	}
+	ungrab_pointer();
+	return 0;
+}
+
+int
+shrink_floating_window(arg_t *arg)
+{
+	node_t *root = get_foucsed_desktop_tree();
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
+	if (n == NULL)
+		return -1;
+
+	if (n->client && n->client->state != FLOATING)
+		return 0;
+	const uint16_t	   step			 = 10;
+	const resize_dir_t resize_dir	 = arg->rd;
+	uint16_t		  *dim_to_resize = (resize_dir == HORIZONTAL_DIR)
+										   ? &n->floating_rectangle.width
+										   : &n->floating_rectangle.height;
+	int16_t *pos = (resize_dir == HORIZONTAL_DIR) ? &n->floating_rectangle.x
+												  : &n->floating_rectangle.y;
+	*dim_to_resize -= step;
+	*pos += step;
+	grab_pointer(wm->root_window, false);
+	if (resize_window(n->client->window,
+					  n->floating_rectangle.width,
+					  n->floating_rectangle.height) != 0 ||
+		move_window(n->client->window,
+					n->floating_rectangle.x,
+					n->floating_rectangle.y) != 0) {
+		return -1;
+	}
+	ungrab_pointer();
+	return 0;
+}
+
+int
+resize_floating_window(arg_t *arg)
+{
+	node_t *root = get_foucsed_desktop_tree();
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
+	if (n == NULL)
+		return -1;
+
+	if (n->client && n->client->state != FLOATING)
+		return 0;
+
+	const uint16_t	   step			 = 10;
+	const resize_t	   resize_type	 = arg->r;
+	const resize_dir_t resize_dir	 = arg->rd;
+	int16_t			   delta		 = (resize_type == GROW ? step : -step);
+	uint16_t		  *dim_to_resize = (resize_dir == HORIZONTAL_DIR)
+										   ? &n->floating_rectangle.width
+										   : &n->floating_rectangle.height;
+	int16_t			  *pos_to_adjust = (resize_dir == HORIZONTAL_DIR)
+										   ? &n->floating_rectangle.x
+										   : &n->floating_rectangle.y;
+	*pos_to_adjust -= delta / 2;
+	*dim_to_resize += delta;
+	if (*dim_to_resize <= 0) {
+		*dim_to_resize = step;
+		*pos_to_adjust += delta / 2;
+	}
+	grab_pointer(wm->root_window, false);
+	if (resize_window(n->client->window,
+					  n->floating_rectangle.width,
+					  n->floating_rectangle.height) != 0) {
+		return -1;
+	}
+	ungrab_pointer();
+	return 0;
+}
+
+int
 shift_floating_window(arg_t *arg)
 {
 	node_t *root = get_foucsed_desktop_tree();
@@ -918,49 +1029,41 @@ shift_floating_window(arg_t *arg)
 	if (n->client && n->client->state != FLOATING)
 		return 0;
 
-	const int16_t pxl			 = 10;
-	int16_t		  new_x			 = n->floating_rectangle.x;
-	int16_t		  new_y			 = n->floating_rectangle.y;
-	uint16_t	  monitor_width	 = curr_monitor->rectangle.width;
-	uint16_t	  monitor_height = curr_monitor->rectangle.height;
-	int16_t		  monitor_x		 = curr_monitor->rectangle.x;
-	int16_t		  monitor_y		 = curr_monitor->rectangle.y;
+	const int16_t	   step			= 10;
+	rectangle_t		  *rect			= &n->floating_rectangle;
+	const rectangle_t *monitor_rect = &curr_monitor->rectangle;
+	const direction_t  dir			= arg->d;
 
-	switch (arg->d) {
-	case LEFT:
-		new_x -= pxl;
-		if (new_x < monitor_x) {
-			return 0;
-		}
-		break;
-	case RIGHT:
-		new_x += pxl;
-		if (new_x + n->floating_rectangle.width > monitor_x + monitor_width) {
-			return 0;
-		}
-		break;
-	case UP:
-		new_y -= pxl;
-		if (new_y < monitor_y) {
-			return 0;
-		}
-		break;
-	case DOWN:
-		new_y += pxl;
-		if (new_y + n->floating_rectangle.height > monitor_y + monitor_height) {
-			return 0;
-		}
-		break;
+	switch (dir) {
+	case LEFT: rect->x -= step; break;
+	case RIGHT: rect->x += step; break;
+	case UP: rect->y -= step; break;
+	case DOWN: rect->y += step; break;
 	case NONE: return 0;
 	}
 
+	if (rect->x < monitor_rect->x) {
+		rect->x = monitor_rect->x;
+		return 0;
+	}
+	if (rect->x + rect->width > monitor_rect->x + monitor_rect->width) {
+		rect->x = monitor_rect->x + monitor_rect->width - rect->width;
+		return 0;
+	}
+	if (rect->y < monitor_rect->y) {
+		rect->y = monitor_rect->y;
+		return 0;
+	}
+	if (rect->y + rect->height > monitor_rect->y + monitor_rect->height) {
+		rect->y = monitor_rect->y + monitor_rect->height - rect->height;
+		return 0;
+	}
+
 	grab_pointer(wm->root_window, false);
-	if (move_window(n->client->window, new_x, new_y) != 0) {
+	if (move_window(n->client->window, rect->x, rect->y) != 0) {
 		return -1;
 	}
 
-	n->floating_rectangle.x = new_x;
-	n->floating_rectangle.y = new_y;
 	ungrab_pointer();
 	return 0;
 }

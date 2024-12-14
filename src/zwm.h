@@ -69,6 +69,8 @@ int cycle_desktop_wrapper(arg_t *arg);
 int close_or_kill_wrapper();
 int traverse_stack_wrapper(arg_t *arg);
 int shift_floating_window(arg_t *arg);
+int shrink_floating_window(arg_t *arg);
+int grow_floating_window(arg_t *arg);
 int tile(node_t *node);
 int set_focus(node_t *n, bool flag);
 int swap_node_wrapper();
