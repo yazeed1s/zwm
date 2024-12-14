@@ -1,17 +1,18 @@
 ### zwm
 
 ## Table of Contents
-- [About ZWM](#about-zwm)
-- [Motivation](#motivation)
-- [Goals](#goals)
-- [Features](#features)
-- [The underlying data structure](#the-underlying-data-structure)
-- [Screenshots](#screenshots)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Default Keybindings](#default-keybindings)
-- [ewmh specific settings for polyabr](#ewmh-specific-settings-for-polyabr)
-- [Contributing](#contributing)
+
+-   [About ZWM](#about-zwm)
+-   [Motivation](#motivation)
+-   [Goals](#goals)
+-   [Features](#features)
+-   [The underlying data structure](#the-underlying-data-structure)
+-   [Screenshots](#screenshots)
+-   [Installation](#installation)
+-   [Configuration](#configuration)
+-   [Default Keybindings](#default-keybindings)
+-   [ewmh specific settings for polyabr](#ewmh-specific-settings-for-polyabr)
+-   [Contributing](#contributing)
 
 ## About ZWM
 
@@ -144,6 +145,7 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 ## Installation
 
 #### Arch Linux (AUR)
+
 ```bash
 yay -S zwm
 ```
@@ -151,6 +153,7 @@ yay -S zwm
 #### Void Linux (XBPS-SRC)
 
 Assuming you have [void-packages](https://github.com/void-linux/void-packages)
+
 ```bash
 git clone https://github.com/elbachir-one/void-templates
 cp void-templates/zwm/ void-packages/srcpkgs/  # Copying the zwm/ directory that has the template
@@ -160,15 +163,18 @@ sudo xbps-install -R hostdir/binpkgs zwm
 ```
 
 #### Build from source
+
 ##### Dependencies
-- gcc
-- libxcb
-- xcb-util
-- xcb-util-keysyms
-- xcb-util-wm (ewmh,icccm)
-- lxcb-randr 
-- lxcb-xinerama 
-- lxcb-cursor
+
+-   gcc
+-   libxcb
+-   xcb-util
+-   xcb-util-keysyms
+-   xcb-util-wm (ewmh,icccm)
+-   lxcb-randr
+-   lxcb-xinerama
+-   lxcb-cursor
+
 ```bash
 git clone https://github.com/Yazeed1s/zwm.git
 cd zwm && sudo make install
@@ -283,6 +289,8 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     -   **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
     -   **gap_handler**: Increase or decrease window gaps (GROW, SHRINK).
     -   **change_state**: Set window state (FLAOTING, TILED).
+    -   **grow_floating_window**: Grow floating window (horizontally or vertically).
+    -   **shrink_floating_window**: Shrink floating window (horizontally or vertically).
 
 -   Default keys
 
@@ -312,6 +320,10 @@ bind = shift + up -> func(shift_window:up)
 bind = shift + right -> func(shift_window:right)
 bind = shift + left -> func(shift_window:left)
 bind = shift + down -> func(shift_window:down)
+bind = super|shift + t -> func(shrink_floating_window:horizontal)
+bind = super|shift + g -> func(shrink_floating_window:vertical)
+bind = super|shift + y -> func(grow_floating_window:horizontal)
+bind = super|shift + h -> func(grow_floating_window:vertical)
 bind = shift + t -> func(change_state:tile)
 bind = shift + f -> func(change_state:float)
 bind = super|shift + left -> func(cycle_desktop:left)
@@ -336,38 +348,42 @@ More options will be added in the future as development progresses.
 
 ## Default Keybindings
 
-| Key                      | Description                       |
-| ------------------------ | --------------------------------- |
-| `super + w`              | kill/close window                 |
-| `super + return`         | launch a terminal (alacritty)     |
-| `super + space`          | launch dmenu                      |
-| `super + p `             | launch rofi                       |
-| `super + [1..N]`         | switch to desktop                 |
-| `super + l`              | resize window (grow/expand)       |
-| `super + h`              | resize window (shrink)            |
-| `super + f`              | toggle fullscreen                 |
-| `super + shift + [1..N]` | transfer window to a diff desktop |
-| `super + shift + m`      | toggle master layout              |
-| `super + shift + s`      | toggle stack layout               |
-| `super + shift + d`      | toggle default layout             |
-| `super + shift + j/k`    | traverse the stack                |
-| `super + shift + f`      | flip the window/partion           |
-| `super + shift + r`      | hot-reload                        |
-| `super + s`              | swap window's orientation         |
-| `super + ←`              | focus window on the left          |
-| `super + ↑`              | focus window above                |
-| `super + →`              | focus window on the right         |
-| `super + ↓`              | focus window below                |
-| `super + shift + →`      | cycle desktop right               |
-| `super + shift + ←`      | cycle desktop left                |
-| `shift + ←`              | shift window to the left by 10px  |
-| `shift + ↑`              | shift window up by 10px           |
-| `shift + →`              | shift window to the right by 10px |
-| `shift + ↓`              | shift window down by 10px         |
-| `super + i`              | increase window gaps by 5px       |
-| `super + d`              | decrease window gaps by 5px       |
-| `super + t`              | tile window                       |
-| `super + f`              | float window                      |
+| Key                      | Description                          |
+| ------------------------ | ------------------------------------ |
+| `super + w`              | kill/close window                    |
+| `super + return`         | launch a terminal (alacritty)        |
+| `super + space`          | launch dmenu                         |
+| `super + p `             | launch rofi                          |
+| `super + [1..N]`         | switch to desktop                    |
+| `super + l`              | resize window (grow/expand)          |
+| `super + h`              | resize window (shrink)               |
+| `super + f`              | toggle fullscreen                    |
+| `super + shift + [1..N]` | transfer window to a diff desktop    |
+| `super + shift + m`      | toggle master layout                 |
+| `super + shift + s`      | toggle stack layout                  |
+| `super + shift + d`      | toggle default layout                |
+| `super + shift + j/k`    | traverse the stack                   |
+| `super + shift + f`      | flip the window/partion              |
+| `super + shift + r`      | hot-reload                           |
+| `super + shift + y`      | grow floating windows horizontally   |
+| `super + shift + h`      | grow floating windows vertically     |
+| `super + shift + t`      | shrink floating windows horizontally |
+| `super + shift + g`      | shrink floating windows vertically   |
+| `super + s`              | swap window's orientation            |
+| `super + ←`              | focus window on the left             |
+| `super + ↑`              | focus window above                   |
+| `super + →`              | focus window on the right            |
+| `super + ↓`              | focus window below                   |
+| `super + shift + →`      | cycle desktop right                  |
+| `super + shift + ←`      | cycle desktop left                   |
+| `shift + ←`              | shift window to the left by 10px     |
+| `shift + ↑`              | shift window up by 10px              |
+| `shift + →`              | shift window to the right by 10px    |
+| `shift + ↓`              | shift window down by 10px            |
+| `super + i`              | increase window gaps by 5px          |
+| `super + d`              | decrease window gaps by 5px          |
+| `super + t`              | tile window                          |
+| `super + f`              | float window                         |
 
 ## ewmh specific settings for polyabr
 
