@@ -72,10 +72,15 @@ typedef enum {
 } resize_t;
 
 typedef enum {
-	LEFT = 1, /* move/resize left */
-	RIGHT,	  /* move/resize right */
-	UP,		  /* move/resize up */
-	DOWN,	  /* move/resize down */
+	HORIZONTAL_DIR = 1,
+	VERTICAL_DIR,
+} resize_dir_t;
+
+typedef enum {
+	LEFT = 1, /* move left */
+	RIGHT,	  /* move right */
+	UP,		  /* move up */
+	DOWN,	  /* move down */
 	NONE	  /* no direction */
 } direction_t;
 
@@ -260,13 +265,14 @@ typedef struct {
 
 /* argument structure for key bindings */
 typedef struct {
-	char	  **cmd;  /* command arguments, used for execp family actions */
-	uint8_t		argc; /* argument count */
-	uint8_t		idx;  /* target index, used for desktop switching */
-	resize_t	r;	  /* resize operation */
-	layout_t	t;	  /* layout type */
-	direction_t d;	  /* movement direction */
-	state_t		s;	  /* window state, used to change window state */
+	char	   **cmd;  /* command arguments, used for execp family actions */
+	uint8_t		 argc; /* argument count */
+	uint8_t		 idx;  /* target index, used for desktop switching */
+	resize_t	 r;	   /* resize operation */
+	resize_dir_t rd;   /* resize direction */
+	layout_t	 t;	   /* layout type */
+	direction_t	 d;	   /* movement direction */
+	state_t		 s;	   /* window state, used to change window state */
 } arg_t;
 
 /* key binding structure. used for the global fallback array in zwm.c */
