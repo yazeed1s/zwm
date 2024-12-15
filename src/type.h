@@ -85,6 +85,11 @@ typedef enum {
 } direction_t;
 
 typedef enum {
+	NEXT = 1,
+	PREV
+} traversal_t;
+
+typedef enum {
 	ERROR,
 	INFO,
 	DEBUG,
@@ -271,6 +276,7 @@ typedef struct {
 	resize_t	 r;	   /* resize operation */
 	resize_dir_t rd;   /* resize direction */
 	layout_t	 t;	   /* layout type */
+	traversal_t	 tr;   /* traversal direction */
 	direction_t	 d;	   /* movement direction */
 	state_t		 s;	   /* window state, used to change window state */
 } arg_t;
