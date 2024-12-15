@@ -221,6 +221,7 @@ struct node_t {
  */
 typedef struct {
 	node_t	*tree;		 /* the tree in this desktop */
+	node_t	*node;		 /* focused node */
 	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
 	uint16_t id;		 /* the number of this desktop */
 	uint16_t n_count;	 /* the number of active windows/external nodes */
@@ -236,6 +237,7 @@ typedef struct {
 typedef struct monitor_t monitor_t;
 struct monitor_t {
 	desktop_t		 **desktops;	/* array of desktops */
+	desktop_t		  *desk;		/* focused desktop */
 	monitor_t		  *next;		/* next monitor in list */
 	char			   name[DLEN];	/* monitor name (e.g. HDMI or eDP) */
 	uint32_t		   id;			/* monitor identifier, used with xinerama */
