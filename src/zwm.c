@@ -152,12 +152,14 @@ static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER | SHIFT, XK_j,       traverse_stack_wrapper,    &((arg_t){.d = DOWN})),
     DEFINE_KEY(SUPER | SHIFT, XK_f,       flip_node_wrapper,         NULL),
     DEFINE_KEY(SUPER | SHIFT, XK_r,       reload_config_wrapper,     NULL),
-    DEFINE_KEY(SUPER | SHIFT, XK_Left,    cycle_desktop_wrapper,     &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Right,   cycle_desktop_wrapper,     &((arg_t){.d = RIGHT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Left,    cycle_desktop_wrapper,     &((arg_t){.d  = LEFT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Right,   cycle_desktop_wrapper,     &((arg_t){.d  = RIGHT})),
     DEFINE_KEY(SUPER | SHIFT, XK_y,       grow_floating_window,      &((arg_t){.rd = HORIZONTAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, XK_h,       grow_floating_window,      &((arg_t){.rd = VERTICAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, XK_t,       shrink_floating_window,    &((arg_t){.rd = HORIZONTAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, XK_g,       shrink_floating_window,    &((arg_t){.rd = VERTICAL_DIR})),
+    DEFINE_KEY(SUPER | CTRL,  XK_Right,   cycle_monitors,            &((arg_t){.tr = NEXT})),
+    DEFINE_KEY(SUPER | CTRL,  XK_Left,    cycle_monitors,            &((arg_t){.tr = PREV})),
 };
 
 static const uint32_t _buttons_[] = {
@@ -1534,6 +1536,63 @@ cycle_win_wrapper(arg_t *arg)
 	set_active_window_name(next->client->window);
 	update_focus(root, next);
 
+	return 0;
+}
+
+void
+move_mouse_to_monitor(monitor_t *m)
+{
+	if (!m)
+		return;
+	int x = (m->rectangle.x + m->rectangle.width / 2) + 40;
+	int y = (m->rectangle.y + m->rectangle.height / 2) + 40;
+
+	/* does not work, lacking propr args */
+	xcb_warp_pointer(
+		wm->connection, wm->root_window, XCB_NONE, 0, 0, 0, 0, x, y);
+	xcb_flush(wm->connection);
+}
+
+int
+cycle_monitors(arg_t *arg)
+{
+	if (!multi_monitors)
+		return 0;
+	traversal_t dir	 = arg->tr;
+	monitor_t  *curr = curr_monitor;
+	monitor_t  *m	 = NULL;
+	if (dir == NEXT) {
+		m = curr->next;
+		if (!m) {
+			/* wrap around to the first monitor */
+			m = head_monitor;
+		}
+	} else if (dir == PREV) {
+		monitor_t *head = head_monitor;
+		monitor_t *prev = NULL;
+		while (head && head->next) {
+			if (head->next == curr) {
+				m = head;
+				break;
+			}
+			head = head->next;
+		}
+
+		/* wrap around to the last monitor */
+		if (!m) {
+			while (head && head->next) {
+				head = head->next;
+			}
+			m = head;
+		}
+	}
+	if (m && m != curr) {
+		_LOG_(INFO, "switching to monitor: %d", m->id);
+		curr_monitor = m;
+		move_mouse_to_monitor(m);
+		return 0;
+	}
+	_LOG_(INFO, "no monitor change occurred");
 	return 0;
 }
 
