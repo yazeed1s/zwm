@@ -195,49 +195,47 @@ insert_floating_node(node_t *node, desktop_t *d)
 static void
 split_node(node_t *n, node_t *nd)
 {
+	rectangle_t *first_rect	 = &n->first_child->rectangle;
+	rectangle_t *second_rect = &n->second_child->rectangle;
 	if (IS_FLOATING(nd->client)) {
-		n->first_child->rectangle = n->first_child->floating_rectangle =
-			n->rectangle;
-	} else {
-		if (n->rectangle.width >= n->rectangle.height) {
-			n->first_child->rectangle.x = n->rectangle.x;
-			n->first_child->rectangle.y = n->rectangle.y;
-			n->first_child->rectangle.width =
-				(n->rectangle.width - (conf.window_gap - conf.border_width)) /
-				2;
-			n->first_child->rectangle.height = n->rectangle.height;
-			if (!IS_FLOATING(n->first_child->client)) {
-				n->second_child->rectangle.x =
-					(int16_t)(n->rectangle.x + n->first_child->rectangle.width +
-							  conf.window_gap + conf.border_width);
-				n->second_child->rectangle.y = n->rectangle.y;
-				n->second_child->rectangle.width =
-					n->rectangle.width - n->first_child->rectangle.width -
-					conf.window_gap - conf.border_width;
-				n->second_child->rectangle.height = n->rectangle.height;
-			} else {
-				n->second_child->rectangle = n->rectangle;
-			}
+		*first_rect = n->floating_rectangle = n->rectangle;
+		return;
+	}
+	if (n->rectangle.width >= n->rectangle.height) {
+		/* horizontal split */
+		const int16_t gap		 = conf.window_gap - conf.border_width;
+		const int16_t half_width = (n->rectangle.width - gap) / 2;
+		first_rect->x			 = n->rectangle.x;
+		first_rect->y			 = n->rectangle.y;
+		first_rect->width		 = half_width;
+		first_rect->height		 = n->rectangle.height;
+		if (!IS_FLOATING(n->first_child->client)) {
+			second_rect->x = n->rectangle.x + first_rect->width +
+							 conf.window_gap + conf.border_width;
+			second_rect->y	   = n->rectangle.y;
+			second_rect->width = n->rectangle.width - first_rect->width -
+								 conf.window_gap - conf.border_width;
+			second_rect->height = n->rectangle.height;
 		} else {
-			n->first_child->rectangle.x		= n->rectangle.x;
-			n->first_child->rectangle.y		= n->rectangle.y;
-			n->first_child->rectangle.width = n->rectangle.width;
-			n->first_child->rectangle.height =
-				(n->rectangle.height - (conf.window_gap - conf.border_width)) /
-				2;
-			if (!IS_FLOATING(n->first_child->client)) {
-				n->second_child->rectangle.x = n->rectangle.x;
-				n->second_child->rectangle.y =
-					(int16_t)(n->rectangle.y +
-							  n->first_child->rectangle.height +
-							  conf.window_gap + conf.border_width);
-				n->second_child->rectangle.width = n->rectangle.width;
-				n->second_child->rectangle.height =
-					n->rectangle.height - n->first_child->rectangle.height -
-					conf.window_gap - conf.border_width;
-			} else {
-				n->second_child->rectangle = n->rectangle;
-			}
+			*second_rect = n->rectangle;
+		}
+	} else {
+		/* verticall split */
+		const int16_t gap		  = conf.window_gap - conf.border_width;
+		const int16_t half_height = (n->rectangle.height - gap) / 2;
+		first_rect->x			  = n->rectangle.x;
+		first_rect->y			  = n->rectangle.y;
+		first_rect->width		  = n->rectangle.width;
+		first_rect->height		  = half_height;
+		if (!IS_FLOATING(n->first_child->client)) {
+			second_rect->x = n->rectangle.x;
+			second_rect->y = n->rectangle.y + first_rect->height +
+							 conf.window_gap + conf.border_width;
+			second_rect->width	= n->rectangle.width;
+			second_rect->height = n->rectangle.height - first_rect->height -
+								  conf.window_gap - conf.border_width;
+		} else {
+			*second_rect = n->rectangle;
 		}
 	}
 }
