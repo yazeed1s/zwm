@@ -1558,16 +1558,18 @@ cycle_monitors(arg_t *arg)
 {
 	if (!multi_monitors)
 		return 0;
+
 	traversal_t dir	 = arg->tr;
 	monitor_t  *curr = curr_monitor;
 	monitor_t  *m	 = NULL;
+
 	if (dir == NEXT) {
 		m = curr->next;
 		if (!m) {
 			/* wrap around to the first monitor */
 			m = head_monitor;
 		}
-	} else if (dir == PREV) {
+	} else {
 		monitor_t *head = head_monitor;
 		monitor_t *prev = NULL;
 		while (head && head->next) {
