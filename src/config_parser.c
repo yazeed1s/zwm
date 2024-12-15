@@ -69,22 +69,24 @@ free_tokens(char **, int);
 
 /* clang-format off */
 static const conf_mapper_t _cmapper_[] = {
-    DEFINE_MAPPING("run",            exec_process),
-    DEFINE_MAPPING("kill",           close_or_kill_wrapper),
-    DEFINE_MAPPING("switch_desktop", switch_desktop_wrapper),
-    DEFINE_MAPPING("resize",         horizontal_resize_wrapper),
-    DEFINE_MAPPING("fullscreen",     set_fullscreen_wrapper),
-    DEFINE_MAPPING("swap",           swap_node_wrapper),
-    DEFINE_MAPPING("transfer_node",  transfer_node_wrapper),
-    DEFINE_MAPPING("layout",         layout_handler),
-    DEFINE_MAPPING("traverse",       traverse_stack_wrapper),
-    DEFINE_MAPPING("flip",           flip_node_wrapper),
-    DEFINE_MAPPING("cycle_window",   cycle_win_wrapper),
-    DEFINE_MAPPING("reload_config",  reload_config_wrapper),
-    DEFINE_MAPPING("cycle_desktop",  cycle_desktop_wrapper),
-    DEFINE_MAPPING("shift_window",   shift_floating_window),
-    DEFINE_MAPPING("gap_handler",    gap_handler),
-    DEFINE_MAPPING("change_state",   change_state),
+    DEFINE_MAPPING("run",            		 exec_process),
+    DEFINE_MAPPING("kill",           		 close_or_kill_wrapper),
+    DEFINE_MAPPING("switch_desktop", 		 switch_desktop_wrapper),
+    DEFINE_MAPPING("resize",         		 horizontal_resize_wrapper),
+    DEFINE_MAPPING("fullscreen",     		 set_fullscreen_wrapper),
+    DEFINE_MAPPING("swap",           		 swap_node_wrapper),
+    DEFINE_MAPPING("transfer_node",  		 transfer_node_wrapper),
+    DEFINE_MAPPING("layout",         		 layout_handler),
+    DEFINE_MAPPING("traverse",       		 traverse_stack_wrapper),
+    DEFINE_MAPPING("flip",           		 flip_node_wrapper),
+    DEFINE_MAPPING("cycle_window",   		 cycle_win_wrapper),
+    DEFINE_MAPPING("reload_config",  		 reload_config_wrapper),
+    DEFINE_MAPPING("cycle_desktop",  		 cycle_desktop_wrapper),
+    DEFINE_MAPPING("shift_window",   		 shift_floating_window),
+    DEFINE_MAPPING("grow_floating_window",   grow_floating_window),
+    DEFINE_MAPPING("shrink_floating_window", shrink_floating_window),
+    DEFINE_MAPPING("gap_handler",    		 gap_handler),
+    DEFINE_MAPPING("change_state",  		 change_state),
 };
 
 static key_mapper_t _kmapper_[] = {
@@ -349,7 +351,15 @@ write_default_config(const char *filename, config_t *c)
     "bind = shift + left -> func(shift_window:left)\n"
     "bind = shift + down -> func(shift_window:down)\n"
  	"\n"
-    "; cycle through virtual desktops\n"
+	"; grow floating windows\n"
+	"bind = super|shift + y -> func(grow_floating_window:horizontal)\n"
+    "bind = super|shift + h -> func(grow_floating_window:vertical)\n"
+    "\n"
+	"; shrink floating windows\n"
+	"bind = super|shift + t -> func(shrink_floating_window:horizontal)\n"
+	"bind = super|shift + g -> func(shrink_floating_window:vertical)\n"
+	"\n"
+	"; cycle through virtual desktops\n"
     "bind = super|shift + left -> func(cycle_desktop:left)\n"
     "bind = super|shift + right -> func(cycle_desktop:right)\n"
     "\n"
@@ -753,6 +763,18 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 			key->arg->s = FLOATING;
 		} else if (strcmp(arg, "tile") == 0) {
 			key->arg->s = TILED;
+		}
+	} else if (strcmp(func, "shrink_floating_window") == 0) {
+		if (strcmp(arg, "horizontal") == 0) {
+			key->arg->rd = HORIZONTAL_DIR;
+		} else if (strcmp(arg, "vertical") == 0) {
+			key->arg->rd = VERTICAL_DIR;
+		}
+	} else if (strcmp(func, "grow_floating_window") == 0) {
+		if (strcmp(arg, "horizontal") == 0) {
+			key->arg->rd = HORIZONTAL_DIR;
+		} else if (strcmp(arg, "vertical") == 0) {
+			key->arg->rd = VERTICAL_DIR;
 		}
 	}
 }
