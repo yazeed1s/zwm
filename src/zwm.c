@@ -72,10 +72,10 @@
 #define BUTTON_RELEASE	(XCB_EVENT_MASK_BUTTON_RELEASE)
 #define POINTER_MOTION	(XCB_EVENT_MASK_POINTER_MOTION)
 
-#define ALT_MASK		(XCB_MOD_MASK_1)
-#define SUPER_MASK		(XCB_MOD_MASK_4)
-#define SHIFT_MASK		(XCB_MOD_MASK_SHIFT)
-#define CTRL_MASK		(XCB_MOD_MASK_CONTROL)
+#define ALT				(XCB_MOD_MASK_1)
+#define SUPER			(XCB_MOD_MASK_4)
+#define SHIFT			(XCB_MOD_MASK_SHIFT)
+#define CTRL			(XCB_MOD_MASK_CONTROL)
 #define CLICK_TO_FOCUS	(XCB_BUTTON_INDEX_1)
 
 #define CLIENT_EVENT_MASK                                                      \
@@ -111,49 +111,53 @@ xcb_cursor_t		  cursors[CURSOR_MAX];
 
 /* see X11/keysymdef.h */
 static const _key__t _keys_[] = {
-    DEFINE_KEY(SUPER_MASK,          XK_w,       close_or_kill_wrapper,     NULL),
-    DEFINE_KEY(SUPER_MASK,          XK_Return,  exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"alacritty"}})),
-    DEFINE_KEY(SUPER_MASK,          XK_space,   exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"dmenu_run"}})),
-    DEFINE_KEY(SUPER_MASK,          XK_p,       exec_process,              &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})),
-    DEFINE_KEY(SUPER_MASK,          XK_1,       switch_desktop_wrapper,    &((arg_t){.idx = 0})),
-    DEFINE_KEY(SUPER_MASK,          XK_2,       switch_desktop_wrapper,    &((arg_t){.idx = 1})),
-    DEFINE_KEY(SUPER_MASK,          XK_3,       switch_desktop_wrapper,    &((arg_t){.idx = 2})),
-    DEFINE_KEY(SUPER_MASK,          XK_4,       switch_desktop_wrapper,    &((arg_t){.idx = 3})),
-    DEFINE_KEY(SUPER_MASK,          XK_5,       switch_desktop_wrapper,    &((arg_t){.idx = 4})),
-    DEFINE_KEY(SUPER_MASK,          XK_6,       switch_desktop_wrapper,    &((arg_t){.idx = 5})),
-    DEFINE_KEY(SUPER_MASK,          XK_7,       switch_desktop_wrapper,    &((arg_t){.idx = 6})),
-    DEFINE_KEY(SUPER_MASK,          XK_Left,    cycle_win_wrapper,         &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SUPER_MASK,          XK_Right,   cycle_win_wrapper,         &((arg_t){.d = RIGHT})),
-    DEFINE_KEY(SUPER_MASK,          XK_Up,      cycle_win_wrapper,         &((arg_t){.d = UP})),
-    DEFINE_KEY(SUPER_MASK,          XK_Down,    cycle_win_wrapper,         &((arg_t){.d = DOWN})),
-    DEFINE_KEY(SUPER_MASK,          XK_l,       horizontal_resize_wrapper, &((arg_t){.r = GROW})),
-    DEFINE_KEY(SUPER_MASK,          XK_h,       horizontal_resize_wrapper, &((arg_t){.r = SHRINK})),
-    DEFINE_KEY(SUPER_MASK,          XK_f,       set_fullscreen_wrapper,    NULL),
-    DEFINE_KEY(SUPER_MASK,          XK_s,       swap_node_wrapper,         NULL),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_1,    transfer_node_wrapper,     &((arg_t){.idx = 0})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_2,    transfer_node_wrapper,     &((arg_t){.idx = 1})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_3,    transfer_node_wrapper,     &((arg_t){.idx = 2})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_4,    transfer_node_wrapper,     &((arg_t){.idx = 3})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_5,    transfer_node_wrapper,     &((arg_t){.idx = 4})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_6,    transfer_node_wrapper,     &((arg_t){.idx = 5})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_7,    transfer_node_wrapper,     &((arg_t){.idx = 6})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_m,    layout_handler,            &((arg_t){.t = MASTER})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_d,    layout_handler,            &((arg_t){.t = DEFAULT})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_s,    layout_handler,            &((arg_t){.t = STACK})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_k,    traverse_stack_wrapper,    &((arg_t){.d = UP})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_j,    traverse_stack_wrapper,    &((arg_t){.d = DOWN})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_f,    flip_node_wrapper,         NULL),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_r,    reload_config_wrapper,     NULL),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_Left, cycle_desktop_wrapper,     &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SUPER_MASK | SHIFT_MASK, XK_Right,cycle_desktop_wrapper,     &((arg_t){.d = RIGHT})),
-    DEFINE_KEY(SHIFT_MASK,          XK_Left,    shift_floating_window,     &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SHIFT_MASK,          XK_Right,   shift_floating_window,     &((arg_t){.d = RIGHT})),
-    DEFINE_KEY(SHIFT_MASK,          XK_Up,      shift_floating_window,     &((arg_t){.d = UP})),
-    DEFINE_KEY(SHIFT_MASK,          XK_Down,    shift_floating_window,     &((arg_t){.d = DOWN})),
-    DEFINE_KEY(SUPER_MASK,          XK_i,       gap_handler,               &((arg_t){.r = GROW})),
-    DEFINE_KEY(SUPER_MASK,          XK_d,       gap_handler,               &((arg_t){.r = SHRINK})),
-    DEFINE_KEY(SHIFT_MASK,          XK_f,       change_state,              &((arg_t){.s = FLOATING})),
-    DEFINE_KEY(SHIFT_MASK,          XK_t,       change_state,              &((arg_t){.s = TILED})),
+    DEFINE_KEY(SUPER,         XK_w,       close_or_kill_wrapper,     NULL),
+    DEFINE_KEY(SUPER,         XK_Return,  exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"alacritty"}})),
+    DEFINE_KEY(SUPER,         XK_space,   exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"dmenu_run"}})),
+    DEFINE_KEY(SUPER,         XK_p,       exec_process,              &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})),
+    DEFINE_KEY(SUPER,         XK_1,       switch_desktop_wrapper,    &((arg_t){.idx = 0})),
+    DEFINE_KEY(SUPER,         XK_2,       switch_desktop_wrapper,    &((arg_t){.idx = 1})),
+    DEFINE_KEY(SUPER,         XK_3,       switch_desktop_wrapper,    &((arg_t){.idx = 2})),
+    DEFINE_KEY(SUPER,         XK_4,       switch_desktop_wrapper,    &((arg_t){.idx = 3})),
+    DEFINE_KEY(SUPER,         XK_5,       switch_desktop_wrapper,    &((arg_t){.idx = 4})),
+    DEFINE_KEY(SUPER,         XK_6,       switch_desktop_wrapper,    &((arg_t){.idx = 5})),
+    DEFINE_KEY(SUPER,         XK_7,       switch_desktop_wrapper,    &((arg_t){.idx = 6})),
+    DEFINE_KEY(SUPER,         XK_Left,    cycle_win_wrapper,         &((arg_t){.d = LEFT})),
+    DEFINE_KEY(SUPER,         XK_Right,   cycle_win_wrapper,         &((arg_t){.d = RIGHT})),
+    DEFINE_KEY(SUPER,         XK_Up,      cycle_win_wrapper,         &((arg_t){.d = UP})),
+    DEFINE_KEY(SUPER,         XK_Down,    cycle_win_wrapper,         &((arg_t){.d = DOWN})),
+    DEFINE_KEY(SUPER,         XK_l,       horizontal_resize_wrapper, &((arg_t){.r = GROW})),
+    DEFINE_KEY(SUPER,         XK_h,       horizontal_resize_wrapper, &((arg_t){.r = SHRINK})),
+    DEFINE_KEY(SUPER,         XK_f,       set_fullscreen_wrapper,    NULL),
+    DEFINE_KEY(SUPER,         XK_s,       swap_node_wrapper,         NULL),
+    DEFINE_KEY(SUPER,         XK_i,       gap_handler,               &((arg_t){.r = GROW})),
+    DEFINE_KEY(SUPER,         XK_d,       gap_handler,               &((arg_t){.r = SHRINK})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Left,    shift_floating_window,     &((arg_t){.d = LEFT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Right,   shift_floating_window,     &((arg_t){.d = RIGHT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Up,      shift_floating_window,     &((arg_t){.d = UP})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Down,    shift_floating_window,     &((arg_t){.d = DOWN})),
+    DEFINE_KEY(SUPER | ALT,   XK_f,       change_state,              &((arg_t){.s = FLOATING})),
+    DEFINE_KEY(SUPER | ALT,   XK_t,       change_state,              &((arg_t){.s = TILED})),
+    DEFINE_KEY(SUPER | SHIFT, XK_1,       transfer_node_wrapper,     &((arg_t){.idx = 0})),
+    DEFINE_KEY(SUPER | SHIFT, XK_2,       transfer_node_wrapper,     &((arg_t){.idx = 1})),
+    DEFINE_KEY(SUPER | SHIFT, XK_3,       transfer_node_wrapper,     &((arg_t){.idx = 2})),
+    DEFINE_KEY(SUPER | SHIFT, XK_4,       transfer_node_wrapper,     &((arg_t){.idx = 3})),
+    DEFINE_KEY(SUPER | SHIFT, XK_5,       transfer_node_wrapper,     &((arg_t){.idx = 4})),
+    DEFINE_KEY(SUPER | SHIFT, XK_6,       transfer_node_wrapper,     &((arg_t){.idx = 5})),
+    DEFINE_KEY(SUPER | SHIFT, XK_7,       transfer_node_wrapper,     &((arg_t){.idx = 6})),
+    DEFINE_KEY(SUPER | SHIFT, XK_m,       layout_handler,            &((arg_t){.t = MASTER})),
+    DEFINE_KEY(SUPER | SHIFT, XK_d,       layout_handler,            &((arg_t){.t = DEFAULT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_s,       layout_handler,            &((arg_t){.t = STACK})),
+    DEFINE_KEY(SUPER | SHIFT, XK_k,       traverse_stack_wrapper,    &((arg_t){.d = UP})),
+    DEFINE_KEY(SUPER | SHIFT, XK_j,       traverse_stack_wrapper,    &((arg_t){.d = DOWN})),
+    DEFINE_KEY(SUPER | SHIFT, XK_f,       flip_node_wrapper,         NULL),
+    DEFINE_KEY(SUPER | SHIFT, XK_r,       reload_config_wrapper,     NULL),
+    DEFINE_KEY(SUPER | SHIFT, XK_Left,    cycle_desktop_wrapper,     &((arg_t){.d = LEFT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Right,   cycle_desktop_wrapper,     &((arg_t){.d = RIGHT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_y,       grow_floating_window,      &((arg_t){.rd = HORIZONTAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_h,       grow_floating_window,      &((arg_t){.rd = VERTICAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_t,       shrink_floating_window,    &((arg_t){.rd = HORIZONTAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_g,       shrink_floating_window,    &((arg_t){.rd = VERTICAL_DIR})),
 };
 
 static const uint32_t _buttons_[] = {
