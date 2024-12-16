@@ -40,7 +40,7 @@ node_t *next_node(node_t *current);
 node_t *cycle_win(node_t *node, direction_t);
 node_t *find_left_leaf(node_t *root);
 node_t *find_any_leaf(node_t *root);
-node_t *get_focused_node__(node_t *n);
+node_t *get_focused_node(node_t *n);
 bool unlink_node(node_t *node, desktop_t *d);
 void horizontal_resize(node_t *n, resize_t t);
 void apply_master_layout(node_t *parent);

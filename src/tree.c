@@ -1118,7 +1118,12 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case MASTER: {
-		node_t *n = curr_monitor->desk->node;
+		xcb_window_t win =
+	get_window_under_cursor(wm->connection, wm->root_window);
+		if (win == XCB_NONE || win == wm->root_window) {
+			return;
+		}
+		node_t *n = find_node_by_window_id(root, win);
 		if (n == NULL) {
 			return;
 		}
@@ -1126,7 +1131,13 @@ apply_layout(desktop_t *d, layout_t t)
 		break;
 	}
 	case STACK: {
-		node_t *n = curr_monitor->desk->node;
+		xcb_window_t win =
+		get_window_under_cursor(wm->connection, wm->root_window);
+
+		if (win == XCB_NONE || win == wm->root_window) {
+			return;
+		}
+		node_t *n = find_node_by_window_id(root, win);
 		if (n == NULL) {
 			return;
 		}
@@ -1345,7 +1356,7 @@ delete_node(node_t *node, desktop_t *d)
 		_LOG_(ERROR, "node to be deleted is null");
 		return;
 	}
-	bool swap = node == d->node;
+	/*bool swap = node == d->node;*/
 	if (IS_INTERNAL(node)) {
 		_LOG_(ERROR,
 			  "node to be deleted is not an external node type: %d",
@@ -1363,10 +1374,10 @@ delete_node(node_t *node, desktop_t *d)
 		check = true;
 	}
 
-	node_t *n = prev_node(node);
+	/*node_t *n = prev_node(node);
 	if (!n) {
 		n = next_node(node);
-	}
+	}*/
 
 	if (!unlink_node(node, d)) {
 		_LOG_(ERROR, "could not unlink node.. abort");
@@ -1375,14 +1386,15 @@ delete_node(node_t *node, desktop_t *d)
 
 	if (check) {
 		assert(!d->tree);
+		/*d->node = NULL;*/
 	}
 
 	_FREE_(node->client);
 	_FREE_(node);
 
-	if (!check) {
+	/*if (!check) {
 		d->node = n;
-	}
+	}*/
 out:
 	d->n_count -= 1;
 	if (!is_tree_empty(d->tree)) {

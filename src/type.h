@@ -220,8 +220,8 @@ struct node_t {
  * the wm could have up to 10 desktops.
  */
 typedef struct {
-	node_t	*tree;		 /* the tree in this desktop */
-	node_t	*node;		 /* focused node */
+	node_t	*tree; /* the tree in this desktop */
+	/* node_t	*node;		 focused node */
 	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
 	uint16_t id;		 /* the number of this desktop */
 	uint16_t n_count;	 /* the number of active windows/external nodes */

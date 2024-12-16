@@ -371,12 +371,15 @@ render_trees(void)
 int
 change_state(arg_t *arg)
 {
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == XCB_NONE)
+		return -1;
 
-	node_t *root = curr_monitor->desk->tree;
+	node_t *root = get_foucsed_desktop_tree();
 	if (root == NULL)
 		return -1;
 
-	node_t *n = curr_monitor->desk->node;
+	node_t *n = find_node_by_window_id(root, w);
 	if (n == NULL)
 		return -1;
 
@@ -533,7 +536,7 @@ ewmh_set_supporting(xcb_window_t win, xcb_ewmh_conn_t *ewmh)
 }
 
 int
-get_focused_desktop_idx__(void)
+get_focused_desktop_idx(void)
 {
 	if (curr_monitor == NULL) {
 		_LOG_(ERROR, "curr_monitor is null");
@@ -776,14 +779,24 @@ swap_node_wrapper()
 		_LOG_(ERROR, "Failed to swap node, current monitor is NULL");
 		return -1;
 	}
-	node_t *n = curr_monitor->desk->node;
+
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == wm->root_window) {
+		return 0;
+	}
+
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
 	if (swap_node(n) != 0)
 		return -1;
 
-	return render_tree(curr_monitor->desk->tree);
+	return render_tree(root);
 }
 
 /* transfer_node_wrapper - handles transferring a node between desktops.
@@ -798,6 +811,9 @@ swap_node_wrapper()
 int
 transfer_node_wrapper(arg_t *arg)
 {
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == wm->root_window)
+		return 0;
 	const int i = arg->idx;
 
 	if (curr_monitor->desk->id == i) {
@@ -810,7 +826,7 @@ transfer_node_wrapper(arg_t *arg)
 		return 0;
 	}
 
-	node_t *node = curr_monitor->desk->node;
+	node_t *node = get_focused_node(root);
 
 	if (!node) {
 		_LOG_(ERROR, "focused node is null");
@@ -863,7 +879,7 @@ horizontal_resize_wrapper(arg_t *arg)
 	if (root == NULL)
 		return -1;
 
-	node_t *n = curr_monitor->desk->node;
+	node_t *n = get_focused_node(root);
 
 	if (n == NULL)
 		return -1;
@@ -881,7 +897,11 @@ horizontal_resize_wrapper(arg_t *arg)
 int
 grow_floating_window(arg_t *arg)
 {
-	node_t *n = curr_monitor->desk->node;
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
@@ -921,7 +941,11 @@ grow_floating_window(arg_t *arg)
 int
 shrink_floating_window(arg_t *arg)
 {
-	node_t *n = curr_monitor->desk->node;
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
@@ -956,7 +980,11 @@ shrink_floating_window(arg_t *arg)
 int
 resize_floating_window(arg_t *arg)
 {
-	node_t *n = curr_monitor->desk->node;
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
@@ -992,7 +1020,11 @@ resize_floating_window(arg_t *arg)
 int
 shift_floating_window(arg_t *arg)
 {
-	node_t *n = curr_monitor->desk->node;
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	node_t *n = get_focused_node(root);
 	if (n == NULL)
 		return -1;
 
@@ -1041,7 +1073,16 @@ shift_floating_window(arg_t *arg)
 int
 set_fullscreen_wrapper()
 {
-	node_t *n = curr_monitor->desk->node;
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return -1;
+
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+	if (w == wm->root_window) {
+		return 0;
+	}
+
+	node_t *n = find_node_by_window_id(root, w);
 	if (n == NULL) {
 		_LOG_(ERROR, "cannot find focused node");
 		return -1;
@@ -1430,7 +1471,7 @@ flip_node_wrapper()
 	if (!tree)
 		return -1;
 
-	node_t *node = curr_monitor->desk->node;
+	node_t *node = get_focused_node(tree);
 	if (node == NULL)
 		return -1;
 
@@ -1446,10 +1487,12 @@ cycle_win_wrapper(arg_t *arg)
 	if (!root) {
 		return 0;
 	}
-	node_t *f = curr_monitor->desk->node;
+	node_t *f = get_focused_node(root);
 	if (!f) {
 		_LOG_(INFO, "cannot find focused window");
-		return -1;
+		xcb_window_t w =
+			get_window_under_cursor(wm->connection, wm->root_window);
+		f = find_node_by_window_id(root, w);
 	}
 	node_t *next = cycle_win(f, d);
 	if (next == NULL) {
@@ -1463,7 +1506,7 @@ cycle_win_wrapper(arg_t *arg)
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
 	update_focus(root, next);
-	curr_monitor->desk->node = next;
+	/*curr_monitor->desk->node = next;*/
 	return 0;
 }
 
@@ -1472,12 +1515,31 @@ move_mouse_to_monitor(monitor_t *m)
 {
 	if (!m)
 		return;
-	int x = (m->rectangle.x + m->rectangle.width / 2) + 40;
-	int y = (m->rectangle.y + m->rectangle.height / 2) + 40;
+	xcb_query_pointer_reply_t *ptr = xcb_query_pointer_reply(
+		wm->connection,
+		xcb_query_pointer(wm->connection, wm->root_window),
+		NULL);
 
-	/* does not work, lacking propr args */
-	xcb_warp_pointer(
-		wm->connection, wm->root_window, XCB_NONE, 0, 0, 0, 0, x, y);
+	if (ptr == NULL) {
+		_LOG_(ERROR, "failed to query pointer");
+		return;
+	}
+
+	int pointer_x = ptr->root_x;
+	int pointer_y = ptr->root_y;
+
+	int x		  = (m->rectangle.x + m->rectangle.width / 2) + 100;
+	int y		  = (m->rectangle.y + m->rectangle.height / 2) + 100;
+
+	xcb_warp_pointer(wm->connection,
+					 wm->root_window,
+					 wm->root_window,
+					 pointer_x,
+					 pointer_y,
+					 curr_monitor->rectangle.width,
+					 curr_monitor->rectangle.height,
+					 x,
+					 y);
 	xcb_flush(wm->connection);
 }
 
@@ -1516,12 +1578,16 @@ cycle_monitors(arg_t *arg)
 			m = head;
 		}
 	}
+
 	if (m && m != curr) {
-		_LOG_(INFO, "switching to monitor: %d", m->id);
-		curr_monitor = m;
+		_LOG_(INFO, "switching monitor: '%s' -> '%s'", curr->name, m->name);
+		/* when a mouse moves, we update the current monitor in the enter_notify
+		 * handler */
 		move_mouse_to_monitor(m);
+		/*curr_monitor = m;*/
 		return 0;
 	}
+
 	_LOG_(INFO, "no monitor change occurred");
 	return 0;
 }
@@ -1529,12 +1595,17 @@ cycle_monitors(arg_t *arg)
 int
 traverse_stack_wrapper(arg_t *arg)
 {
-	direction_t d	 = arg->d;
-	node_t	   *root = curr_monitor->desk->tree;
+	direction_t	 d = arg->d;
+	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
+
+	if (w == wm->root_window)
+		return 0;
+
+	node_t *root = curr_monitor->desk->tree;
 	if (!root)
 		return -1;
 
-	node_t *node = curr_monitor->desk->node;
+	node_t *node = get_focused_node(root);
 	node_t *n	 = d == UP ? next_node(node) : prev_node(node);
 
 	if (n == NULL) {
@@ -1542,7 +1613,7 @@ traverse_stack_wrapper(arg_t *arg)
 	}
 
 	set_focus(n, true);
-	curr_monitor->desk->node = n;
+	/*curr_monitor->desk->node = n;*/
 	if (has_floating_window(root))
 		restack();
 
@@ -1702,7 +1773,7 @@ init_desktop(void)
 	d->is_focused = false;
 	d->n_count	  = 0;
 	d->tree		  = NULL;
-	d->node		  = NULL;
+	/*d->node	  = NULL;*/
 	return d;
 }
 
@@ -3432,10 +3503,7 @@ send_client_message(xcb_window_t win,
 int
 close_or_kill_wrapper()
 {
-	if (!curr_monitor->desk->node || !curr_monitor->desk->node->client) {
-		return 0;
-	}
-	xcb_window_t win = curr_monitor->desk->node->client->window;
+	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
 	if (!window_exists(wm->connection, win))
 		return 0;
 	return close_or_kill(win);
@@ -3910,7 +3978,7 @@ fill_floating_rectangle(xcb_get_geometry_reply_t *geometry, rectangle_t *r)
 int
 cycle_desktop_wrapper(arg_t *arg)
 {
-	int current = get_focused_desktop_idx__();
+	int current = get_focused_desktop_idx();
 	if (current == -1) {
 		_LOG_(ERROR, "cnnot find current desktop");
 		return -1;
@@ -4164,7 +4232,7 @@ handle_first_window(client_t *client, desktop_t *d)
 	d->tree->rectangle = r;
 	d->n_count += 1;
 	set_focus(d->tree, true);
-	d->node = d->tree;
+	/*d->node = d->tree;*/
 	ewmh_update_client_list();
 	return tile(d->tree);
 }
@@ -4177,12 +4245,17 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	_LOG_(DEBUG, "handling tiled window %s id %d", name, client->window);
 	_FREE_(name);
 #endif
-	node_t *n = NULL;
+	xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
+	node_t		*n	= NULL;
 
-	n		  = curr_monitor->desk->node;
-	if (n == NULL || n->client == NULL) {
-		_LOG_(ERROR, "cannot find focused node");
-		return 0;
+	if (wm->bar && wi == wm->bar->window) {
+		n = find_any_leaf(d->tree);
+	} else {
+		n = get_focused_node(d->tree);
+		if (n == NULL || n->client == NULL) {
+			_LOG_(ERROR, "cannot find focused node");
+			return 0;
+		}
 	}
 
 	if (IS_FLOATING(n->client) && !IS_ROOT(n)) {
@@ -4218,7 +4291,7 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	if (d->layout == STACK) {
 		set_focus(new_node, true);
 	}
-	curr_monitor->desk->node = new_node;
+	/*curr_monitor->desk->node = new_node;*/
 	ewmh_update_client_list();
 	return render_tree(d->tree);
 }
@@ -4249,7 +4322,13 @@ handle_floating_window(client_t *client, desktop_t *d)
 		set_focus(d->tree, true);
 		return tile(d->tree);
 	} else {
-		node_t *n = curr_monitor->desk->node;
+		xcb_window_t wi =
+			get_window_under_cursor(wm->connection, wm->root_window);
+		if (wi == wm->root_window || wi == 0) {
+			_FREE_(client);
+			return 0;
+		}
+		node_t *n = find_node_by_window_id(d->tree, wi);
 		n		  = n == NULL ? find_any_leaf(d->tree) : n;
 		if (n == NULL || n->client == NULL) {
 			_FREE_(client);
@@ -4599,7 +4678,7 @@ handle_enter_notify(const xcb_event_t *event)
 
 	focused_win = n->client->window;
 	update_focus(root, n);
-	curr_monitor->desk->node = n;
+	/*curr_monitor->desk->node = n;*/
 
 	if (has_floating_window(root)) {
 		restack();
@@ -5231,7 +5310,7 @@ handle_button_press_event(const xcb_event_t *event)
 
 	focused_win = n->client->window;
 	update_focus(root, n);
-	curr_monitor->desk->node = n;
+	/*curr_monitor->desk->node = n;*/
 
 	if (has_floating_window(root)) {
 		restack();

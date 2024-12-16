@@ -60,7 +60,7 @@ int cycle_win_wrapper(arg_t *arg);
 int set_fullscreen_wrapper();
 int flip_node_wrapper();
 int reload_config_wrapper();
-int get_focused_desktop_idx__(); /* deprecated */
+int get_focused_desktop_idx();
 int switch_desktop_wrapper(arg_t *arg);
 int transfer_node_wrapper(arg_t *arg);
 int horizontal_resize_wrapper(arg_t *arg);
