@@ -556,11 +556,7 @@ sort(node_t **s, int n)
 void
 restack(void)
 {
-	int idx = get_focused_desktop_idx();
-	if (idx == -1)
-		return;
-
-	node_t *root = curr_monitor->desktops[idx]->tree;
+	node_t *root = curr_monitor->desk->tree;
 	if (root == NULL)
 		return;
 
@@ -571,11 +567,8 @@ restack(void)
 		_LOG_(ERROR, "cannot allocate stack");
 		return;
 	}
-	stack_and_lower(root,
-					stack,
-					&top,
-					stack_size,
-					curr_monitor->desktops[idx]->layout == STACK);
+	stack_and_lower(
+		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
 	if (top == 0) {
 		if (stack[0]->client)
 			raise_window(stack[0]->client->window);
@@ -1126,7 +1119,7 @@ apply_layout(desktop_t *d, layout_t t)
 	}
 	case MASTER: {
 		xcb_window_t win =
-			get_window_under_cursor(wm->connection, wm->root_window);
+	get_window_under_cursor(wm->connection, wm->root_window);
 		if (win == XCB_NONE || win == wm->root_window) {
 			return;
 		}
@@ -1139,7 +1132,7 @@ apply_layout(desktop_t *d, layout_t t)
 	}
 	case STACK: {
 		xcb_window_t win =
-			get_window_under_cursor(wm->connection, wm->root_window);
+		get_window_under_cursor(wm->connection, wm->root_window);
 
 		if (win == XCB_NONE || win == wm->root_window) {
 			return;
@@ -1363,7 +1356,7 @@ delete_node(node_t *node, desktop_t *d)
 		_LOG_(ERROR, "node to be deleted is null");
 		return;
 	}
-
+	/*bool swap = node == d->node;*/
 	if (IS_INTERNAL(node)) {
 		_LOG_(ERROR,
 			  "node to be deleted is not an external node type: %d",
@@ -1381,6 +1374,11 @@ delete_node(node_t *node, desktop_t *d)
 		check = true;
 	}
 
+	/*node_t *n = prev_node(node);
+	if (!n) {
+		n = next_node(node);
+	}*/
+
 	if (!unlink_node(node, d)) {
 		_LOG_(ERROR, "could not unlink node.. abort");
 		return;
@@ -1388,11 +1386,15 @@ delete_node(node_t *node, desktop_t *d)
 
 	if (check) {
 		assert(!d->tree);
+		/*d->node = NULL;*/
 	}
 
 	_FREE_(node->client);
 	_FREE_(node);
 
+	/*if (!check) {
+		d->node = n;
+	}*/
 out:
 	d->n_count -= 1;
 	if (!is_tree_empty(d->tree)) {

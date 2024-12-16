@@ -85,6 +85,11 @@ typedef enum {
 } direction_t;
 
 typedef enum {
+	NEXT = 1,
+	PREV
+} traversal_t;
+
+typedef enum {
 	ERROR,
 	INFO,
 	DEBUG,
@@ -215,7 +220,8 @@ struct node_t {
  * the wm could have up to 10 desktops.
  */
 typedef struct {
-	node_t	*tree;		 /* the tree in this desktop */
+	node_t	*tree; /* the tree in this desktop */
+	/* node_t	*node;		 focused node */
 	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
 	uint16_t id;		 /* the number of this desktop */
 	uint16_t n_count;	 /* the number of active windows/external nodes */
@@ -231,6 +237,7 @@ typedef struct {
 typedef struct monitor_t monitor_t;
 struct monitor_t {
 	desktop_t		 **desktops;	/* array of desktops */
+	desktop_t		  *desk;		/* focused desktop */
 	monitor_t		  *next;		/* next monitor in list */
 	char			   name[DLEN];	/* monitor name (e.g. HDMI or eDP) */
 	uint32_t		   id;			/* monitor identifier, used with xinerama */
@@ -271,6 +278,7 @@ typedef struct {
 	resize_t	 r;	   /* resize operation */
 	resize_dir_t rd;   /* resize direction */
 	layout_t	 t;	   /* layout type */
+	traversal_t	 tr;   /* traversal direction */
 	direction_t	 d;	   /* movement direction */
 	state_t		 s;	   /* window state, used to change window state */
 } arg_t;
