@@ -90,18 +90,18 @@
 #define WM_INSTANCE_NAME   "null"
 
 wm_t				 *wm			 = NULL;
-config_t			  conf			 = {0};
-xcb_window_t		  focused_win	 = XCB_NONE;
-xcb_window_t		  meta_window	 = XCB_NONE;
-bool				  is_kgrabbed	 = false;
 monitor_t			 *prim_monitor	 = NULL;
 monitor_t			 *curr_monitor	 = NULL;
 monitor_t			 *head_monitor	 = NULL;
+xcb_cursor_context_t *cursor_ctx	 = NULL;
+xcb_window_t		  focused_win	 = XCB_NONE;
+xcb_window_t		  meta_window	 = XCB_NONE;
+bool				  is_kgrabbed	 = false;
 bool				  using_xrandr	 = false;
 bool				  multi_monitors = false;
 bool				  using_xinerama = false;
+config_t			  conf			 = {0};
 uint8_t				  randr_base	 = 0;
-xcb_cursor_context_t *cursor_ctx;
 xcb_cursor_t		  cursors[CURSOR_MAX];
 
 /* clang-format off */
@@ -115,51 +115,51 @@ static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER,         XK_Return,  exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"alacritty"}})),
     DEFINE_KEY(SUPER,         XK_space,   exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"dmenu_run"}})),
     DEFINE_KEY(SUPER,         XK_p,       exec_process,              &((arg_t){.argc = 3, .cmd = (char *[]){"rofi", "-show", "drun"}})),
-    DEFINE_KEY(SUPER,         XK_1,       switch_desktop_wrapper,    &((arg_t){.idx = 0})),
-    DEFINE_KEY(SUPER,         XK_2,       switch_desktop_wrapper,    &((arg_t){.idx = 1})),
-    DEFINE_KEY(SUPER,         XK_3,       switch_desktop_wrapper,    &((arg_t){.idx = 2})),
-    DEFINE_KEY(SUPER,         XK_4,       switch_desktop_wrapper,    &((arg_t){.idx = 3})),
-    DEFINE_KEY(SUPER,         XK_5,       switch_desktop_wrapper,    &((arg_t){.idx = 4})),
-    DEFINE_KEY(SUPER,         XK_6,       switch_desktop_wrapper,    &((arg_t){.idx = 5})),
-    DEFINE_KEY(SUPER,         XK_7,       switch_desktop_wrapper,    &((arg_t){.idx = 6})),
-    DEFINE_KEY(SUPER,         XK_Left,    cycle_win_wrapper,         &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SUPER,         XK_Right,   cycle_win_wrapper,         &((arg_t){.d = RIGHT})),
-    DEFINE_KEY(SUPER,         XK_Up,      cycle_win_wrapper,         &((arg_t){.d = UP})),
-    DEFINE_KEY(SUPER,         XK_Down,    cycle_win_wrapper,         &((arg_t){.d = DOWN})),
-    DEFINE_KEY(SUPER,         XK_l,       horizontal_resize_wrapper, &((arg_t){.r = GROW})),
-    DEFINE_KEY(SUPER,         XK_h,       horizontal_resize_wrapper, &((arg_t){.r = SHRINK})),
+    DEFINE_KEY(SUPER,         XK_1,       switch_desktop_wrapper,    &((arg_t){.idx  = 0})),
+    DEFINE_KEY(SUPER,         XK_2,       switch_desktop_wrapper,    &((arg_t){.idx  = 1})),
+    DEFINE_KEY(SUPER,         XK_3,       switch_desktop_wrapper,    &((arg_t){.idx  = 2})),
+    DEFINE_KEY(SUPER,         XK_4,       switch_desktop_wrapper,    &((arg_t){.idx  = 3})),
+    DEFINE_KEY(SUPER,         XK_5,       switch_desktop_wrapper,    &((arg_t){.idx  = 4})),
+    DEFINE_KEY(SUPER,         XK_6,       switch_desktop_wrapper,    &((arg_t){.idx  = 5})),
+    DEFINE_KEY(SUPER,         XK_7,       switch_desktop_wrapper,    &((arg_t){.idx  = 6})),
+    DEFINE_KEY(SUPER,         XK_Left,    cycle_win_wrapper,         &((arg_t){.d    = LEFT})),
+    DEFINE_KEY(SUPER,         XK_Right,   cycle_win_wrapper,         &((arg_t){.d    = RIGHT})),
+    DEFINE_KEY(SUPER,         XK_Up,      cycle_win_wrapper,         &((arg_t){.d    = UP})),
+    DEFINE_KEY(SUPER,         XK_Down,    cycle_win_wrapper,         &((arg_t){.d    = DOWN})),
+    DEFINE_KEY(SUPER,         XK_l,       horizontal_resize_wrapper, &((arg_t){.r    = GROW})),
+    DEFINE_KEY(SUPER,         XK_h,       horizontal_resize_wrapper, &((arg_t){.r    = SHRINK})),
     DEFINE_KEY(SUPER,         XK_f,       set_fullscreen_wrapper,    NULL),
     DEFINE_KEY(SUPER,         XK_s,       swap_node_wrapper,         NULL),
-    DEFINE_KEY(SUPER,         XK_i,       gap_handler,               &((arg_t){.r = GROW})),
-    DEFINE_KEY(SUPER,         XK_d,       gap_handler,               &((arg_t){.r = SHRINK})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Left,    shift_floating_window,     &((arg_t){.d = LEFT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Right,   shift_floating_window,     &((arg_t){.d = RIGHT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Up,      shift_floating_window,     &((arg_t){.d = UP})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Down,    shift_floating_window,     &((arg_t){.d = DOWN})),
-    DEFINE_KEY(SUPER | ALT,   XK_f,       change_state,              &((arg_t){.s = FLOATING})),
-    DEFINE_KEY(SUPER | ALT,   XK_t,       change_state,              &((arg_t){.s = TILED})),
-    DEFINE_KEY(SUPER | SHIFT, XK_1,       transfer_node_wrapper,     &((arg_t){.idx = 0})),
-    DEFINE_KEY(SUPER | SHIFT, XK_2,       transfer_node_wrapper,     &((arg_t){.idx = 1})),
-    DEFINE_KEY(SUPER | SHIFT, XK_3,       transfer_node_wrapper,     &((arg_t){.idx = 2})),
-    DEFINE_KEY(SUPER | SHIFT, XK_4,       transfer_node_wrapper,     &((arg_t){.idx = 3})),
-    DEFINE_KEY(SUPER | SHIFT, XK_5,       transfer_node_wrapper,     &((arg_t){.idx = 4})),
-    DEFINE_KEY(SUPER | SHIFT, XK_6,       transfer_node_wrapper,     &((arg_t){.idx = 5})),
-    DEFINE_KEY(SUPER | SHIFT, XK_7,       transfer_node_wrapper,     &((arg_t){.idx = 6})),
-    DEFINE_KEY(SUPER | SHIFT, XK_m,       layout_handler,            &((arg_t){.t = MASTER})),
-    DEFINE_KEY(SUPER | SHIFT, XK_d,       layout_handler,            &((arg_t){.t = DEFAULT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_s,       layout_handler,            &((arg_t){.t = STACK})),
-    DEFINE_KEY(SUPER | SHIFT, XK_k,       traverse_stack_wrapper,    &((arg_t){.d = UP})),
-    DEFINE_KEY(SUPER | SHIFT, XK_j,       traverse_stack_wrapper,    &((arg_t){.d = DOWN})),
+    DEFINE_KEY(SUPER,         XK_i,       gap_handler,               &((arg_t){.r    = GROW})),
+    DEFINE_KEY(SUPER,         XK_d,       gap_handler,               &((arg_t){.r    = SHRINK})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Left,    shift_floating_window,     &((arg_t){.d    = LEFT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Right,   shift_floating_window,     &((arg_t){.d    = RIGHT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Up,      shift_floating_window,     &((arg_t){.d    = UP})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Down,    shift_floating_window,     &((arg_t){.d    = DOWN})),
+    DEFINE_KEY(SUPER | ALT,   XK_f,       change_state,              &((arg_t){.s    = FLOATING})),
+    DEFINE_KEY(SUPER | ALT,   XK_t,       change_state,              &((arg_t){.s    = TILED})),
+    DEFINE_KEY(SUPER | SHIFT, XK_1,       transfer_node_wrapper,     &((arg_t){.idx  = 0})),
+    DEFINE_KEY(SUPER | SHIFT, XK_2,       transfer_node_wrapper,     &((arg_t){.idx  = 1})),
+    DEFINE_KEY(SUPER | SHIFT, XK_3,       transfer_node_wrapper,     &((arg_t){.idx  = 2})),
+    DEFINE_KEY(SUPER | SHIFT, XK_4,       transfer_node_wrapper,     &((arg_t){.idx  = 3})),
+    DEFINE_KEY(SUPER | SHIFT, XK_5,       transfer_node_wrapper,     &((arg_t){.idx  = 4})),
+    DEFINE_KEY(SUPER | SHIFT, XK_6,       transfer_node_wrapper,     &((arg_t){.idx  = 5})),
+    DEFINE_KEY(SUPER | SHIFT, XK_7,       transfer_node_wrapper,     &((arg_t){.idx  = 6})),
+    DEFINE_KEY(SUPER | SHIFT, XK_m,       layout_handler,            &((arg_t){.t    = MASTER})),
+    DEFINE_KEY(SUPER | SHIFT, XK_d,       layout_handler,            &((arg_t){.t    = DEFAULT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_s,       layout_handler,            &((arg_t){.t    = STACK})),
+    DEFINE_KEY(SUPER | SHIFT, XK_k,       traverse_stack_wrapper,    &((arg_t){.d    = UP})),
+    DEFINE_KEY(SUPER | SHIFT, XK_j,       traverse_stack_wrapper,    &((arg_t){.d    = DOWN})),
     DEFINE_KEY(SUPER | SHIFT, XK_f,       flip_node_wrapper,         NULL),
     DEFINE_KEY(SUPER | SHIFT, XK_r,       reload_config_wrapper,     NULL),
-    DEFINE_KEY(SUPER | SHIFT, XK_Left,    cycle_desktop_wrapper,     &((arg_t){.d  = LEFT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_Right,   cycle_desktop_wrapper,     &((arg_t){.d  = RIGHT})),
-    DEFINE_KEY(SUPER | SHIFT, XK_y,       grow_floating_window,      &((arg_t){.rd = HORIZONTAL_DIR})),
-    DEFINE_KEY(SUPER | SHIFT, XK_h,       grow_floating_window,      &((arg_t){.rd = VERTICAL_DIR})),
-    DEFINE_KEY(SUPER | SHIFT, XK_t,       shrink_floating_window,    &((arg_t){.rd = HORIZONTAL_DIR})),
-    DEFINE_KEY(SUPER | SHIFT, XK_g,       shrink_floating_window,    &((arg_t){.rd = VERTICAL_DIR})),
-    DEFINE_KEY(SUPER | CTRL,  XK_Right,   cycle_monitors,            &((arg_t){.tr = NEXT})),
-    DEFINE_KEY(SUPER | CTRL,  XK_Left,    cycle_monitors,            &((arg_t){.tr = PREV})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Left,    cycle_desktop_wrapper,     &((arg_t){.d    = LEFT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_Right,   cycle_desktop_wrapper,     &((arg_t){.d    = RIGHT})),
+    DEFINE_KEY(SUPER | SHIFT, XK_y,       grow_floating_window,      &((arg_t){.rd   = HORIZONTAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_h,       grow_floating_window,      &((arg_t){.rd   = VERTICAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_t,       shrink_floating_window,    &((arg_t){.rd   = HORIZONTAL_DIR})),
+    DEFINE_KEY(SUPER | SHIFT, XK_g,       shrink_floating_window,    &((arg_t){.rd   = VERTICAL_DIR})),
+    DEFINE_KEY(SUPER | CTRL,  XK_Right,   cycle_monitors,            &((arg_t){.tr   = NEXT})),
+    DEFINE_KEY(SUPER | CTRL,  XK_Left,    cycle_monitors,            &((arg_t){.tr   = PREV})),
 };
 
 static const uint32_t _buttons_[] = {
@@ -246,7 +246,7 @@ static const event_handler_entry_t _handlers_[] = {
 	 * keybinds take action */
     DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
     /* mapping notify - is generated when keyboard mapping is changed,
-    * it only ungrab the re-grab the keys */
+     * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
    	/* will be implemented if needed */
     /* DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),*/
@@ -330,6 +330,8 @@ int
 layout_handler(arg_t *arg)
 {
 	desktop_t *d = curr_monitor->desk;
+	/* if stack layout is requested on a dekstop with 1 window, ignore the
+	 * request */
 	if (arg->t == STACK && d->n_count < 2)
 		return 0;
 
@@ -337,13 +339,14 @@ layout_handler(arg_t *arg)
 	return render_tree(d->tree);
 }
 
+/* useles after
+ * https://github.com/yazeed1s/zwm/pull/36 */
 static node_t *
-get_foucsed_desktop_tree(void)
+get_foucsed_desktop_tree__(void)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return NULL;
-
+	int i = get_focused_desktop_idx();
+	assert(i >= 0 && i < conf.virtual_desktops);
+	node_t *root = curr_monitor->desktops[i]->tree;
 	return root;
 }
 
@@ -375,11 +378,7 @@ change_state(arg_t *arg)
 	if (w == XCB_NONE)
 		return -1;
 
-	node_t *root = get_foucsed_desktop_tree();
-	if (root == NULL)
-		return -1;
-
-	node_t *n = find_node_by_window_id(root, w);
+	node_t *n = find_node_by_window_id(curr_monitor->desk->tree, w);
 	if (n == NULL)
 		return -1;
 
@@ -466,7 +465,7 @@ change_state(arg_t *arg)
 		}
 	}
 
-	return render_tree(root);
+	return render_tree(curr_monitor->desk->tree);
 }
 
 static xcb_ewmh_conn_t *
@@ -500,6 +499,9 @@ ewmh_init(xcb_conn_t *conn)
 static int
 ewmh_set_supporting(xcb_window_t win, xcb_ewmh_conn_t *ewmh)
 {
+	/* when a user runs xprop -root, some of the info in the output are coming
+	 * from this func, like the pid, supported hints, and name. Other info like
+	 * desktop names and numbers are set in other fucntions.  */
 	pid_t		 wm_pid = getpid();
 	xcb_cookie_t supporting_cookie_root =
 		xcb_ewmh_set_supporting_wm_check_checked(ewmh, wm->root_window, win);
@@ -522,12 +524,12 @@ ewmh_set_supporting(xcb_window_t win, xcb_ewmh_conn_t *ewmh)
 		return -1;
 	}
 	if ((err = xcb_request_check(ewmh->connection, name_cookie))) {
-		fprintf(stderr, "Error setting WM name: %d", err->error_code);
+		_LOG_(ERROR, "Error setting WM name: %d", err->error_code);
 		_FREE_(err);
 		return -1;
 	}
 	if ((err = xcb_request_check(ewmh->connection, pid_cookie))) {
-		fprintf(stderr, "Error setting WM PID: %d", err->error_code);
+		_LOG_(ERROR, "Error setting WM PID: %d", err->error_code);
 		_FREE_(err);
 		return -1;
 	}
@@ -589,9 +591,9 @@ ewmh_update_desktop_names(void)
 	memset(names, 0, sizeof(names));
 
 	for (int n = 0; n < prim_monitor->n_of_desktops; n++) {
-		desktop_t *d = prim_monitor->desktops[n];
-		for (int j = 0; d->name[j] != '\0' && (offset + j) < sizeof(names);
-			 j++) {
+		desktop_t *d  = prim_monitor->desktops[n];
+		size_t	   nn = sizeof(names);
+		for (int j = 0; d->name[j] != '\0' && (offset + j) < nn; j++) {
 			names[offset + j] = d->name[j];
 		}
 		offset += strlen(d->name);
@@ -780,23 +782,19 @@ swap_node_wrapper()
 		return -1;
 	}
 
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
 		return 0;
 	}
 
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
 	if (swap_node(n) != 0)
 		return -1;
 
-	return render_tree(root);
+	return render_tree(curr_monitor->desk->tree);
 }
 
 /* transfer_node_wrapper - handles transferring a node between desktops.
@@ -821,14 +819,12 @@ transfer_node_wrapper(arg_t *arg)
 		return 0;
 	}
 
-	node_t *root = curr_monitor->desk->tree;
-	if (is_tree_empty(root)) {
+	if (is_tree_empty(curr_monitor->desk->tree)) {
 		return 0;
 	}
 
-	node_t *node = get_focused_node(root);
-
-	if (!node) {
+	node_t *node = NULL;
+	if (!(node = get_focused_node(curr_monitor->desk->tree))) {
 		_LOG_(ERROR, "focused node is null");
 		return 0;
 	}
@@ -875,21 +871,17 @@ horizontal_resize_wrapper(arg_t *arg)
 		return 0;
 	}
 
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
-	node_t *n = get_focused_node(root);
-
-	if (n == NULL)
-		return -1;
 	/* todo: if node was flipped, reize up or down instead */
 	grab_pointer(wm->root_window,
 				 false); /* steal the pointer and prevent it from sending
 						  * enter_notify events (which focuses the window
 						  * being under cursor as the resize happens); */
 	horizontal_resize(n, arg->r);
-	render_tree(root);
+	render_tree(curr_monitor->desk->tree);
 	ungrab_pointer();
 	return 0;
 }
@@ -897,12 +889,8 @@ horizontal_resize_wrapper(arg_t *arg)
 int
 grow_floating_window(arg_t *arg)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
 	if (n->client && n->client->state != FLOATING)
@@ -941,12 +929,8 @@ grow_floating_window(arg_t *arg)
 int
 shrink_floating_window(arg_t *arg)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
 	if (n->client && n->client->state != FLOATING)
@@ -980,12 +964,8 @@ shrink_floating_window(arg_t *arg)
 int
 resize_floating_window(arg_t *arg)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
 	if (n->client && n->client->state != FLOATING)
@@ -1020,12 +1000,8 @@ resize_floating_window(arg_t *arg)
 int
 shift_floating_window(arg_t *arg)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
-	node_t *n = get_focused_node(root);
-	if (n == NULL)
+	node_t *n = NULL;
+	if (!(n = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
 	if (n->client && n->client->state != FLOATING)
@@ -1073,16 +1049,12 @@ shift_floating_window(arg_t *arg)
 int
 set_fullscreen_wrapper()
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return -1;
-
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
 		return 0;
 	}
 
-	node_t *n = find_node_by_window_id(root, w);
+	node_t *n = find_node_by_window_id(curr_monitor->desk->tree, w);
 	if (n == NULL) {
 		_LOG_(ERROR, "cannot find focused node");
 		return -1;
@@ -1156,13 +1128,16 @@ out:
 	xcb_flush(wm->connection);
 	return 0;
 }
-
+/* change_colors is called when a user changes the border color in the config
+ * file */
 static int
 change_colors(node_t *root)
 {
 	if (root == NULL)
 		return 0;
-
+	/* win_foucs internally changes the border color of a window, if the focus
+	 * param is set to true it applies the active_border_color, otherwise the
+	 * normal_border_color is chosen */
 	if (root->node_type != INTERNAL_NODE && root->client) {
 		if (win_focus(root->client->window, root->is_focused) != 0) {
 			_LOG_(ERROR, "cannot focus node");
@@ -1177,100 +1152,69 @@ change_colors(node_t *root)
 
 	return 0;
 }
+static rectangle_t
+calculate_monitor_area(const monitor_t *m,
+					   uint16_t			w,
+					   uint16_t			h,
+					   uint16_t			bar_height)
+{
+	return (rectangle_t){
+		.x		= (int16_t)(m->rectangle.x + conf.window_gap),
+		.y		= (int16_t)(m->rectangle.y + bar_height + conf.window_gap),
+		.width	= (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width),
+		.height = (uint16_t)(h - bar_height - 2 * conf.window_gap -
+							 2 * conf.border_width)};
+}
 
-/* TODO: rewrite this */
 static void
 apply_monitor_layout_changes(monitor_t *m)
 {
 	for (int d = 0; d < m->n_of_desktops; ++d) {
-		if (!m->desktops[d])
+		if (!m->desktops[d] || is_tree_empty(m->desktops[d]->tree))
 			continue;
-		if (is_tree_empty(m->desktops[d]->tree))
-			continue;
-		layout_t l	  = m->desktops[d]->layout;
-		node_t	*tree = m->desktops[d]->tree;
-		if (l == DEFAULT) {
-			rectangle_t r = {0};
-			uint16_t	w = m->rectangle.width;
-			uint16_t	h = m->rectangle.height;
-			int16_t		x = m->rectangle.x;
-			int16_t		y = m->rectangle.y;
-			if (wm->bar && m == prim_monitor) {
-				r.x = (int16_t)(x + conf.window_gap);
-				r.y =
-					(int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-				r.width =
-					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-				r.height =
-					(uint16_t)(h - wm->bar->rectangle.height -
-							   2 * conf.window_gap - 2 * conf.border_width);
-			} else {
-				r.x		 = x + conf.window_gap;
-				r.y		 = y + conf.window_gap;
-				r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-				r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
-			}
-			tree->rectangle = r;
-			apply_default_layout(tree);
-		} else if (l == MASTER) {
-			node_t		*ms			  = find_master_node(tree);
+
+		layout_t layout = m->desktops[d]->layout;
+		node_t	*tree	= m->desktops[d]->tree;
+		uint16_t w		= m->rectangle.width;
+		uint16_t h		= m->rectangle.height;
+		uint16_t bar_height =
+			(wm->bar && m == prim_monitor) ? wm->bar->rectangle.height : 0;
+
+		if (layout == DEFAULT || layout == STACK) {
+			tree->rectangle = calculate_monitor_area(m, w, h, bar_height);
+
+			if (layout == DEFAULT)
+				apply_default_layout(tree);
+			else
+				apply_stack_layout(tree);
+
+		} else if (layout == MASTER) {
+			node_t *ms = find_master_node(tree);
+			if (!ms && !(ms = find_any_leaf(tree)))
+				return;
+
+			ms->is_master			  = true;
 			const double ratio		  = 0.70;
-			uint16_t	 w			  = m->rectangle.width;
-			uint16_t	 h			  = m->rectangle.height;
-			int16_t		 x			  = m->rectangle.x;
-			int16_t		 y			  = m->rectangle.y;
 			uint16_t	 master_width = (uint16_t)(w * ratio);
 			uint16_t	 r_width	  = (uint16_t)(w * (1 - ratio));
-			if (ms == NULL) {
-				ms = find_any_leaf(tree);
-				if (ms == NULL) {
-					return;
-				}
-			}
-			ms->is_master = true;
-			uint16_t bar_height =
-				wm->bar == NULL ? 0 : wm->bar->rectangle.height;
-			const rectangle_t r1 = {
-				.x		= (int16_t)(x + conf.window_gap),
-				.y		= (int16_t)(y + bar_height + conf.window_gap),
-				.width	= (uint16_t)(master_width - 2 * conf.window_gap),
-				.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
-			};
-			const rectangle_t r2 = {
-				.x		= (int16_t)(x + master_width),
-				.y		= (int16_t)(y + bar_height + conf.window_gap),
-				.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
+
+			rectangle_t	 r1			  = {
+						   .x = (int16_t)(m->rectangle.x + conf.window_gap),
+						   .y = (int16_t)(m->rectangle.y + bar_height + conf.window_gap),
+						   .width  = (uint16_t)(master_width - 2 * conf.window_gap),
+						   .height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+			   };
+			rectangle_t r2 = {
+				.x = (int16_t)(m->rectangle.x + master_width),
+				.y = (int16_t)(m->rectangle.y + bar_height + conf.window_gap),
+				.width	= (uint16_t)(r_width - conf.window_gap),
 				.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
 			};
 			ms->rectangle	= r1;
 			tree->rectangle = r2;
 			apply_master_layout(tree);
-		} else if (l == STACK) {
-			rectangle_t r = {0};
-			uint16_t	w = m->rectangle.width;
-			uint16_t	h = m->rectangle.height;
-			int16_t		x = m->rectangle.x;
-			int16_t		y = m->rectangle.y;
-			if (wm->bar && m == prim_monitor) {
-				r.x = (int16_t)(x + conf.window_gap);
-				r.y =
-					(int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-				r.width =
-					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-				r.height =
-					(uint16_t)(h - wm->bar->rectangle.height -
-							   2 * conf.window_gap - 2 * conf.border_width);
-			} else {
-				r.x = x + conf.window_gap;
-				r.y = y + conf.window_gap;
-				r.width =
-					(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-				r.height =
-					(uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
-			}
-			tree->rectangle = r;
-			apply_stack_layout(tree);
-		} else if (l == GRID) {
+
+		} else if (layout == GRID) {
 			// todo
 		}
 	}
@@ -1286,15 +1230,22 @@ arrange_trees(void)
 	}
 }
 
+/* reload_config_wrapper is called when a user changes the config file and wants
+ * to apply the changes to the wm. The config file contains many values and
+ * rules, so the easiest way (lazy way) to handle this is to zero out the config
+ * struct along with the rules and keys lists, and populate them again from the
+ * config file */
 int
 reload_config_wrapper()
 {
+	/* store the old config values so i can compare them later with the new
+	 * values to determine what needs to be done */
 	uint16_t prev_border_width		  = conf.border_width;
 	uint16_t prev_window_gap		  = conf.window_gap;
 	uint32_t prev_active_border_color = conf.active_border_color;
 	uint32_t prev_normal_border_color = conf.normal_border_color;
 	int		 prev_virtual_desktops	  = conf.virtual_desktops;
-
+	/* clear the config data structures */
 	memset(&conf, 0, sizeof(config_t));
 
 	ungrab_keys(wm->connection, wm->root_window);
@@ -1468,11 +1419,8 @@ int
 flip_node_wrapper()
 {
 	node_t *tree = curr_monitor->desk->tree;
-	if (!tree)
-		return -1;
-
-	node_t *node = get_focused_node(tree);
-	if (node == NULL)
+	node_t *node = NULL;
+	if (!(node = get_focused_node(tree)))
 		return -1;
 
 	flip_node(node);
@@ -1482,17 +1430,13 @@ flip_node_wrapper()
 int
 cycle_win_wrapper(arg_t *arg)
 {
-	direction_t d	 = arg->d;
-	node_t	   *root = curr_monitor->desk->tree;
-	if (!root) {
-		return 0;
-	}
-	node_t *f = get_focused_node(root);
-	if (!f) {
+	direction_t d = arg->d;
+	node_t	   *f = NULL;
+	if (!(f = get_focused_node(curr_monitor->desk->tree))) {
 		_LOG_(INFO, "cannot find focused window");
 		xcb_window_t w =
 			get_window_under_cursor(wm->connection, wm->root_window);
-		f = find_node_by_window_id(root, w);
+		f = find_node_by_window_id(curr_monitor->desk->tree, w);
 	}
 	node_t *next = cycle_win(f, d);
 	if (next == NULL) {
@@ -1505,7 +1449,7 @@ cycle_win_wrapper(arg_t *arg)
 #endif
 	set_focus(next, true);
 	set_active_window_name(next->client->window);
-	update_focus(root, next);
+	update_focus(curr_monitor->desk->tree, next);
 	/*curr_monitor->desk->node = next;*/
 	return 0;
 }
@@ -1601,12 +1545,11 @@ traverse_stack_wrapper(arg_t *arg)
 	if (w == wm->root_window)
 		return 0;
 
-	node_t *root = curr_monitor->desk->tree;
-	if (!root)
+	node_t *node = NULL;
+	if (!(node = get_focused_node(curr_monitor->desk->tree)))
 		return -1;
 
-	node_t *node = get_focused_node(root);
-	node_t *n	 = d == UP ? next_node(node) : prev_node(node);
+	node_t *n = d == UP ? next_node(node) : prev_node(node);
 
 	if (n == NULL) {
 		return -1;
@@ -1614,7 +1557,7 @@ traverse_stack_wrapper(arg_t *arg)
 
 	set_focus(n, true);
 	/*curr_monitor->desk->node = n;*/
-	if (has_floating_window(root))
+	if (has_floating_window(curr_monitor->desk->tree))
 		restack();
 
 	return 0;
@@ -2001,7 +1944,7 @@ get_connected_monitor_count_xrandr()
 	xcb_randr_get_screen_resources_current_reply_t *sres =
 		xcb_randr_get_screen_resources_current_reply(wm->connection, c, NULL);
 	if (sres == NULL) {
-		fprintf(stderr, "Failed to get screen resources");
+		_LOG_(ERROR, "Failed to get screen resources");
 		return -1;
 	}
 	int len = xcb_randr_get_screen_resources_current_outputs_length(sres);
@@ -2479,7 +2422,7 @@ destroy_monitor(monitor_t *m)
 		_LOG_(ERROR, "attempted to destroy a NULL monitor.");
 		return;
 	}
-
+	/* unlink the monitor first */
 	_LOG_(INFO, "removing m from linked list");
 	unlink_monitor(&head_monitor, m);
 	assert(!get_monitor_by_randr_id(m->randr_id));
@@ -2687,7 +2630,9 @@ update_monitors(uint32_t *changes)
 				_LOG_(ERROR, "failed to merge desktops from %s", r->name);
 				continue;
 			}
-			/* destroy the disconnected monitor */
+			/* destroy the disconnected monitor, this unlinks the monitor from
+			 * the list, frees its desktops and trees, and then free the monitor
+			 * itslef */
 			destroy_monitor(r);
 		}
 		*changes &= ~_NONE;
@@ -2707,7 +2652,7 @@ handle_monitor_changes(void)
 	 * list and assign desktops to it.
 	 * 2- an exisitng monitor was
 	 * disconnected, we need to merge its desktops with the primary monitor
-	 * then remove it and free its desktops.
+	 * then remove it and free its desktops and trees.
 	 * 3- a resolution or oreintation was changed for an existing
 	 * monitor, we need to recaluclate the rectangle for it and resize its
 	 * trees
@@ -2789,11 +2734,16 @@ get_monitor_from_desktop(desktop_t *desktop)
 	return NULL;
 }
 
+/* set_desktop is called when 1- zwm starts and monitors were intially set up
+ * and need to have desktops assigned to them. 2- when xrandr forces monitor
+ * changes */
 static bool
 setup_desktops(void)
 {
 	monitor_t *curr = head_monitor;
 	while (curr) {
+		/* becaues this function is also called when monitors change, we need
+		 * to skip old monitors in the list. */
 		if (curr && curr->desktops) {
 			_LOG_(INFO,
 				  "monitor %s already has desktops... skipping",
@@ -3155,6 +3105,8 @@ set_input_focus(xcb_conn_t	   *conn,
 	return 0;
 }
 
+/* tile - maps the window to its correct postion and sets its width and height
+ */
 int
 tile(node_t *node)
 {
@@ -3566,6 +3518,10 @@ ungrab_keys(xcb_conn_t *conn, xcb_window_t win)
 	}
 }
 
+/* map_floating - is called on windows that I do not wanna insert into the tree,
+ * like notification windows and many other short-lived windows. Not to confuse
+ * this with handle_floating_window, that function inserts floating windows into
+ * the tree */
 static void
 map_floating(xcb_window_t x)
 {
@@ -3586,6 +3542,10 @@ map_floating(xcb_window_t x)
 	xcb_map_window(wm->connection, x);
 }
 
+/* find_window_in_desktops - is used to find where a given window is located in
+ * monitors<->desktops. It assigns the reaults to the out parameters
+ * **curr_desktop
+ * **curr_node */
 static void
 find_window_in_desktops(desktop_t  **curr_desktop,
 						node_t	   **curr_node,
@@ -4563,6 +4523,10 @@ handle_map_request(const xcb_event_t *event)
 	if ((apply_floating_hints(win) != -1 && wint != WINDOW_TYPE_DOCK)) {
 		return handle_floating_window_request(win, curr_monitor->desk);
 	}
+
+	/* notification windows are short-lived, they dont deserve entering the
+	 * tree. Thus, we just map them as is, and they go away on their own shortly
+	 * after */
 	if (wint == WINDOW_TYPE_NOTIFICATION) {
 		map_floating(win);
 		return 0;
@@ -4598,11 +4562,17 @@ handle_enter_notify(const xcb_event_t *event)
 	_LOG_(DEBUG, "recieved enter notify for %d, name %s ", win, name);
 	_FREE_(name);
 #endif
+	/* ignore events with 1- non-normal modes. Those are because a grab
+	 * activated/deactivated. 2- events with detail "inferior".  This detail
+	 * means that the cursor was previously inside of a child window and now
+	 * left that child window, it happens with broswer menues, code edeitor
+	 * completion menues etc */
 	if (ev->mode != XCB_NOTIFY_MODE_NORMAL ||
 		ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) {
 		return 0;
 	}
 
+	/* if the cursor enters a status bar window, ignore the event */
 	if (wm->bar && win == wm->bar->window) {
 		return 0;
 	}
@@ -5076,17 +5046,14 @@ handle_unmap_notify(const xcb_event_t *event)
 	_LOG_(DEBUG, "recieved unmap notify for %d, name %s ", win, s);
 	_FREE_(s);
 #endif
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return 0;
-
 	if (wm->bar && wm->bar->window == win) {
 		hide_bar(win);
-		render_tree(root);
+		render_tree(curr_monitor->desk->tree);
 		return 0;
 	}
 
-	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
+	if (!client_exist(curr_monitor->desk->tree, win) &&
+		!client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);
@@ -5195,17 +5162,14 @@ handle_destroy_notify(const xcb_event_t *event)
 	_FREE_(s);
 #endif
 
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
-		return 0;
-
 	if (wm->bar && wm->bar->window == win) {
 		hide_bar(win);
-		render_tree(root);
+		render_tree(curr_monitor->desk->tree);
 		return 0;
 	}
 
-	if (!client_exist(root, win) && !client_exist_in_desktops(win)) {
+	if (!client_exist(curr_monitor->desk->tree, win) &&
+		!client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
 		char *name = win_name(win);
 		_LOG_(DEBUG, "cannot find win %d, name %s", win, name);
@@ -5444,11 +5408,15 @@ xcb_event_to_string(uint8_t type)
 	}
 }
 
+/* handle_event - receives x events and handle them as it should.
+ * Since the wm is an x client itself, and is subscribed to substructure redirections,
+ * the x server will redirect any event it recevies to the wm */
 static int
 handle_event(xcb_event_t *event)
 {
 	uint8_t event_type = event->response_type & ~0x80;
 
+	/* xinerima is ignored here */
 	if (using_xrandr &&
 		event_type == randr_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
 		_LOG_(INFO, "monitor update was requested");
@@ -5466,6 +5434,7 @@ handle_event(xcb_event_t *event)
 	return 0;
 }
 
+/* event_loop - the main loop that listens to redirected x events */
 static void
 event_loop(wm_t *w)
 {

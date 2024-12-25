@@ -1119,7 +1119,7 @@ apply_layout(desktop_t *d, layout_t t)
 	}
 	case MASTER: {
 		xcb_window_t win =
-	get_window_under_cursor(wm->connection, wm->root_window);
+			get_window_under_cursor(wm->connection, wm->root_window);
 		if (win == XCB_NONE || win == wm->root_window) {
 			return;
 		}
@@ -1132,7 +1132,7 @@ apply_layout(desktop_t *d, layout_t t)
 	}
 	case STACK: {
 		xcb_window_t win =
-		get_window_under_cursor(wm->connection, wm->root_window);
+			get_window_under_cursor(wm->connection, wm->root_window);
 
 		if (win == XCB_NONE || win == wm->root_window) {
 			return;
