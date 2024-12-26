@@ -3642,6 +3642,7 @@ kill_window(xcb_window_t win)
 
 	if (is_tree_empty(d->tree)) {
 		set_active_window_name(XCB_NONE);
+		focused_win = XCB_NONE;
 	}
 
 	if (!another_desktop) {
@@ -5409,8 +5410,8 @@ xcb_event_to_string(uint8_t type)
 }
 
 /* handle_event - receives x events and handle them as it should.
- * Since the wm is an x client itself, and is subscribed to substructure redirections,
- * the x server will redirect any event it recevies to the wm */
+ * Since the wm is an x client itself, and is subscribed to substructure
+ * redirections, the x server will redirect any event it recevies to the wm */
 static int
 handle_event(xcb_event_t *event)
 {
