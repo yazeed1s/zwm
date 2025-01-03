@@ -291,6 +291,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     -   **change_state**: Set window state (FLAOTING, TILED).
     -   **grow_floating_window**: Grow floating window (horizontally or vertically).
     -   **shrink_floating_window**: Shrink floating window (horizontally or vertically).
+    -   **cycle_monitors**: Cycle between monitors (left or right, relative to the linked-list order not the physical positioning).
 
 -   Default keys
 
@@ -320,14 +321,16 @@ bind = shift + up -> func(shift_window:up)
 bind = shift + right -> func(shift_window:right)
 bind = shift + left -> func(shift_window:left)
 bind = shift + down -> func(shift_window:down)
+bind = shift + f -> func(change_state:float)
+bind = shift + t -> func(change_state:tile)
 bind = super|shift + t -> func(shrink_floating_window:horizontal)
 bind = super|shift + g -> func(shrink_floating_window:vertical)
 bind = super|shift + y -> func(grow_floating_window:horizontal)
 bind = super|shift + h -> func(grow_floating_window:vertical)
-bind = shift + t -> func(change_state:tile)
-bind = shift + f -> func(change_state:float)
 bind = super|shift + left -> func(cycle_desktop:left)
 bind = super|shift + right -> func(cycle_desktop:right)
+bind = super|ctrl + right -> func(cycle_monitors:next)
+bind = super|ctrl + left -> func(cycle_monitors:prev)
 bind = super|shift + 1 -> func(transfer_node:1)
 bind = super|shift + 2 -> func(transfer_node:2)
 bind = super|shift + 3 -> func(transfer_node:3)
@@ -369,6 +372,8 @@ More options will be added in the future as development progresses.
 | `super + shift + h`      | grow floating windows vertically     |
 | `super + shift + t`      | shrink floating windows horizontally |
 | `super + shift + g`      | shrink floating windows vertically   |
+| `super + ctrl + →`       | focus/change monitor right           |
+| `super + ctrl + ←`       | focus/change monitor left            |
 | `super + s`              | swap window's orientation            |
 | `super + ←`              | focus window on the left             |
 | `super + ↑`              | focus window above                   |

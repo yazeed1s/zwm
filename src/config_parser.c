@@ -82,6 +82,7 @@ static const conf_mapper_t _cmapper_[] = {
     DEFINE_MAPPING("cycle_window",   		 cycle_win_wrapper),
     DEFINE_MAPPING("reload_config",  		 reload_config_wrapper),
     DEFINE_MAPPING("cycle_desktop",  		 cycle_desktop_wrapper),
+    DEFINE_MAPPING("cycle_monitors",  		 cycle_monitors),
     DEFINE_MAPPING("shift_window",   		 shift_floating_window),
     DEFINE_MAPPING("grow_floating_window",   grow_floating_window),
     DEFINE_MAPPING("shrink_floating_window", shrink_floating_window),
@@ -344,6 +345,10 @@ write_default_config(const char *filename, config_t *c)
     "bind = super + right -> func(cycle_window:right)\n"
     "bind = super + left -> func(cycle_window:left)\n"
     "bind = super + down -> func(cycle_window:down)\n"
+    "\n"
+    "; cycle focus between monitors\n"
+    "bind = super|ctrl + right -> func(cycle_monitors:next)\n"
+    "bind = super|ctrl + left -> func(cycle_monitors:prev)\n"
     "\n"
 	"; shift floating window position to the specified direction\n"
     "bind = shift + up -> func(shift_window:up)\n"
@@ -775,6 +780,12 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 			key->arg->rd = HORIZONTAL_DIR;
 		} else if (strcmp(arg, "vertical") == 0) {
 			key->arg->rd = VERTICAL_DIR;
+		}
+	} else if (strcmp(func, "cycle_monitors") == 0) {
+		if (strcmp(arg, "next") == 0) {
+			key->arg->tr = NEXT;
+		} else if (strcmp(arg, "prev") == 0) {
+			key->arg->tr = PREV;
 		}
 	}
 }

@@ -189,54 +189,64 @@ insert_floating_node(node_t *node, desktop_t *d)
 	}
 	node->node_type = EXTERNAL_NODE;
 }
+static void
+split_rect(node_t *n, split_type_t s)
+{
+	const int16_t gap		  = conf.window_gap - conf.border_width;
+	const int16_t half_width  = (n->rectangle.width - gap) / 2;
+	const int16_t half_height = (n->rectangle.height - gap) / 2;
+	node_t		 *n1		  = n->first_child;
+	node_t		 *n2		  = n->second_child;
+	rectangle_t	 *fr		  = &n1->rectangle;
+	rectangle_t	 *sr		  = &n2->rectangle;
+	if (s == HORIZONTAL_TYPE) {
+		fr->x	   = n->rectangle.x;
+		fr->y	   = n->rectangle.y;
+		fr->width  = half_width;
+		fr->height = n->rectangle.height;
+		if (!IS_FLOATING(n1->client)) {
+			sr->x = n->rectangle.x + fr->width + conf.window_gap +
+					conf.border_width;
+			sr->y	  = n->rectangle.y;
+			sr->width = n->rectangle.width - fr->width - conf.window_gap -
+						conf.border_width;
+			sr->height = n->rectangle.height;
+		} else {
+			*sr = n->rectangle;
+		}
+	} else {
+		fr->x	   = n->rectangle.x;
+		fr->y	   = n->rectangle.y;
+		fr->width  = n->rectangle.width;
+		fr->height = half_height;
+		if (!IS_FLOATING(n2->client)) {
+			sr->x = n->rectangle.x;
+			sr->y = n->rectangle.y + fr->height + conf.window_gap +
+					conf.border_width;
+			sr->width  = n->rectangle.width;
+			sr->height = n->rectangle.height - fr->height - conf.window_gap -
+						 conf.border_width;
+		} else {
+			*sr = n->rectangle;
+		}
+	}
+}
 
-/* split_node - splits a node's rectangle in half, the split could be vertical
- * or horizontal depending on (width > height)? */
+/* split_node - splits a node's rectangle in half, the split could be
+ * vertical or horizontal depending on (width > height)? */
 static void
 split_node(node_t *n, node_t *nd)
 {
-	rectangle_t *first_rect	 = &n->first_child->rectangle;
-	rectangle_t *second_rect = &n->second_child->rectangle;
 	if (IS_FLOATING(nd->client)) {
-		*first_rect = n->floating_rectangle = n->rectangle;
+		n->first_child->rectangle = n->floating_rectangle = n->rectangle;
 		return;
 	}
 	if (n->rectangle.width >= n->rectangle.height) {
 		/* horizontal split */
-		const int16_t gap		 = conf.window_gap - conf.border_width;
-		const int16_t half_width = (n->rectangle.width - gap) / 2;
-		first_rect->x			 = n->rectangle.x;
-		first_rect->y			 = n->rectangle.y;
-		first_rect->width		 = half_width;
-		first_rect->height		 = n->rectangle.height;
-		if (!IS_FLOATING(n->first_child->client)) {
-			second_rect->x = n->rectangle.x + first_rect->width +
-							 conf.window_gap + conf.border_width;
-			second_rect->y	   = n->rectangle.y;
-			second_rect->width = n->rectangle.width - first_rect->width -
-								 conf.window_gap - conf.border_width;
-			second_rect->height = n->rectangle.height;
-		} else {
-			*second_rect = n->rectangle;
-		}
+		split_rect(n, HORIZONTAL_TYPE);
 	} else {
 		/* verticall split */
-		const int16_t gap		  = conf.window_gap - conf.border_width;
-		const int16_t half_height = (n->rectangle.height - gap) / 2;
-		first_rect->x			  = n->rectangle.x;
-		first_rect->y			  = n->rectangle.y;
-		first_rect->width		  = n->rectangle.width;
-		first_rect->height		  = half_height;
-		if (!IS_FLOATING(n->first_child->client)) {
-			second_rect->x = n->rectangle.x;
-			second_rect->y = n->rectangle.y + first_rect->height +
-							 conf.window_gap + conf.border_width;
-			second_rect->width	= n->rectangle.width;
-			second_rect->height = n->rectangle.height - first_rect->height -
-								  conf.window_gap - conf.border_width;
-		} else {
-			*second_rect = n->rectangle;
-		}
+		split_rect(n, VERTICAL_TYPE);
 	}
 }
 
@@ -382,45 +392,18 @@ resize_subtree(node_t *parent)
 	if (parent == NULL)
 		return;
 
-	rectangle_t r, r2 = {0};
-
 	if (parent->rectangle.width >= parent->rectangle.height) {
-		r.x = parent->rectangle.x;
-		r.y = parent->rectangle.y;
-		r.width =
-			(parent->rectangle.width - (conf.window_gap - conf.border_width)) /
-			2;
-		r.height = parent->rectangle.height;
-		r2.x	 = (int16_t)(parent->rectangle.x + r.width + conf.window_gap +
-						 conf.border_width);
-		r2.y	 = parent->rectangle.y;
-		r2.width = parent->rectangle.width - r.width - conf.window_gap -
-				   conf.border_width;
-		r2.height = parent->rectangle.height;
+		split_rect(parent, HORIZONTAL_TYPE);
 	} else {
-		r.x		= parent->rectangle.x;
-		r.y		= parent->rectangle.y;
-		r.width = parent->rectangle.width;
-		r.height =
-			(parent->rectangle.height - (conf.window_gap - conf.border_width)) /
-			2;
-		r2.x	  = parent->rectangle.x;
-		r2.y	  = (int16_t)(parent->rectangle.y + r.height + conf.window_gap +
-						  conf.border_width);
-		r2.width  = parent->rectangle.width;
-		r2.height = parent->rectangle.height - r.height - conf.window_gap -
-					conf.border_width;
+		split_rect(parent, VERTICAL_TYPE);
 	}
 
 	if (parent->first_child) {
-		parent->first_child->rectangle = r;
 		if (IS_INTERNAL(parent->first_child)) {
 			resize_subtree(parent->first_child);
 		}
 	}
-
 	if (parent->second_child) {
-		parent->second_child->rectangle = r2;
 		if (IS_INTERNAL(parent->second_child)) {
 			resize_subtree(parent->second_child);
 		}
@@ -556,11 +539,7 @@ sort(node_t **s, int n)
 void
 restack(void)
 {
-	int idx = get_focused_desktop_idx();
-	if (idx == -1)
-		return;
-
-	node_t *root = curr_monitor->desktops[idx]->tree;
+	node_t *root = curr_monitor->desk->tree;
 	if (root == NULL)
 		return;
 
@@ -571,11 +550,8 @@ restack(void)
 		_LOG_(ERROR, "cannot allocate stack");
 		return;
 	}
-	stack_and_lower(root,
-					stack,
-					&top,
-					stack_size,
-					curr_monitor->desktops[idx]->layout == STACK);
+	stack_and_lower(
+		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
 	if (top == 0) {
 		if (stack[0]->client)
 			raise_window(stack[0]->client->window);
@@ -891,6 +867,27 @@ apply_default_layout(node_t *root)
 	}
 }
 
+static void
+calculate_base_rect(rectangle_t *r, monitor_t *m)
+{
+	uint16_t w = m->rectangle.width;
+	uint16_t h = m->rectangle.height;
+	uint16_t x = m->rectangle.x;
+	uint16_t y = m->rectangle.y;
+	if (wm->bar && m == prim_monitor) {
+		r->x	  = (int16_t)(x + conf.window_gap);
+		r->y	  = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
+		r->width  = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r->height = (uint16_t)(h - wm->bar->rectangle.height -
+							   2 * conf.window_gap - 2 * conf.border_width);
+	} else {
+		r->x	  = (int16_t)(x + conf.window_gap);
+		r->y	  = (int16_t)(y + conf.window_gap);
+		r->width  = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
+		r->height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
+	}
+}
+
 /* default_layout - applies the default layout to the tree.
  *
  * initializes the default layout for the entire screen or
@@ -902,24 +899,8 @@ default_layout(node_t *root)
 {
 	if (root == NULL)
 		return;
-
 	rectangle_t r = {0};
-	uint16_t	w = curr_monitor->rectangle.width;
-	uint16_t	h = curr_monitor->rectangle.height;
-	uint16_t	x = curr_monitor->rectangle.x;
-	uint16_t	y = curr_monitor->rectangle.y;
-	if (wm->bar && curr_monitor == prim_monitor) {
-		r.x		 = (int16_t)(x + conf.window_gap);
-		r.y		 = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r.height = (uint16_t)(h - wm->bar->rectangle.height -
-							  2 * conf.window_gap - 2 * conf.border_width);
-	} else {
-		r.x		 = (int16_t)(x + conf.window_gap);
-		r.y		 = (int16_t)(y + conf.window_gap);
-		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r.height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
-	}
+	calculate_base_rect(&r, curr_monitor);
 	root->rectangle = r;
 	apply_default_layout(root);
 }
@@ -1084,23 +1065,8 @@ apply_stack_layout(node_t *root)
 static void
 stack_layout(node_t *root)
 {
-	rectangle_t	   r = {0};
-	uint16_t	   w = curr_monitor->rectangle.width;
-	uint16_t	   h = curr_monitor->rectangle.height;
-	const uint16_t x = curr_monitor->rectangle.x;
-	const uint16_t y = curr_monitor->rectangle.y;
-	if (wm->bar && curr_monitor == prim_monitor) {
-		r.x		 = (int16_t)(x + conf.window_gap);
-		r.y		 = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r.height = (uint16_t)(h - wm->bar->rectangle.height -
-							  2 * conf.window_gap - 2 * conf.border_width);
-	} else {
-		r.x		 = (int16_t)(x + conf.window_gap);
-		r.y		 = (int16_t)(y + conf.window_gap);
-		r.width	 = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r.height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
-	}
+	rectangle_t r = {0};
+	calculate_base_rect(&r, curr_monitor);
 	root->rectangle = r;
 	apply_stack_layout(root);
 }
@@ -1363,7 +1329,7 @@ delete_node(node_t *node, desktop_t *d)
 		_LOG_(ERROR, "node to be deleted is null");
 		return;
 	}
-
+	/*bool swap = node == d->node;*/
 	if (IS_INTERNAL(node)) {
 		_LOG_(ERROR,
 			  "node to be deleted is not an external node type: %d",
@@ -1381,6 +1347,11 @@ delete_node(node_t *node, desktop_t *d)
 		check = true;
 	}
 
+	/*node_t *n = prev_node(node);
+	if (!n) {
+		n = next_node(node);
+	}*/
+
 	if (!unlink_node(node, d)) {
 		_LOG_(ERROR, "could not unlink node.. abort");
 		return;
@@ -1388,12 +1359,16 @@ delete_node(node_t *node, desktop_t *d)
 
 	if (check) {
 		assert(!d->tree);
+		/*d->node = NULL;*/
 	}
 
 	_FREE_(node->client);
 	_FREE_(node);
 
-out:
+	/*if (!check) {
+		d->node = n;
+	}*/
+
 	d->n_count -= 1;
 	if (!is_tree_empty(d->tree)) {
 		arrange_tree(d->tree, d->layout);
@@ -1833,25 +1808,7 @@ transfer_node(node_t *node, desktop_t *d)
 
 	if (is_tree_empty(d->tree)) {
 		rectangle_t r = {0};
-		uint16_t	w = curr_monitor->rectangle.width;
-		uint16_t	h = curr_monitor->rectangle.height;
-		uint16_t	x = curr_monitor->rectangle.x;
-		uint16_t	y = curr_monitor->rectangle.y;
-		if (wm->bar && curr_monitor == prim_monitor) {
-			r.x = (int16_t)(x + conf.window_gap);
-			r.y = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-			r.width =
-				(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-			r.height = (uint16_t)(h - wm->bar->rectangle.height -
-								  2 * conf.window_gap - 2 * conf.border_width);
-		} else {
-			r.x = (int16_t)(x + conf.window_gap);
-			r.y = (int16_t)(y + conf.window_gap);
-			r.width =
-				(uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-			r.height =
-				(uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
-		}
+		calculate_base_rect(&r, curr_monitor);
 		node->node_type	   = ROOT_NODE;
 		d->tree			   = node;
 		d->tree->rectangle = r;
