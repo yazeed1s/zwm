@@ -41,6 +41,7 @@
 
 #define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, handler, arg}
 #define DEFINE_MAPPING(name, value)			   {name, value}
+#define _KEY(k) XK_#k
 
 /* spent way too many hours hunting double-free bugs. This should handle it. */
 #define _FREE_(ptr)                                                            \
