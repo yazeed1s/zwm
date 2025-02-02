@@ -34,7 +34,9 @@
 #include <sys/types.h>
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_event.h>
 #include <xcb/xcb_ewmh.h>
+#include <xcb/xcb_icccm.h>
 
 #define CAP					 3
 #define MAXLEN				 (2 << 7)
@@ -183,15 +185,26 @@ typedef enum {
 	CLIENT_MESSAGE_CLOSE_WINDOW
 } client_message_type_t;
 
+typedef struct icccm_props_t icccm_props_t;
+struct icccm_props_t {
+	bool take_focus;
+	bool input_hint;
+	bool delete_window;
+};
+
 /* defines the client, like an opened application like firefox of a text editor.
  * every leaf node in the tree contains a non-null client, internal nodes ALWAYS
  * have null clients.
  */
 typedef struct {
-	uint32_t	 border_width;
-	xcb_window_t window;
-	xcb_atom_t	 type;
-	state_t		 state;
+    /*char			 class_name[MAXLEN];*/
+    /*char			 wm_name[MAXLEN];*/
+	uint32_t		 border_width;
+	xcb_window_t	 window;
+	xcb_atom_t		 type;
+	state_t			 state;
+	icccm_props_t	 props;
+	xcb_size_hints_t size_hints;
 } client_t;
 
 /* types for tree nodes */

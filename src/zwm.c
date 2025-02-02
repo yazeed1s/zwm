@@ -39,6 +39,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -206,6 +207,9 @@ static int handle_key_press(const xcb_event_t *);
 static int handle_mapping_notify(const xcb_event_t *);
 static int handle_leave_notify(const xcb_event_t *);
 static int handle_motion_notify(const xcb_event_t *);
+static int handle_focus_in(const xcb_event_t *);
+static int handle_property_notify(const xcb_event_t *);
+static int send_client_message(xcb_window_t, xcb_atom_t, xcb_atom_t, xcb_conn_t *);
 
 /* array of xcb events we need to handle -> {event, handler function} */
 static const event_handler_entry_t _handlers_[] = {
@@ -834,7 +838,7 @@ transfer_node_wrapper(arg_t *arg)
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", i + 1);
 	log_tree_nodes(nd->tree);
-	_LOG_(INFO, "old desktop %d nodes--------------", d + 1);
+	_LOG_(INFO, "old desktop %d nodes--------------", od->id + 1);
 	log_tree_nodes(od->tree);
 #endif
 	if (set_visibility(node->client->window, false) != 0) {
@@ -1668,6 +1672,34 @@ get_geometry(xcb_window_t win, xcb_conn_t *conn)
 	return gr;
 }
 
+static void
+get_class_name(xcb_window_t win, char **out)
+{
+	xcb_icccm_get_wm_class_reply_t t_reply;
+	xcb_get_property_cookie_t cn = xcb_icccm_get_wm_class(wm->connection, win);
+	const uint8_t			  wr =
+		xcb_icccm_get_wm_class_reply(wm->connection, cn, &t_reply, NULL);
+	if (wr == 1) {
+		/* out should be freed after it's copied over in the caller function */
+		*out = strdup(t_reply.class_name);
+		xcb_icccm_get_wm_class_reply_wipe(&t_reply);
+	}
+}
+
+static void
+get_wm_name(xcb_window_t win, char **out)
+{
+	xcb_icccm_get_text_property_reply_t t_reply;
+	xcb_get_property_cookie_t cn = xcb_icccm_get_wm_name(wm->connection, win);
+	uint8_t					  wr =
+		xcb_icccm_get_wm_name_reply(wm->connection, cn, &t_reply, NULL);
+	if (wr == 1) {
+		/* out should be freed after it's copied over in the caller function */
+		*out = strdup(t_reply.name);
+		xcb_icccm_get_text_property_reply_wipe(&t_reply);
+	}
+}
+
 static client_t *
 create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 {
@@ -1675,9 +1707,28 @@ create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 	if (c == 0x00)
 		return NULL;
 
+	/*memset(c->class_name, 0, sizeof(c->class_name));
+	memset(c->wm_name, 0, sizeof(c->wm_name));
+	char *wm_name	 = NULL;
+	char *class_name = NULL;
+	get_class_name(win, &class_name);
+	get_wm_name(win, &wm_name);
+	if (wm_name && class_name) {
+		strncpy(c->class_name, class_name, sizeof(c->class_name) - 1);
+		strncpy(c->wm_name, wm_name, sizeof(c->wm_name) - 1);
+		_LOG_(INFO, "created client wm_class %s", c->class_name);
+		_LOG_(INFO, "created client wm_name %s", c->wm_name);
+		_FREE_(wm_name);
+		_FREE_(class_name);
+	}*/
+
 	c->window				= win;
 	c->type					= wtype;
 	c->border_width			= (uint32_t)-1;
+	/* props are not being utlized, will use them in the future */
+	c->props.delete_window	= false;
+	c->props.input_hint		= false;
+	c->props.take_focus		= false;
 	const uint32_t mask		= XCB_CW_EVENT_MASK;
 	const uint32_t values[] = {CLIENT_EVENT_MASK};
 	xcb_cookie_t   cookie =
@@ -2808,14 +2859,14 @@ setup_ewmh(void)
 								wm->ewmh->_NET_ACTIVE_WINDOW,
 								wm->ewmh->_NET_WM_NAME,
 								wm->ewmh->_NET_CLOSE_WINDOW,
-								wm->ewmh->_NET_WM_STRUT_PARTIAL,
+								/* wm->ewmh->_NET_WM_STRUT_PARTIAL, */
 								wm->ewmh->_NET_WM_DESKTOP,
 								wm->ewmh->_NET_WM_STATE,
-								wm->ewmh->_NET_WM_STATE_HIDDEN,
+								/* wm->ewmh->_NET_WM_STATE_HIDDEN, */
+								/* wm->ewmh->_NET_WM_STATE_STICKY, */
 								wm->ewmh->_NET_WM_STATE_FULLSCREEN,
 								wm->ewmh->_NET_WM_STATE_BELOW,
 								wm->ewmh->_NET_WM_STATE_ABOVE,
-								wm->ewmh->_NET_WM_STATE_STICKY,
 								wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION,
 								wm->ewmh->_NET_WM_WINDOW_TYPE,
 								wm->ewmh->_NET_WM_WINDOW_TYPE_DOCK,
@@ -4510,19 +4561,22 @@ handle_map_request(const xcb_event_t *event)
 
 	if (rule) {
 		if (rule->desktop_id != -1) {
-			return insert_into_desktop(
-				rule->desktop_id, win, rule->state == TILED);
+			insert_into_desktop(rule->desktop_id, win, rule->state == TILED);
+			goto out;
 		}
 		if (rule->state == FLOATING) {
-			return handle_floating_window_request(win, curr_monitor->desk);
+			handle_floating_window_request(win, curr_monitor->desk);
+			goto out;
 		} else if (rule->state == TILED) {
-			return handle_tiled_window_request(win, curr_monitor->desk);
+			handle_tiled_window_request(win, curr_monitor->desk);
+			goto out;
 		}
 	}
 
 	ewmh_window_type_t wint = window_type(win);
 	if ((apply_floating_hints(win) != -1 && wint != WINDOW_TYPE_DOCK)) {
-		return handle_floating_window_request(win, curr_monitor->desk);
+		handle_floating_window_request(win, curr_monitor->desk);
+		goto out;
 	}
 
 	/* notification windows are short-lived, they dont deserve entering the
@@ -4536,15 +4590,21 @@ handle_map_request(const xcb_event_t *event)
 	switch (wint) {
 	case WINDOW_TYPE_UNKNOWN:
 	case WINDOW_TYPE_NORMAL:
-		return handle_tiled_window_request(win, curr_monitor->desk);
+		handle_tiled_window_request(win, curr_monitor->desk);
+		break;
 	case WINDOW_TYPE_DOCK: return handle_bar_request(win, curr_monitor->desk);
 	case WINDOW_TYPE_TOOLBAR_MENU:
 	case WINDOW_TYPE_UTILITY:
 	case WINDOW_TYPE_SPLASH:
 	case WINDOW_TYPE_DIALOG:
-		return handle_floating_window_request(win, curr_monitor->desk);
-	default: return 0;
+		handle_floating_window_request(win, curr_monitor->desk);
+		break;
+	default: break;
 	}
+out:
+	set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL);
+	xcb_flush(wm->connection);
+	return 0;
 }
 
 static int
@@ -4713,7 +4773,45 @@ handle_leave_notify(const xcb_event_t *event)
 			  client->window);
 		return -1;
 	}
+	xcb_flush(wm->connection);
+	return 0;
+}
 
+static int
+handle_property_notify(const xcb_event_t *event)
+{
+	xcb_flush(wm->connection);
+	return 0;
+}
+
+static int
+handle_focus_in(const xcb_event_t *event)
+{
+	xcb_focus_in_event_t *ev  = (xcb_focus_in_event_t *)event;
+	xcb_window_t		  win = ev->event;
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG, "recieved focus in for %d, name %s ", win, name);
+	_FREE_(name);
+#endif
+	if (ev->mode == XCB_NOTIFY_MODE_GRAB ||
+		ev->mode == XCB_NOTIFY_MODE_UNGRAB ||
+		ev->detail == XCB_NOTIFY_DETAIL_POINTER ||
+		ev->detail == XCB_NOTIFY_DETAIL_POINTER_ROOT ||
+		ev->detail == XCB_NOTIFY_DETAIL_NONE) {
+		return 0;
+	}
+
+	node_t *n = NULL;
+	if ((n = get_focused_node(curr_monitor->desk->tree)) == NULL) {
+		return -1;
+	}
+
+	if (n->client->window == win)
+		return 0;
+
+	set_focus(n, true);
+	xcb_flush(wm->connection);
 	return 0;
 }
 
@@ -4973,10 +5071,6 @@ handle_net_wm_desktop(xcb_window_t win, uint32_t index)
 static int
 handle_client_message(const xcb_event_t *event)
 {
-	if (!event) {
-		return -1;
-	}
-
 	xcb_client_message_event_t *ev = (xcb_client_message_event_t *)event;
 
 	if (ev->format != 32) {
@@ -5034,6 +5128,7 @@ handle_client_message(const xcb_event_t *event)
 	}
 
 	_FREE_(name);
+	xcb_flush(wm->connection);
 	return result;
 }
 
@@ -5067,7 +5162,7 @@ handle_unmap_notify(const xcb_event_t *event)
 		_LOG_(ERROR, "cannot kill window %d (unmap)", win);
 		return -1;
 	}
-
+	xcb_flush(wm->connection);
 	return 0;
 }
 
@@ -5148,7 +5243,26 @@ handle_configure_request(const xcb_event_t *event)
 			return 0;
 		}
 		/* TODO: deal with *node */
+		xcb_configure_notify_event_t evt;
+		unsigned int				 bw = conf.border_width;
+		rectangle_t					 r	= node->rectangle;
+		evt.response_type				= XCB_CONFIGURE_NOTIFY;
+		evt.event						= win;
+		evt.window						= win;
+		evt.above_sibling				= XCB_NONE;
+		evt.x							= r.x;
+		evt.y							= r.y;
+		evt.width						= r.width;
+		evt.height						= r.height;
+		evt.border_width				= bw;
+		evt.override_redirect			= false;
+		xcb_send_event(wm->connection,
+					   false,
+					   win,
+					   XCB_EVENT_MASK_STRUCTURE_NOTIFY,
+					   (const char *)&evt);
 	}
+	xcb_flush(wm->connection);
 	return 0;
 }
 
@@ -5183,7 +5297,7 @@ handle_destroy_notify(const xcb_event_t *event)
 		_LOG_(ERROR, "cannot kill window %d (destroy)", win);
 		return -1;
 	}
-
+	xcb_flush(wm->connection);
 	return 0;
 }
 
@@ -5306,7 +5420,7 @@ handle_mapping_notify(const xcb_event_t *event)
 		_LOG_(ERROR, "cannot grab keys");
 		return -1;
 	}
-
+	xcb_flush(wm->connection);
 	return 0;
 }
 
