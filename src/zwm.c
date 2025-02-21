@@ -127,8 +127,8 @@ static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER,         _KEY(Right),   cycle_win_wrapper,         &((arg_t){.d    = RIGHT})),
     DEFINE_KEY(SUPER,         _KEY(Up),      cycle_win_wrapper,         &((arg_t){.d    = UP})),
     DEFINE_KEY(SUPER,         _KEY(Down),    cycle_win_wrapper,         &((arg_t){.d    = DOWN})),
-    DEFINE_KEY(SUPER,         _KEY(l),       horizontal_resize_wrapper, &((arg_t){.r    = GROW})),
-    DEFINE_KEY(SUPER,         _KEY(h),       horizontal_resize_wrapper, &((arg_t){.r    = SHRINK})),
+    DEFINE_KEY(SUPER,         _KEY(l),       dynamic_resize_wrapper, &((arg_t){.r    = GROW})),
+    DEFINE_KEY(SUPER,         _KEY(h),       dynamic_resize_wrapper, &((arg_t){.r    = SHRINK})),
     DEFINE_KEY(SUPER,         _KEY(f),       set_fullscreen_wrapper,    NULL),
     DEFINE_KEY(SUPER,         _KEY(s),       swap_node_wrapper,         NULL),
     DEFINE_KEY(SUPER,         _KEY(i),       gap_handler,               &((arg_t){.r    = GROW})),
@@ -868,10 +868,10 @@ transfer_node_wrapper(arg_t *arg)
 }
 
 int
-horizontal_resize_wrapper(arg_t *arg)
+dynamic_resize_wrapper(arg_t *arg)
 {
-
-	if (curr_monitor->desk->layout == STACK) {
+	if (curr_monitor->desk->layout == STACK ||
+		curr_monitor->desk->layout == MASTER) {
 		return 0;
 	}
 
@@ -884,7 +884,7 @@ horizontal_resize_wrapper(arg_t *arg)
 				 false); /* steal the pointer and prevent it from sending
 						  * enter_notify events (which focuses the window
 						  * being under cursor as the resize happens); */
-	horizontal_resize(n, arg->r);
+	dynamic_resize(n, arg->r);
 	render_tree(curr_monitor->desk->tree);
 	ungrab_pointer();
 	return 0;
@@ -3147,10 +3147,16 @@ set_input_focus(xcb_conn_t	   *conn,
 		xcb_set_input_focus_checked(conn, revert_to, win, time);
 	xcb_error_t *err = xcb_request_check(conn, focus_cookie);
 	if (err) {
+		char *n = win_name(win);
 		_LOG_(ERROR,
-			  "failed to set input focus : error code %d",
-			  err->error_code);
+			  "failed to set input focus for win %d name %s : error code %d "
+			  "error message %s",
+			  win,
+			  n,
+			  err->error_code,
+			  strerror(err->error_code));
 		_FREE_(err);
+		_FREE_(n);
 		return -1;
 	}
 	return 0;
@@ -4260,14 +4266,17 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	xcb_window_t wi = get_window_under_cursor(wm->connection, wm->root_window);
 	node_t		*n	= NULL;
 
-	if (wm->bar && wi == wm->bar->window) {
-		n = find_any_leaf(d->tree);
-	} else {
-		n = get_focused_node(d->tree);
-		if (n == NULL || n->client == NULL) {
-			_LOG_(ERROR, "cannot find focused node");
-			return 0;
-		}
+	if (client == NULL) {
+		_LOG_(ERROR, "client is null");
+		return -1;
+	}
+
+	n = (wm->bar && wi == wm->bar->window) ? find_any_leaf(d->tree)
+										   : get_focused_node(d->tree);
+
+	if (n == NULL || n->client == NULL) {
+		_LOG_(ERROR, "cannot find node with window id");
+		return -1;
 	}
 
 	if (IS_FLOATING(n->client) && !IS_ROOT(n)) {
@@ -4280,16 +4289,6 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	if (IS_FULLSCREEN(n->client)) {
 		set_fullscreen(n, false);
-	}
-
-	if (n == NULL || n->client == NULL) {
-		_LOG_(ERROR, "cannot find node with window id");
-		return -1;
-	}
-
-	if (client == NULL) {
-		_LOG_(ERROR, "client is null");
-		return -1;
 	}
 
 	node_t *new_node = create_node(client);
@@ -5538,6 +5537,23 @@ handle_event(xcb_event_t *event)
 		handle_monitor_changes();
 		return 0;
 	}
+
+#if 0
+	switch (event_type) {
+#define _EVENT_HANDLER_(type, handler)                                         \
+	case type: return handler((void *)event);
+		_EVENT_HANDLER_(XCB_MAP_REQUEST, handle_map_request);
+		_EVENT_HANDLER_(XCB_UNMAP_NOTIFY, handle_unmap_notify);
+		_EVENT_HANDLER_(XCB_DESTROY_NOTIFY, handle_destroy_notify);
+		_EVENT_HANDLER_(XCB_CLIENT_MESSAGE, handle_client_message);
+		_EVENT_HANDLER_(XCB_CONFIGURE_REQUEST, handle_configure_request);
+		_EVENT_HANDLER_(XCB_ENTER_NOTIFY, handle_enter_notify);
+		_EVENT_HANDLER_(XCB_BUTTON_PRESS, handle_button_press_event);
+		_EVENT_HANDLER_(XCB_KEY_PRESS, handle_key_press);
+		_EVENT_HANDLER_(XCB_MAPPING_NOTIFY, handle_mapping_notify);
+#undef _EVENT_HANDLER_
+	}
+#endif
 
 	size_t n = sizeof(_handlers_) / sizeof(_handlers_[0]);
 	for (size_t i = 0; i < n; i++) {

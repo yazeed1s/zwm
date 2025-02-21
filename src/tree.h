@@ -42,7 +42,7 @@ node_t *find_left_leaf(node_t *root);
 node_t *find_any_leaf(node_t *root);
 node_t *get_focused_node(node_t *n);
 bool unlink_node(node_t *node, desktop_t *d);
-void horizontal_resize(node_t *n, resize_t t);
+void dynamic_resize(node_t *n, resize_t t);
 void apply_master_layout(node_t *parent);
 void apply_default_layout(node_t *root);
 void apply_stack_layout(node_t *root);

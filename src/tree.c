@@ -189,46 +189,34 @@ insert_floating_node(node_t *node, desktop_t *d)
 	}
 	node->node_type = EXTERNAL_NODE;
 }
+
 static void
 split_rect(node_t *n, split_type_t s)
 {
 	const int16_t gap		  = conf.window_gap - conf.border_width;
+	const int16_t pgap		  = conf.window_gap + conf.border_width;
 	const int16_t half_width  = (n->rectangle.width - gap) / 2;
 	const int16_t half_height = (n->rectangle.height - gap) / 2;
 	node_t		 *n1		  = n->first_child;
 	node_t		 *n2		  = n->second_child;
 	rectangle_t	 *fr		  = &n1->rectangle;
 	rectangle_t	 *sr		  = &n2->rectangle;
-	if (s == HORIZONTAL_TYPE) {
-		fr->x	   = n->rectangle.x;
-		fr->y	   = n->rectangle.y;
-		fr->width  = half_width;
-		fr->height = n->rectangle.height;
-		if (!IS_FLOATING(n1->client)) {
-			sr->x = n->rectangle.x + fr->width + conf.window_gap +
-					conf.border_width;
-			sr->y	  = n->rectangle.y;
-			sr->width = n->rectangle.width - fr->width - conf.window_gap -
-						conf.border_width;
-			sr->height = n->rectangle.height;
-		} else {
-			*sr = n->rectangle;
-		}
-	} else {
-		fr->x	   = n->rectangle.x;
-		fr->y	   = n->rectangle.y;
-		fr->width  = n->rectangle.width;
-		fr->height = half_height;
-		if (!IS_FLOATING(n2->client)) {
-			sr->x = n->rectangle.x;
-			sr->y = n->rectangle.y + fr->height + conf.window_gap +
-					conf.border_width;
-			sr->width  = n->rectangle.width;
-			sr->height = n->rectangle.height - fr->height - conf.window_gap -
-						 conf.border_width;
-		} else {
-			*sr = n->rectangle;
-		}
+	rectangle_t	  nr		  = n->rectangle;
+	bool		  h			  = (s == HORIZONTAL_TYPE);
+	node_t		 *nc		  = (h) ? n1 : n2;
+
+	fr->x					  = nr.x;
+	fr->y					  = nr.y;
+	fr->width				  = (h) ? half_width : nr.width;
+	fr->height				  = (h) ? nr.height : half_height;
+
+	sr->x					  = (h) ? nr.x + fr->width + pgap : nr.x;
+	sr->y					  = (h) ? nr.y : nr.y + fr->height + pgap;
+	sr->width				  = (h) ? nr.width - fr->width - gap : nr.width;
+	sr->height				  = (h) ? nr.height : nr.height - fr->height - gap;
+
+	if (IS_EXTERNAL(nc) && IS_FLOATING(nc->client)) {
+		*sr = nr;
 	}
 }
 
@@ -833,10 +821,10 @@ apply_default_layout(node_t *root)
 					conf.border_width;
 	}
 
-	/* this nested unreadable ternary code basically forces floating windows to
-	 * retain their floating rectangle and give the full parent's rectangle to
-	 * the other child. In some rare cases, this does not work as expected , I
-	 * am still looking into it */
+	/* this nested unreadable ternary code basically forces floating windows
+	 * to retain their floating rectangle and give the full parent's
+	 * rectangle to the other child. In some rare cases, this does not work
+	 * as expected , I am still looking into it */
 	if (root->first_child) {
 		root->first_child->rectangle =
 			((root->second_child->client) &&
@@ -891,9 +879,9 @@ calculate_base_rect(rectangle_t *r, monitor_t *m)
 /* default_layout - applies the default layout to the tree.
  *
  * initializes the default layout for the entire screen or
- * monitor. It sets up the initial rectangle for the root node with window gaps
- * and border widths in mind, then calls apply_default_layout to recursively
- * layout child nodes. */
+ * monitor. It sets up the initial rectangle for the root node with window
+ * gaps and border widths in mind, then calls apply_default_layout to
+ * recursively layout child nodes. */
 static void
 default_layout(node_t *root)
 {
@@ -952,8 +940,9 @@ apply_master_layout(node_t *parent)
 /* master_layout - initializes and applies the master layout to the tree.
  *
  * This func sets up the initial rectangles for the master and stack areas,
- * marks the appropriate node as the master, and then calls apply_master_layout
- * to recursively apply the layout to the entire tree. */
+ * marks the appropriate node as the master, and then calls
+ * apply_master_layout to recursively apply the layout to the entire tree.
+ */
 static void
 master_layout(node_t *root, node_t *n)
 {
@@ -994,7 +983,8 @@ master_layout(node_t *root, node_t *n)
 
 	/* if node is a root, give it full screen rectangle and ignore this
 	 * requests. Note, this happens when a user keeps deleting windows in a
-	 * master layout till single window is mapped, which is the root window */
+	 * master layout till single window is mapped, which is the root window
+	 */
 	if (n->node_type == ROOT_NODE && n->first_child == NULL &&
 		n->second_child == NULL) {
 		n->rectangle = (rectangle_t){
@@ -1012,8 +1002,8 @@ master_layout(node_t *root, node_t *n)
 }
 
 /* recursively traverses the tree and sets the is_master flag
- * to false for all nodes. It's typically called before applying a new layout
- * to ensure a clean slate. */
+ * to false for all nodes. It's typically called before applying a new
+ * layout to ensure a clean slate. */
 static void
 master_clean_up(node_t *root)
 {
@@ -1548,139 +1538,87 @@ in_right_subtree(node_t *rc, node_t *n)
 }
 
 void
-horizontal_resize(node_t *n, resize_t t)
+dynamic_resize(node_t *n, resize_t t)
 {
-	const int16_t px			   = 5;
-	direction_t	  grow_direction   = NONE;
-	direction_t	  shrink_direction = NONE;
-
-	node_t		 *root			   = find_tree_root(n);
-
-	if (in_left_subtree(root->first_child, n)) {
-		grow_direction	 = RIGHT;
-		shrink_direction = LEFT;
-	} else if (in_right_subtree(root->second_child, n)) {
-		grow_direction	 = LEFT;
-		shrink_direction = RIGHT;
-	}
-
-	_LOG_(INFO, "dir == %d", grow_direction);
-
-	if (n->parent == NULL || IS_ROOT(n)) {
+	const int16_t step = 5;
+	if (n == NULL || n->parent == NULL || IS_ROOT(n)) {
 		return;
 	}
 
-	/*
-	 * case 1: node's parent is the root.
-	 * I = Internal node
-	 * E = external node
-	 *
-	 * I's type is ROOT_NODE
-	 * Node to delete is E.
-	 * logic: grow E's width by 5 pixels
-	 * then move E's sibling x by 5 pixels and shrink its width by 5
-	 * pixels E's sibling can be External or Internal -> if internal,
-	 * resize its children
-	 *         I
-	 *    	 /   \
-	 *   	E     E/I
-	 *             \
-	 *            rest...
-	 */
-	if (IS_ROOT(n->parent)) {
-		node_t *s = NULL;
-		if (is_sibling_external(n)) {
-			s = get_external_sibling(n);
-			if (s == NULL)
-				return;
+	/* get the sibling node */
+	node_t *s = (n->parent->first_child == n) ? n->parent->second_child
+											  : n->parent->first_child;
+	if (s == NULL) {
+		return;
+	}
 
-			if (t == GROW) {
-				n->rectangle.width += px;
-				s->rectangle.width -= px;
-				grow_direction == RIGHT ? (s->rectangle.x += px)
-										: (n->rectangle.x -= px);
+	rectangle_t *nr = &n->rectangle;
+	rectangle_t *sr = &s->rectangle;
+
+	/* find the split orientation dynamically */
+	bool		 vs = (nr->x == sr->x); /* nodes are stacked vertically */
+	bool		 hs = (nr->y == sr->y); /* nodes are side-by-side */
+
+	if (vs) {
+		/* vertical resize */
+		bool up = (nr->y < sr->y); /* `n` is above `s`? */
+
+		if (t == GROW) {
+			if (up) {
+				if (sr->height > step) {
+					nr->height += step;
+					sr->y += step;
+					sr->height -= step;
+				}
 			} else {
-				/* shrink */
-				n->rectangle.width -= px;
-				s->rectangle.width += px;
-				(shrink_direction == LEFT) ? (s->rectangle.x -= px)
-										   : (n->rectangle.x += px);
+				if (sr->height > step) {
+					nr->height += step;
+					nr->y -= step;
+					sr->height -= step;
+				}
 			}
-		} else {
-			// sibling is internal
-			s = get_internal_sibling(n);
-			if (s == NULL) {
-				_LOG_(ERROR, "internal sibling is null");
-				return;
+		} else { /* SHRINK */
+			if (nr->height > step) {
+				nr->height -= step;
+				if (up) {
+					sr->y -= step;
+				} else {
+					nr->y += step;
+				}
+				sr->height += step;
 			}
-			if (t == GROW) {
-				n->rectangle.width += px;
-				s->rectangle.width -= px;
-				grow_direction == RIGHT ? (s->rectangle.x += px)
-										: (n->rectangle.x -= px);
-				resize_subtree(s);
+		}
+	} else if (hs) {
+		/* horizontal resize */
+		bool left = (nr->x < sr->x); /* `n` is left of `s`? */
+		if (t == GROW) {
+			if (left) {
+				if (sr->width > step) {
+					nr->width += step;
+					sr->x += step;
+					sr->width -= step;
+				}
 			} else {
-				n->rectangle.width -= px;
-				s->rectangle.width += px;
-				(shrink_direction == LEFT) ? (s->rectangle.x -= px)
-										   : (n->rectangle.x += px);
-				resize_subtree(s);
+				if (sr->width > step) {
+					nr->width += step;
+					nr->x -= step;
+					sr->width -= step;
+				}
+			}
+		} else { /* SHRINK */
+			if (nr->width > step) {
+				nr->width -= step;
+				if (left) {
+					sr->x -= step;
+				} else {
+					nr->x += step;
+				}
+				sr->width += step;
 			}
 		}
 	}
-	/*
-	 * case 2: node's parent is not the root (it is INTERNAL_NODE).
-	 * I = Internal node
-	 * E = external node
-	 *
-	 * I's type is INTERNAL_NODE
-	 * Node to expand is E.
-	 * logic: grow the whole subtree(rectangle)'s width in E's side by
-	 * 5 pixels then move the opposite subtree(rectangle)'s x by 5
-	 * pixels and shrink its width by 5 pixels
-	 *         I
-	 *    	 /   \
-	 *   	I     E/I
-	 *    /   \     \
-	 *   E    E/I   rest...
-	 */
-	if (IS_INTERNAL(n->parent)) {
-		if (in_left_subtree(root->first_child, n)) {
-			if (root->first_child == NULL || !IS_INTERNAL(root->first_child)) {
-				return;
-			}
-			(t == GROW) ? (root->first_child->rectangle.width += px)
-						: (root->first_child->rectangle.width -= px);
-			(t == GROW) ? (root->second_child->rectangle.width -= px)
-						: (root->second_child->rectangle.width += px);
-			(t == GROW) ? (root->second_child->rectangle.x += px)
-						: (root->second_child->rectangle.x -= px);
-
-			if (root->second_child && IS_EXTERNAL(root->second_child)) {
-				resize_subtree(root->first_child);
-			} else {
-				resize_subtree(root->first_child);
-				resize_subtree(root->second_child);
-			}
-		} else {
-			if (root->second_child == NULL ||
-				!IS_INTERNAL(root->second_child)) {
-				return;
-			}
-			(t == GROW) ? (root->second_child->rectangle.width += px)
-						: (root->second_child->rectangle.width -= px);
-			(t == GROW) ? (root->second_child->rectangle.x -= px)
-						: (root->second_child->rectangle.x += px);
-			(t == GROW) ? (root->first_child->rectangle.width -= px)
-						: (root->first_child->rectangle.width += px);
-
-			if (root->first_child && IS_EXTERNAL(root->first_child)) {
-				resize_subtree(root->second_child);
-			} else {
-				resize_subtree(root->first_child);
-				resize_subtree(root->second_child);
-			}
-		}
+	if (IS_INTERNAL(s)) {
+		resize_subtree(s);
 	}
 }
 
@@ -1736,8 +1674,8 @@ find_any_leaf(node_t *root)
  * intact.
  *
  * Note: this function does not free the memory of the unlinked node.
- * The caller is responsible for freeing the memory of the unlinked node if it's
- * no longer needed.
+ * The caller is responsible for freeing the memory of the unlinked node if
+ * it's no longer needed.
  */
 bool
 unlink_node(node_t *n, desktop_t *d)
@@ -1868,8 +1806,8 @@ has_floating_window(node_t *root)
 	return false;
 }
 
-/* next_node - get the next external node in the tree, starting from the given
- * node. It is used to traverse nodes in stack layout */
+/* next_node - get the next external node in the tree, starting from the
+ * given node. It is used to traverse nodes in stack layout */
 node_t *
 next_node(node_t *n)
 {
@@ -1950,37 +1888,33 @@ flip_node(node_t *node)
 	if (node->parent == NULL) {
 		return;
 	}
-	const flip_t flip = (node->rectangle.width >= node->rectangle.height)
-							? VERTICAL_FLIP
-							: HORIZONTAL_FLIP;
-	node_t		*p	  = node->parent;
-	node_t *s = (p->first_child == node) ? p->second_child : p->first_child;
+	bool	vflip = (node->rectangle.width >= node->rectangle.height);
+	node_t *p	  = node->parent;
+	node_t *s	  = (p->first_child == node) ? p->second_child : p->first_child;
 	if (s == NULL)
 		return;
-
-	node->rectangle.x = p->rectangle.x;
-	node->rectangle.y = p->rectangle.y;
-	if (flip == VERTICAL_FLIP) {
-		node->rectangle.width  = (p->rectangle.width - conf.window_gap) / 2;
-		node->rectangle.height = p->rectangle.height;
-		s->rectangle.x =
-			p->rectangle.x + node->rectangle.width + conf.window_gap;
-		s->rectangle.y = p->rectangle.y;
-		s->rectangle.width =
-			p->rectangle.width - node->rectangle.width - conf.window_gap;
-		s->rectangle.height = p->rectangle.height;
+	rectangle_t *nr = &node->rectangle;
+	rectangle_t *sr = &s->rectangle;
+	rectangle_t	 pr = p->rectangle;
+	nr->x			= pr.x;
+	nr->y			= pr.y;
+	if (vflip) {
+		nr->width  = (pr.width - conf.window_gap) / 2;
+		nr->height = pr.height;
+		sr->x	   = pr.x + nr->width + conf.window_gap;
+		sr->y	   = pr.y;
+		sr->width  = pr.width - nr->width - conf.window_gap;
+		sr->height = pr.height;
 	} else {
-		node->rectangle.width  = p->rectangle.width;
-		node->rectangle.height = (p->rectangle.height - conf.window_gap) / 2;
-		s->rectangle.x		   = p->rectangle.x;
-		s->rectangle.y =
-			p->rectangle.y + node->rectangle.height + conf.window_gap;
-		s->rectangle.width = p->rectangle.width;
-		s->rectangle.height =
-			p->rectangle.height - node->rectangle.height - conf.window_gap;
+		nr->width  = pr.width;
+		nr->height = (pr.height - conf.window_gap) / 2;
+		sr->x	   = pr.x;
+		sr->y	   = pr.y + nr->height + conf.window_gap;
+		sr->width  = pr.width;
+		sr->height = pr.height - nr->height - conf.window_gap;
 	}
 
-	if (s->node_type == INTERNAL_NODE) {
+	if (IS_INTERNAL(s)) {
 		resize_subtree(s);
 	}
 }
@@ -2093,14 +2027,14 @@ is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
 	}
 }
 
-/* find_closest_neighbor - find the closest neighbor node to a given node in a
- * specific direction. It is used to move focus to another node using the
+/* find_closest_neighbor - find the closest neighbor node to a given node in
+ * a specific direction. It is used to move focus to another node using the
  * keyboard
  *
  * searches through the tree (using a bfs) to
- * find the closest external node (a leaf node with a client) that is within a
- * certain range of the given node in the specified direction. It keeps track of
- * the closest node found and returns it.
+ * find the closest external node (a leaf node with a client) that is within
+ * a certain range of the given node in the specified direction. It keeps
+ * track of the closest node found and returns it.
  *
  * If no closest node is found, it returns NULL */
 static node_t *
@@ -2178,8 +2112,8 @@ cycle_win(node_t *node, direction_t d)
 	return neighbor;
 }
 
-/* is_closer_node - check if a new node is closer to the target node than the
- * current node in the specified direction. */
+/* is_closer_node - check if a new node is closer to the target node than
+ * the current node in the specified direction. */
 static bool
 is_closer_node(node_t *current, node_t *new_node, node_t *node, direction_t d)
 {

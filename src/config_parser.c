@@ -72,7 +72,7 @@ static const conf_mapper_t _cmapper_[] = {
     DEFINE_MAPPING("run",            		 exec_process),
     DEFINE_MAPPING("kill",           		 close_or_kill_wrapper),
     DEFINE_MAPPING("switch_desktop", 		 switch_desktop_wrapper),
-    DEFINE_MAPPING("resize",         		 horizontal_resize_wrapper),
+    DEFINE_MAPPING("resize",         		 dynamic_resize_wrapper),
     DEFINE_MAPPING("fullscreen",     		 set_fullscreen_wrapper),
     DEFINE_MAPPING("swap",           		 swap_node_wrapper),
     DEFINE_MAPPING("transfer_node",  		 transfer_node_wrapper),
