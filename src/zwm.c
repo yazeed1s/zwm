@@ -2577,6 +2577,16 @@ merge_monitors(monitor_t *om, monitor_t *nm)
 	return true;
 }
 
+bool
+is_disconnected(monitor_t *m, monitor_t *dl)
+{
+	for (monitor_t *d = dl; d; d = d->next) {
+		if (d == m)
+			return true;
+	}
+	return false;
+}
+
 /* update_monitors - queries current outputs, and checks if anything was changed
  * since we last queried the outputs in setup_monitor().
  *
@@ -2667,16 +2677,25 @@ update_monitors(uint32_t *changes)
 	if (dl) {
 		/* find the primary monitor to transfer desktops to */
 		monitor_t *m = prim_monitor;
+		/* If the primary monitor is among the disconnected ones, find another
+		 * active monitor */
+		/* while (m && is_disconnected(m, dl)) {
+			m = m->next;
+		} */
 		if (!m) {
 			_LOG_(ERROR, "no primary monitor found to merge with");
 			return;
 		}
 		/* merge and destroy each disconnected monitor */
+		/* this craches if a single monitor was connected then disconnected
+		 * obviously*/
 		while (dl) {
 			monitor_t *r = dl;
 			dl			 = dl->next;
 			_LOG_(INFO, "merging desktops from %s to %s", r->name, m->name);
 			/* merge desktops */
+			if (r == m)
+				continue;
 			if (!merge_monitors(r, m)) {
 				_LOG_(ERROR, "failed to merge desktops from %s", r->name);
 				continue;
