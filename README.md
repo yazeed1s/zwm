@@ -197,6 +197,7 @@ normal_border_color = 0x30302f
 window_gap = 10
 virtual_desktops = 7
 focus_follow_pointer = true
+focus_follow_spawn = false
 ```
 
 ##### Available Variables:
@@ -207,7 +208,7 @@ focus_follow_pointer = true
 -   **window_gap**: Sets the gap between windows in pixels.
 -   **virtual_desktops**: sets the number of virtual desktops.
 -   **focus_follow_pointer**: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
-
+-   **focus_follow_spawn**: If false, new windows require manual focus (e.g., via click); if true, newly spawned windows will automatically receive focus.
 ### 2- Commands to run on startup
 
 ##### Use the `exec` directive to specify programs that should be started when ZWM is launched.
