@@ -49,6 +49,7 @@
 #define ACTIVE_BORDER_COLOR	 0x83a598	   /* default active border color */
 #define BORDER_WIDTH		 2			   /* default border width */
 #define FOCUS_FOLLOW_POINTER true		   /* default focus follows mouse */
+#define FOCUS_FOLLOW_SPAWN	 false		   /* default focus follows spawn */
 
 /* type aliases */
 typedef xcb_connection_t	  xcb_conn_t;
@@ -197,8 +198,8 @@ struct icccm_props_t {
  * have null clients.
  */
 typedef struct {
-    /*char			 class_name[MAXLEN];*/
-    /*char			 wm_name[MAXLEN];*/
+	/*char			 class_name[MAXLEN];*/
+	/*char			 wm_name[MAXLEN];*/
 	uint32_t		 border_width;
 	xcb_window_t	 window;
 	xcb_atom_t		 type;
@@ -336,6 +337,7 @@ typedef struct {
 	uint32_t normal_border_color;  /* unfocused window border color */
 	int		 virtual_desktops;	   /* number of virtual desktops */
 	bool	 focus_follow_pointer; /* mouse focus tracking */
+	bool	 focus_follow_spawn;   /* focus redirection tracking */
 } config_t;
 
 /* window rule structure (linked list) */
