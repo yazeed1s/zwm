@@ -1260,12 +1260,13 @@ reload_config_wrapper()
 
 	if (reload_config(&conf) != 0) {
 		_LOG_(ERROR, "Error while reloading config -> using default macros");
-
 		conf.active_border_color  = ACTIVE_BORDER_COLOR;
 		conf.normal_border_color  = NORMAL_BORDER_COLOR;
 		conf.border_width		  = BORDER_WIDTH;
 		conf.window_gap			  = W_GAP;
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+		conf.focus_follow_spawn	  = FOCUS_FOLLOW_SPAWN;
+		conf.virtual_desktops	  = NUMBER_OF_DESKTOPS;
 		if (0 != grab_keys(wm->connection, wm->root_window)) {
 			_LOG_(ERROR, "cannot grab keys after reload");
 			return -1;
@@ -2577,6 +2578,16 @@ merge_monitors(monitor_t *om, monitor_t *nm)
 	return true;
 }
 
+bool
+is_disconnected(monitor_t *m, monitor_t *dl)
+{
+	for (monitor_t *d = dl; d; d = d->next) {
+		if (d == m)
+			return true;
+	}
+	return false;
+}
+
 /* update_monitors - queries current outputs, and checks if anything was changed
  * since we last queried the outputs in setup_monitor().
  *
@@ -2666,12 +2677,27 @@ update_monitors(uint32_t *changes)
 	/* check for disconnected monitors */
 	if (dl) {
 		/* find the primary monitor to transfer desktops to */
-		monitor_t *m = prim_monitor;
+		monitor_t *m = NULL;
+		/* use prim_monitor if it's still active */
+		if (prim_monitor && !is_disconnected(prim_monitor, dl)) {
+			m = prim_monitor;
+		} else {
+			/* otherwise find any connected monitor */
+			for (monitor_t *cur = head_monitor; cur; cur = cur->next) {
+				if (!is_disconnected(cur, dl)) {
+					m = cur;
+					break;
+				}
+			}
+		}
+
 		if (!m) {
-			_LOG_(ERROR, "no primary monitor found to merge with");
+			_LOG_(ERROR, "no monitor found to merge with");
 			return;
 		}
 		/* merge and destroy each disconnected monitor */
+		/* this craches if a single monitor was connected then disconnected
+		 * obviously*/
 		while (dl) {
 			monitor_t *r = dl;
 			dl			 = dl->next;
@@ -4601,6 +4627,17 @@ handle_map_request(const xcb_event_t *event)
 	default: break;
 	}
 out:
+	if (conf.focus_follow_spawn && curr_monitor->desk->layout != STACK) {
+		node_t *f = NULL;
+		if ((f = find_node_by_window_id(curr_monitor->desk->tree, win)) ==
+			NULL) {
+			_LOG_(DEBUG, "cannot find window %d, in tree", win);
+			xcb_flush(wm->connection);
+			return -1;
+		}
+		set_focus(f, true);
+		set_active_window_name(f->client->window);
+	}
 	set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL);
 	xcb_flush(wm->connection);
 	return 0;
@@ -5612,6 +5649,7 @@ main(int argc, char **argv)
 		conf.border_width		  = BORDER_WIDTH;
 		conf.window_gap			  = W_GAP;
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
+		conf.focus_follow_spawn	  = FOCUS_FOLLOW_SPAWN;
 		conf.virtual_desktops	  = NUMBER_OF_DESKTOPS;
 	}
 

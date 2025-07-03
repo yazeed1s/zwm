@@ -32,10 +32,12 @@
 #include "tree.h"
 
 #include <assert.h>
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
@@ -790,14 +792,14 @@ apply_default_layout(node_t *root)
 		return;
 	}
 
-	rectangle_t r, r2 = {0};
+	rectangle_t	   r, r2 = {0};
+	const uint16_t mgap = (conf.window_gap - conf.border_width);
 	/* determine split orientation based on node dimensions */
 	if (root->rectangle.width >= root->rectangle.height) {
 		/* vertical split (side by side) */
-		r.x = root->rectangle.x;
-		r.y = root->rectangle.y;
-		r.width =
-			(root->rectangle.width - (conf.window_gap - conf.border_width)) / 2;
+		r.x		 = root->rectangle.x;
+		r.y		 = root->rectangle.y;
+		r.width	 = (root->rectangle.width - mgap) / 2;
 		r.height = root->rectangle.height;
 		r2.x	 = (int16_t)(root->rectangle.x + r.width + conf.window_gap +
 						 conf.border_width);
@@ -807,12 +809,10 @@ apply_default_layout(node_t *root)
 		r2.height = root->rectangle.height;
 	} else {
 		/* horizontal split (top and bottom) */
-		r.x		= root->rectangle.x;
-		r.y		= root->rectangle.y;
-		r.width = root->rectangle.width;
-		r.height =
-			(root->rectangle.height - (conf.window_gap - conf.border_width)) /
-			2;
+		r.x		  = root->rectangle.x;
+		r.y		  = root->rectangle.y;
+		r.width	  = root->rectangle.width;
+		r.height  = (root->rectangle.height - mgap) / 2;
 		r2.x	  = root->rectangle.x;
 		r2.y	  = (int16_t)(root->rectangle.y + r.height + conf.window_gap +
 						  conf.border_width);
@@ -924,8 +924,25 @@ apply_master_layout(node_t *parent)
 		r2.width  = parent->rectangle.width;
 		r2.height = (uint16_t)(parent->rectangle.height - r.height -
 							   conf.window_gap - conf.border_width);
-		parent->first_child->rectangle	= r;
-		parent->second_child->rectangle = r2;
+		// parent->first_child->rectangle	= r;
+		// parent->second_child->rectangle = r2;
+
+		parent->first_child->rectangle =
+			((parent->second_child->client) &&
+			 IS_FLOATING(parent->second_child->client))
+				? parent->rectangle
+			: ((parent->first_child->client) &&
+			   IS_FLOATING(parent->first_child->client))
+				? parent->first_child->floating_rectangle
+				: r;
+		parent->second_child->rectangle =
+			((parent->first_child->client) &&
+			 IS_FLOATING(parent->first_child->client))
+				? parent->rectangle
+			: ((parent->second_child->client) &&
+			   IS_FLOATING(parent->second_child->client))
+				? parent->second_child->floating_rectangle
+				: r2;
 	}
 
 	if (IS_INTERNAL(parent->first_child)) {
