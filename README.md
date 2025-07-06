@@ -11,7 +11,7 @@
 -   [Installation](#installation)
 -   [Configuration](#configuration)
 -   [Default Keybindings](#default-keybindings)
--   [ewmh specific settings for polyabr](#ewmh-specific-settings-for-polyabr)
+-   [ewmh specific settings for polybar](#ewmh-specific-settings-for-polybar)
 -   [Contributing](#contributing)
 
 ## About ZWM
@@ -48,13 +48,13 @@ The motivation behind zwm stems from a desire to create a window manager that is
 
 ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
 
--   Each desktop has its own pointer to a bsp-tree
+-   Each desktop has its own pointer to a bsp-tree.
 -   The tree is a partition of a monitor's rectangle into smaller rectangular regions.
 -   Each leaf node holds exactly one window.
 -   Each node in a bsp-tree either has zero or two children.
 -   Each internal node is responsible for splitting a rectangle in half.
 
-#### The following should illustrate how bsp-tree is used to achive window managment:
+#### The following should illustrate how bsp-tree is used to achieve window management:
 
 ```
     Window and Partition Structure in a BSP-tree:
@@ -255,7 +255,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 -   Example: `func(resize:grow)` means "grow the size of the window".
 -   Example: `func(layout:master)` means "toggle master layout".
 
-#### Available modifires:
+#### Available modifiers:
 
 -   **super (meta)**, **alt**, **shift**, **ctrl**
 
@@ -274,7 +274,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     -   **fullscreen**: Toggles fullscreen mode for the focused window.
     -   **swap**: Swaps the focused window with its sibling.
     -   **transfer_node**: Moves the focused window to another virtual desktop.
-    -   **layout**: Toggles the specified layout (master, deafult, stack).
+    -   **layout**: Toggles the specified layout (master, default, stack).
     -   **traverse**: (In stack layout only) Moves focus to the window above or below.
     -   **flip**: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
     -   **cycle_window**: Moves focus to the window in the specified direction (up, down, left, right).
@@ -283,7 +283,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     -   **reload_config**: Reloads the configuration file without restarting ZWM.
     -   **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
     -   **gap_handler**: Increase or decrease window gaps (GROW, SHRINK).
-    -   **change_state**: Set window state (FLAOTING, TILED).
+    -   **change_state**: Set window state (FLOATING, TILED).
     -   **grow_floating_window**: Grow floating window (horizontally or vertically).
     -   **shrink_floating_window**: Shrink floating window (horizontally or vertically).
     -   **cycle_monitors**: Cycle between monitors (left or right, relative to the linked-list order not the physical positioning).
@@ -361,7 +361,7 @@ More options will be added in the future as development progresses.
 | `super + shift + s`      | toggle stack layout                  |
 | `super + shift + d`      | toggle default layout                |
 | `super + shift + j/k`    | traverse the stack                   |
-| `super + shift + f`      | flip the window/partion              |
+| `super + shift + f`      | flip the window/partition            |
 | `super + shift + r`      | hot-reload                           |
 | `super + shift + y`      | grow floating windows horizontally   |
 | `super + shift + h`      | grow floating windows vertically     |
@@ -385,7 +385,7 @@ More options will be added in the future as development progresses.
 | `super + t`              | tile window                          |
 | `super + f`              | float window                         |
 
-## ewmh specific settings for polyabr
+## ewmh specific settings for polybar
 
 ### To display the window name (CLASS_NAME):
 
@@ -423,7 +423,7 @@ label-empty-padding 		= 1
 label-separator 		= " "
 ```
 
-For further custmization please refer to polybar's wiki.
+For further customization please refer to polybar's wiki.
 
 ## Contributing
 
