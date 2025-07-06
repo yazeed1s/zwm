@@ -1949,6 +1949,10 @@ update_focus(node_t *root, node_t *n)
 			window_grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
+	// store last focused
+	if (n && n->client) {
+		curr_monitor->desk->last_focused = n->client->window;
+	}
 	update_focus(root->first_child, n);
 	update_focus(root->second_child, n);
 }
