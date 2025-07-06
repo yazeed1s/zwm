@@ -150,16 +150,10 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 yay -S zwm
 ```
 
-#### Void Linux (XBPS-SRC)
-
-Assuming you have [void-packages](https://github.com/void-linux/void-packages)
+#### Void Linux (XBPS)
 
 ```bash
-git clone https://github.com/elbachir-one/void-templates
-cp void-templates/zwm/ void-packages/srcpkgs/  # Copying the zwm/ directory that has the template
-cd void-packages/
-./xbps-src pkg zwm
-sudo xbps-install -R hostdir/binpkgs zwm
+xbps-install -S zwm
 ```
 
 #### Build from source
