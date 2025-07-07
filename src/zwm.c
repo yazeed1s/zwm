@@ -90,21 +90,21 @@
 #define WM_CLASS_NAME	   "null"
 #define WM_INSTANCE_NAME   "null"
 
-wm_t				 *wm			 = NULL;
-monitor_t			 *prim_monitor	 = NULL;
-monitor_t			 *curr_monitor	 = NULL;
-monitor_t			 *head_monitor	 = NULL;
-xcb_cursor_context_t *cursor_ctx	 = NULL;
-xcb_window_t		  focused_win	 = XCB_NONE;
-xcb_window_t		  meta_window	 = XCB_NONE;
-bool				  is_kgrabbed	 = false;
-bool				  using_xrandr	 = false;
-bool				  multi_monitors = false;
-bool				  using_xinerama = false;
-config_t			  conf			 = {0};
-uint8_t				  randr_base	 = 0;
+wm_t				 *wm					= NULL;
+monitor_t			 *prim_monitor			= NULL;
+monitor_t			 *curr_monitor			= NULL;
+monitor_t			 *head_monitor			= NULL;
+xcb_cursor_context_t *cursor_ctx			= NULL;
+xcb_window_t		  focused_win			= XCB_NONE;
+xcb_window_t		  meta_window			= XCB_NONE;
+bool				  is_kgrabbed			= false;
+bool				  using_xrandr			= false;
+bool				  multi_monitors		= false;
+bool				  using_xinerama		= false;
+config_t			  conf					= {0};
+uint8_t				  randr_base			= 0;
+uint64_t			  last_desk_switch_time = 0;
 xcb_cursor_t		  cursors[CURSOR_MAX];
-
 /* clang-format off */
 
 /* keys_[] is used as a fallback in case of an
@@ -306,6 +306,14 @@ set_cursor(int cursor_id)
 		_FREE_(err);
 	}
 	xcb_flush(wm->connection);
+}
+
+uint64_t
+get_time_millis()
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
 }
 
 /* caller must free */
@@ -1267,6 +1275,7 @@ reload_config_wrapper()
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
 		conf.focus_follow_spawn	  = FOCUS_FOLLOW_SPAWN;
 		conf.virtual_desktops	  = NUMBER_OF_DESKTOPS;
+		conf.restore_last_focus	  = RESTORE_LAST_FOCUS;
 		if (0 != grab_keys(wm->connection, wm->root_window)) {
 			_LOG_(ERROR, "cannot grab keys after reload");
 			return -1;
@@ -1764,10 +1773,11 @@ init_desktop(void)
 	desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
 	if (d == 0x00)
 		return NULL;
-	d->id		  = 0;
-	d->is_focused = false;
-	d->n_count	  = 0;
-	d->tree		  = NULL;
+	d->id			= 0;
+	d->is_focused	= false;
+	d->n_count		= 0;
+	d->tree			= NULL;
+	d->last_focused = XCB_NONE;
 	/*d->node	  = NULL;*/
 	return d;
 }
@@ -3725,7 +3735,8 @@ kill_window(xcb_window_t win)
 
 	if (is_tree_empty(d->tree)) {
 		set_active_window_name(XCB_NONE);
-		focused_win = XCB_NONE;
+		focused_win		= XCB_NONE;
+		d->last_focused = XCB_NONE;
 	}
 
 	if (!another_desktop) {
@@ -3933,11 +3944,11 @@ switch_desktop_wrapper(arg_t *arg)
 	if (arg->idx > conf.virtual_desktops) {
 		return 0;
 	}
-
 	if (switch_desktop(arg->idx) != 0) {
 		return -1;
 	}
-	node_t *tree = curr_monitor->desk->tree;
+	last_desk_switch_time = get_time_millis();
+	node_t *tree		  = curr_monitor->desk->tree;
 	return render_tree(tree);
 }
 
@@ -3954,7 +3965,6 @@ switch_desktop(const int nd)
 
 	if (curr_monitor->desk == curr_monitor->desktops[nd])
 		return 0;
-
 	update_focused_desktop(nd);
 
 	if (show_windows(tree_to_show) != 0) {
@@ -3967,6 +3977,28 @@ switch_desktop(const int nd)
 	set_active_window_name(XCB_NONE);
 	win_focus(focused_win, false);
 	focused_win = XCB_NONE;
+	/* restore focus only if layout is not STACK */
+	if (conf.restore_last_focus) {
+		if (curr_monitor->desk->layout != STACK) {
+			xcb_window_t win = curr_monitor->desk->last_focused;
+			// xcb_window_t win = focused_win;
+			if (win != XCB_NONE && window_exists(wm->connection, win)) {
+				node_t *n = find_node_by_window_id(tree_to_show, win);
+				if (n) {
+					set_focus(n, true);
+					focused_win = win;
+					update_focus(tree_to_show, n);
+					set_active_window_name(win);
+#ifdef _DEBUG__
+					_LOG_(DEBUG,
+						  "Restored focus to window %d on desktop %d",
+						  win,
+						  curr_monitor->desk->id);
+#endif
+				}
+			}
+		}
+	}
 
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", nd + 1);
@@ -4637,6 +4669,8 @@ out:
 		}
 		set_focus(f, true);
 		set_active_window_name(f->client->window);
+		focused_win = f->client->window;
+		update_focus(curr_monitor->desk->tree, f);
 	}
 	set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL);
 	xcb_flush(wm->connection);
@@ -4648,8 +4682,20 @@ handle_enter_notify(const xcb_event_t *event)
 {
 	xcb_enter_notify_event_t *ev  = (xcb_enter_notify_event_t *)event;
 	xcb_window_t			  win = ev->event;
+	uint64_t				  now = get_time_millis();
+	// hacky fix for ignoring current window under cursor when swetching
+	// desktops
+	if (conf.restore_last_focus && curr_monitor && curr_monitor->desk &&
+		curr_monitor->desk->layout != STACK) {
+		if (now - last_desk_switch_time < 250) {
+			_LOG_(
+				DEBUG,
+				"ignoring enter notify: cooldown in effect (non-STACK layout)");
+			return 0;
+		}
+	}
 
-	monitor_t				 *mm  = get_focused_monitor();
+	monitor_t *mm = get_focused_monitor();
 	if (mm && mm != curr_monitor) {
 		curr_monitor = mm;
 	}
@@ -4677,6 +4723,10 @@ handle_enter_notify(const xcb_event_t *event)
 	if (!window_exists(wm->connection, win)) {
 		return 0;
 	}
+
+	// if (win == focused_win) {
+	// 	return 0;
+	// }
 
 	node_t *root = curr_monitor->desk->tree;
 	if (!root) {
@@ -5651,6 +5701,7 @@ main(int argc, char **argv)
 		conf.focus_follow_pointer = FOCUS_FOLLOW_POINTER;
 		conf.focus_follow_spawn	  = FOCUS_FOLLOW_SPAWN;
 		conf.virtual_desktops	  = NUMBER_OF_DESKTOPS;
+		conf.restore_last_focus	  = RESTORE_LAST_FOCUS;
 	}
 
 	wm = init_wm();

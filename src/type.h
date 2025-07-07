@@ -37,6 +37,7 @@
 #include <xcb/xcb_event.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
+#include <xcb/xproto.h>
 
 #define CAP					 3
 #define MAXLEN				 (2 << 7)
@@ -50,6 +51,7 @@
 #define BORDER_WIDTH		 2			   /* default border width */
 #define FOCUS_FOLLOW_POINTER true		   /* default focus follows mouse */
 #define FOCUS_FOLLOW_SPAWN	 false		   /* default focus follows spawn */
+#define RESTORE_LAST_FOCUS	 false		   /* default restore last window */
 
 /* type aliases */
 typedef xcb_connection_t	  xcb_conn_t;
@@ -242,6 +244,7 @@ typedef struct {
 	layout_t layout;	 /* the layout (master, default, stack) */
 	bool	 is_focused; /* whether this is focused, only focused desktops
 						  * are rendered */
+	xcb_window_t last_focused;
 } desktop_t;
 
 /* monitor representation (also a linked list of monitors).
@@ -338,6 +341,9 @@ typedef struct {
 	int		 virtual_desktops;	   /* number of virtual desktops */
 	bool	 focus_follow_pointer; /* mouse focus tracking */
 	bool	 focus_follow_spawn;   /* focus redirection tracking */
+	bool	 restore_last_focus;
+	/* restore previously focused window when switching
+								desktops (if layout != STACK) */
 } config_t;
 
 /* window rule structure (linked list) */
