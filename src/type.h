@@ -328,7 +328,7 @@ typedef struct {
 
 /* key mapping structure */
 typedef struct {
-	char		 key[6]; /* key representation */
+	char		 key[7]; /* key representation */
 	xcb_keysym_t keysym; /* key symbol */
 } key_mapper_t;
 

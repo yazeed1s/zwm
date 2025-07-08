@@ -65,5 +65,6 @@ int render_tree(node_t *current_node);
 int hide_windows(node_t *tree);
 int show_windows(node_t *tree);
 int swap_node(node_t *root);
+int render_tree_nomap(node_t *node);
 /* clang-format off */
 #endif /* ZWM_TREE_H */
