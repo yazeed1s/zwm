@@ -169,8 +169,6 @@ static const uint32_t _buttons_[] = {
 static monitor_t *get_focused_monitor();
 static int set_fullscreen(node_t *, bool);
 static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
-static int resize_window(xcb_window_t, uint16_t, uint16_t);
-static int move_window(xcb_window_t, int16_t, int16_t);
 static int win_focus(xcb_window_t, bool);
 static void update_grabbed_window(node_t *, node_t *);
 static void ungrab_keys(xcb_conn_t *, xcb_window_t);
@@ -787,8 +785,9 @@ raise_window(xcb_window_t win)
 }
 
 int
-swap_node_wrapper()
+swap_node_wrapper(arg_t *arg)
 {
+	(void)arg;
 	if (curr_monitor == NULL) {
 		_LOG_(ERROR, "Failed to swap node, current monitor is NULL");
 		return -1;
@@ -1059,8 +1058,9 @@ shift_floating_window(arg_t *arg)
 }
 
 int
-set_fullscreen_wrapper()
+set_fullscreen_wrapper(arg_t *arg)
 {
+	(void)arg;
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
 		return 0;
@@ -1248,8 +1248,9 @@ arrange_trees(void)
  * struct along with the rules and keys lists, and populate them again from the
  * config file */
 int
-reload_config_wrapper()
+reload_config_wrapper(arg_t *arg)
 {
+	(void)arg;
 	/* store the old config values so i can compare them later with the new
 	 * values to determine what needs to be done */
 	uint16_t prev_border_width		  = conf.border_width;
@@ -1430,8 +1431,9 @@ gap_handler(arg_t *arg)
 }
 
 int
-flip_node_wrapper()
+flip_node_wrapper(arg_t *arg)
 {
+	(void)arg;
 	node_t *tree = curr_monitor->desk->tree;
 	node_t *node = NULL;
 	if (!(node = get_focused_node(tree)))
@@ -2975,7 +2977,7 @@ setup_wm(void)
 	return true;
 }
 
-static int
+int
 resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 {
 	if (win == 0 || win == XCB_NONE)
@@ -2998,7 +3000,7 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 	return 0;
 }
 
-static int
+int
 move_window(xcb_window_t win, int16_t x, int16_t y)
 {
 	if (win == 0 || win == XCB_NONE) {
@@ -3546,8 +3548,9 @@ send_client_message(xcb_window_t win,
 }
 
 int
-close_or_kill_wrapper()
+close_or_kill_wrapper(arg_t *arg)
 {
+	(void)arg;
 	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
 	if (!window_exists(wm->connection, win))
 		return 0;
@@ -4434,6 +4437,7 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 	if (find_node_by_window_id(d->tree, win)) {
 		return 0;
 	}
+
 	client_t *client = create_client(win, XCB_ATOM_WINDOW, wm->connection);
 	if (client == NULL) {
 		_LOG_(ERROR, "cannot allocate memory for client");
@@ -4444,75 +4448,83 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 	if (!conf.focus_follow_pointer) {
 		window_grab_buttons(client->window);
 	}
-	if (is_tree_empty(d->tree)) {
-		rectangle_t	   r = {0};
-		const uint16_t w = curr_monitor->rectangle.width;
-		const uint16_t h = curr_monitor->rectangle.height;
-		const int16_t  x = curr_monitor->rectangle.x;
-		const int16_t  y = curr_monitor->rectangle.y;
-		if (wm->bar && curr_monitor == prim_monitor) {
-			r.x		 = x + conf.window_gap;
-			r.y		 = y + wm->bar->rectangle.height + conf.window_gap;
-			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-			r.height = h - wm->bar->rectangle.height - 2 * conf.window_gap -
-					   2 * conf.border_width;
-		} else {
-			r.x		 = x + conf.window_gap;
-			r.y		 = y + conf.window_gap;
-			r.width	 = w - 2 * conf.window_gap - 2 * conf.border_width;
-			r.height = h - 2 * conf.window_gap - 2 * conf.border_width;
-		}
-
-		if (client == NULL) {
-			_LOG_(ERROR, "client is null");
-			return -1;
-		}
-
-		d->tree			   = init_root();
-		d->tree->client	   = client;
-		d->tree->rectangle = r;
-		d->n_count += 1;
-		ewmh_update_client_list();
-	} else {
-		node_t *n = NULL;
-		n		  = find_any_leaf(d->tree);
-		if (n == NULL || n->client == NULL) {
-			char *name = win_name(win);
-			_LOG_(INFO, "cannot find win  %s:%d", win);
-			_FREE_(name);
-			return 0;
-		}
-		if (n->client->state == FLOATING) {
-			return 0;
-		}
-		if (n->client->state == FULLSCREEN) {
-			set_fullscreen(n, false);
-		}
-		node_t *new_node = create_node(client);
-		if (new_node == NULL) {
-			_LOG_(ERROR, "new node is null");
-			return -1;
-		}
-		if (new_node->client->state == FLOATING) {
-			xcb_get_geometry_reply_t *g =
-				get_geometry(client->window, wm->connection);
+	if (client->state == FLOATING) {
+		xcb_get_geometry_reply_t *g = NULL;
+		if (is_tree_empty(d->tree)) {
+			d->tree			= init_root();
+			d->tree->client = client;
+			g				= get_geometry(client->window, wm->connection);
 			if (g == NULL) {
 				_LOG_(ERROR, "cannot get %d geometry", client->window);
 				return -1;
 			}
-			int x = (curr_monitor->rectangle.width / 2) - (g->width / 2);
-			int y = (curr_monitor->rectangle.height / 2) - (g->height / 2);
-			rectangle_t rc = {
-				.x = x, .y = y, .width = g->width, .height = g->height};
-			new_node->rectangle = new_node->floating_rectangle = rc;
+			fill_floating_rectangle(g, &d->tree->floating_rectangle);
+			fill_root_rectangle(&d->tree->rectangle);
 			_FREE_(g);
+			d->n_count += 1;
+			ewmh_update_client_list();
+		} else {
+			node_t *n = NULL;
+			n		  = find_any_leaf(d->tree);
+			if (n == NULL || n->client == NULL) {
+				char *name = win_name(win);
+				_LOG_(INFO, "cannot find win  %s:%d", win);
+				_FREE_(name);
+				return 0;
+			}
+			node_t *new_node = create_node(client);
+			if (new_node == NULL) {
+				_FREE_(client);
+				_LOG_(ERROR, "new node is null");
+				return -1;
+			}
+			g = get_geometry(client->window, wm->connection);
+			if (g == NULL) {
+				_LOG_(ERROR, "cannot get %d geometry", client->window);
+				return -1;
+			}
+			fill_floating_rectangle(g, &new_node->floating_rectangle);
+			new_node->rectangle = new_node->floating_rectangle;
+			_FREE_(g);
+			insert_node(n, new_node, d->layout);
+			d->n_count += 1;
+			ewmh_update_client_list();
 		}
-		insert_node(n, new_node, d->layout);
-		d->n_count += 1;
-		if (d->layout == STACK) {
-			set_focus(new_node, true);
+	} else {
+		if (is_tree_empty(d->tree)) {
+			rectangle_t r = {0};
+			fill_root_rectangle(&r);
+			d->tree			   = init_root();
+			d->tree->client	   = client;
+			d->tree->rectangle = r;
+			d->n_count += 1;
+			ewmh_update_client_list();
+		} else {
+			node_t *n = NULL;
+			n		  = find_any_leaf(d->tree);
+			if (n == NULL || n->client == NULL) {
+				_LOG_(ERROR, "cannot find node with window id");
+				return -1;
+			}
+			if (IS_FULLSCREEN(n->client)) {
+				set_fullscreen(n, false);
+			}
+			if (n->client->state == FLOATING) {
+				return 0;
+			}
+			node_t *new_node = create_node(client);
+			if (new_node == NULL) {
+				_FREE_(client);
+				_LOG_(ERROR, "new node is null");
+				return -1;
+			}
+			insert_node(n, new_node, d->layout);
+			d->n_count += 1;
+			if (d->layout == STACK) {
+				set_focus(new_node, true);
+			}
+			ewmh_update_client_list();
 		}
-		ewmh_update_client_list();
 	}
 	return 0;
 }
@@ -4618,9 +4630,18 @@ handle_map_request(const xcb_event_t *event)
 
 	if (rule) {
 		if (rule->desktop_id != -1) {
-			insert_into_desktop(rule->desktop_id, win, rule->state == TILED);
-			goto out;
+			int target = rule->desktop_id - 1;
+			if (curr_monitor->desk->id != target) {
+				// Insert into the target desktop, but do not map/focus now
+				insert_into_desktop(
+					rule->desktop_id, win, rule->state == TILED);
+				desktop_t *target_desk = curr_monitor->desktops[target];
+				render_tree_nomap(target_desk->tree);
+				goto out;
+			}
+			// else: current desktop, fall through to normal logic below
 		}
+		// For both cases, if a state is specified, use it
 		if (rule->state == FLOATING) {
 			handle_floating_window_request(win, curr_monitor->desk);
 			goto out;

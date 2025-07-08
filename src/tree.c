@@ -140,6 +140,57 @@ render_tree(node_t *node)
 	return 0;
 }
 
+int
+render_tree_nomap(node_t *node)
+{
+	if (!node)
+		return 0;
+
+	queue_t *q = create_queue();
+	if (!q) {
+		_LOG_(ERROR, "queue creation failed");
+		return -1;
+	}
+
+	enqueue(q, node);
+	while (q->front) {
+		node_t *current = dequeue(q);
+		if (!IS_INTERNAL(current) && current->client) {
+			if (!IS_FULLSCREEN(current->client)) {
+				const uint16_t width  = IS_FLOATING(current->client)
+											? current->floating_rectangle.width
+											: current->rectangle.width;
+				const uint16_t height = IS_FLOATING(current->client)
+											? current->floating_rectangle.height
+											: current->rectangle.height;
+				const int16_t  x	  = IS_FLOATING(current->client)
+											? current->floating_rectangle.x
+											: current->rectangle.x;
+				const int16_t  y	  = IS_FLOATING(current->client)
+											? current->floating_rectangle.y
+											: current->rectangle.y;
+
+				if (resize_window(current->client->window, width, height) !=
+						0 ||
+					move_window(current->client->window, x, y) != 0) {
+					_LOG_(ERROR,
+						  "error resizing/moving window %d",
+						  current->client->window);
+					free_queue(q);
+					return -1;
+				}
+			}
+			continue;
+		}
+		if (current->first_child)
+			enqueue(q, current->first_child);
+		if (current->second_child)
+			enqueue(q, current->second_child);
+	}
+	free_queue(q);
+	return 0;
+}
+
 static int
 get_tree_level(node_t *node)
 {
