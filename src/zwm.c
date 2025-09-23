@@ -1922,7 +1922,7 @@ init_wm(void)
 	xcb_window_t	  rw	 = wm->root_window;
 	uint32_t		  m		 = XCB_NONE;
 	xcb_visualid_t	  visual = XCB_COPY_FROM_PARENT;
-	uint16_t class			 = XCB_WINDOW_CLASS_INPUT_ONLY;
+	uint16_t		  class	 = XCB_WINDOW_CLASS_INPUT_ONLY;
 
 	xcb_create_window(
 		dpy, depth, mw, rw, -1, -1, 1, 1, 0, class, visual, m, NULL);
