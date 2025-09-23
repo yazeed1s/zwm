@@ -779,8 +779,9 @@ raise_window(xcb_window_t win)
 }
 
 int
-swap_node_wrapper()
+swap_node_wrapper(arg_t *arg)
 {
+	(void)arg;
 	if (curr_monitor == NULL) {
 		_LOG_(ERROR, "Failed to swap node, current monitor is NULL");
 		return -1;
@@ -1051,8 +1052,9 @@ shift_floating_window(arg_t *arg)
 }
 
 int
-set_fullscreen_wrapper()
+set_fullscreen_wrapper(arg_t *arg)
 {
+	(void)arg;
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
 		return 0;
@@ -1240,8 +1242,9 @@ arrange_trees(void)
  * struct along with the rules and keys lists, and populate them again from the
  * config file */
 int
-reload_config_wrapper()
+reload_config_wrapper(arg_t *arg)
 {
+	(void)arg;
 	/* store the old config values so i can compare them later with the new
 	 * values to determine what needs to be done */
 	uint16_t prev_border_width		  = conf.border_width;
@@ -1421,8 +1424,9 @@ gap_handler(arg_t *arg)
 }
 
 int
-flip_node_wrapper()
+flip_node_wrapper(arg_t *arg)
 {
+	(void)arg;
 	node_t *tree = curr_monitor->desk->tree;
 	node_t *node = NULL;
 	if (!(node = get_focused_node(tree)))
@@ -1910,7 +1914,7 @@ init_wm(void)
 	xcb_window_t	  rw	 = wm->root_window;
 	uint32_t		  m		 = XCB_NONE;
 	xcb_visualid_t	  visual = XCB_COPY_FROM_PARENT;
-	uint16_t class			 = XCB_WINDOW_CLASS_INPUT_ONLY;
+	uint16_t		  class	 = XCB_WINDOW_CLASS_INPUT_ONLY;
 
 	xcb_create_window(
 		dpy, depth, mw, rw, -1, -1, 1, 1, 0, class, visual, m, NULL);
@@ -3536,8 +3540,9 @@ send_client_message(xcb_window_t win,
 }
 
 int
-close_or_kill_wrapper()
+close_or_kill_wrapper(arg_t *arg)
 {
+	(void)arg;
 	xcb_window_t win = get_window_under_cursor(wm->connection, wm->root_window);
 	if (!window_exists(wm->connection, win))
 		return 0;
