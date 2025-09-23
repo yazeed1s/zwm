@@ -54,6 +54,8 @@ void grab_pointer(xcb_window_t, bool);
 void ungrab_pointer(void);
 char *win_name(xcb_window_t);
 int set_visibility(xcb_window_t win, bool is_visible);
+int resize_window(xcb_window_t, uint16_t, uint16_t);
+int move_window(xcb_window_t, int16_t, int16_t);
 int exec_process(arg_t *arg);
 int layout_handler(arg_t *arg);
 int cycle_win_wrapper(arg_t *arg);

@@ -245,6 +245,9 @@ write_default_config(const char *filename, config_t *c)
     ";                      If true, newly spawned windows will automatically receive focus.\n"
     "focus_follow_spawn = false\n"
     "\n"
+ 	"; - restore_last_focus: If true, restore the previously focused window when switching desktops (only if layout is not stack).\n"
+    "restore_last_focus = false\n"
+    "\n"
 	"; Custom window rules\n"
 	"; Custom window rules allow you to define specific behaviors for windows based on their window class.\n"
 	";\n"
@@ -1188,6 +1191,15 @@ parse_config_line(char *key, char *value, config_t *c, bool reload)
 			c->focus_follow_spawn = true;
 		} else if (strcmp(value, "false") == 0) {
 			c->focus_follow_spawn = false;
+		} else {
+			_LOG_(ERROR, "invalid value for focus_follow_spawn: %s", value);
+			return -1;
+		}
+	} else if (strcmp(key, "restore_last_focus") == 0) {
+		if (strcmp(value, "true") == 0) {
+			c->restore_last_focus = true;
+		} else if (strcmp(value, "false") == 0) {
+			c->restore_last_focus = false;
 		} else {
 			_LOG_(ERROR, "invalid value for focus_follow_spawn: %s", value);
 			return -1;
