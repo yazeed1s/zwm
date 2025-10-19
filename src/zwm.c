@@ -1801,6 +1801,7 @@ init_monitor(void)
 	m->next		   = NULL;
 	m->desktops	   = NULL;
 	m->desk		   = NULL;
+	m->mru_counter = 1;
 	return m;
 }
 
@@ -2573,6 +2574,7 @@ merge_monitors(monitor_t *om, monitor_t *nm)
 					_FREE_(q);
 					return false;
 				}
+				node->client->mru_seq = get_next_mru_seq(nm);
 			}
 
 			if (node->first_child) {
@@ -2975,6 +2977,69 @@ setup_wm(void)
 	/* init_pointer(); */
 
 	return true;
+}
+
+/* returns bitmask enum ewmh_state_t for the window's _NET_WM_STATE */
+ewmh_state_t
+get_net_wm_state_mask(xcb_window_t win)
+{
+	if (!wm || !wm->ewmh || win == XCB_NONE)
+		return EWMH_STATE_NONE;
+
+	ewmh_state_t			   mask = EWMH_STATE_NONE;
+	xcb_get_property_cookie_t  ck	= xcb_ewmh_get_wm_state(wm->ewmh, win);
+	xcb_ewmh_get_atoms_reply_t rep;
+	if (!xcb_ewmh_get_wm_state_reply(wm->ewmh, ck, &rep, NULL)) {
+		return EWMH_STATE_NONE; 
+	}
+
+	for (unsigned i = 0; i < rep.atoms_len; ++i) {
+		xcb_atom_t a = rep.atoms[i];
+		if (a == wm->ewmh->_NET_WM_STATE_ABOVE)
+			mask |= EWMH_STATE_ABOVE;
+		else if (a == wm->ewmh->_NET_WM_STATE_BELOW)
+			mask |= EWMH_STATE_BELOW;
+		else if (a == wm->ewmh->_NET_WM_STATE_FULLSCREEN)
+			mask |= EWMH_STATE_FULLSCREEN;
+		else if (a == wm->ewmh->_NET_WM_STATE_MODAL)
+			mask |= EWMH_STATE_MODAL;
+		else if (a == wm->ewmh->_NET_WM_STATE_HIDDEN)
+			mask |= EWMH_STATE_HIDDEN;
+		else if (a == wm->ewmh->_NET_WM_STATE_STICKY)
+			mask |= EWMH_STATE_STICKY;
+		else if (a == wm->ewmh->_NET_WM_STATE_DEMANDS_ATTENTION)
+			mask |= EWMH_STATE_DEMANDS_ATTN;
+	}
+
+	xcb_ewmh_get_atoms_reply_wipe(&rep);
+	return mask;
+}
+
+static void
+fill_icccm_ewmh(client_t *c)
+{
+	/* 1) transient_for */
+	xcb_window_t			  transient = XCB_NONE;
+	xcb_get_property_cookie_t cv =
+		xcb_icccm_get_wm_transient_for(wm->connection, c->window);
+	const uint8_t r = xcb_icccm_get_wm_transient_for_reply(
+		wm->connection, cv, &transient, NULL);
+
+	c->transient_for = transient;
+
+	/* 2) attributes --> override_redirect */
+	xcb_get_window_attributes_cookie_t atc =
+		xcb_get_window_attributes(wm->connection, c->window);
+	xcb_get_window_attributes_reply_t *atr =
+		xcb_get_window_attributes_reply(wm->connection, atc, NULL);
+	c->override_redirect = (atr && atr->override_redirect);
+	free(atr);
+
+	/* 3) window type */
+	c->ewmh_type  = window_type(c->window);
+
+	/* 4) _NET_WM_STATE --> bitmask */
+	c->ewmh_state = get_net_wm_state_mask(c->window);
 }
 
 int
@@ -4215,7 +4280,7 @@ determine_window_type(xcb_ewmh_conn_t *ewmh, xcb_atom_t atom)
 	return WINDOW_TYPE_NORMAL;
 }
 
-static ewmh_window_type_t
+ewmh_window_type_t
 window_type(xcb_window_t win)
 {
 	xcb_ewmh_get_atoms_reply_t w_type;
@@ -4290,6 +4355,102 @@ is_transient(xcb_window_t win)
 	return false;
 }
 
+static inline bool
+ewmh_has(ewmh_state_t s, ewmh_state_t f)
+{
+	return (s & f) != 0;
+}
+
+static inline layer_t
+compute_layer(const client_t *c)
+{
+	if (ewmh_has(c->ewmh_state, EWMH_STATE_FULLSCREEN) || IS_FULLSCREEN(c))
+		return LAYER_FULLSCREEN;
+
+	/* treat DOCK/panels and “ABOVE-ish” things as ABOVE (below fullscreen) */
+	if (c->ewmh_type == WINDOW_TYPE_DOCK ||
+		c->ewmh_type == WINDOW_TYPE_NOTIFICATION ||
+		c->ewmh_type == WINDOW_TYPE_TOOLBAR_MENU ||
+		ewmh_has(c->ewmh_state, EWMH_STATE_MODAL) ||
+		ewmh_has(c->ewmh_state, EWMH_STATE_ABOVE))
+		return LAYER_ABOVE;
+
+	if (ewmh_has(c->ewmh_state, EWMH_STATE_BELOW))
+		return LAYER_BELOW;
+
+	if (IS_FLOATING(c) && !ewmh_has(c->ewmh_state, EWMH_STATE_BELOW) &&
+		!ewmh_has(c->ewmh_state, EWMH_STATE_FULLSCREEN))
+		return LAYER_ABOVE;
+
+	return LAYER_NORMAL;
+}
+
+static inline uint8_t
+transient_depth(const client_t *c)
+{
+	uint8_t		 depth = 0;
+	xcb_window_t cur   = c->transient_for;
+	while (cur) {
+		node_t *p = find_node_by_window_id(curr_monitor->desk->tree, cur);
+		if (!p)
+			break;
+		depth++;
+		cur = p->client->transient_for;
+	}
+	/* 0 = toplevel, 1 = direct transient */
+	return depth;
+}
+
+uint64_t
+stack_key(const client_t *c)
+{
+	layer_t		   layer  = compute_layer(c);
+	const uint8_t  depth  = transient_depth(c);
+	const uint32_t mru	  = c->mru_seq;
+	const uint8_t  hidden = ewmh_has(c->ewmh_state, EWMH_STATE_HIDDEN) ? 1 : 0;
+
+	/* transients are at least at their parent's layer */
+	if (c->transient_for) {
+		node_t *p =
+			find_node_by_window_id(curr_monitor->desk->tree, c->transient_for);
+		if (p && p->client) {
+			layer_t parent_layer = compute_layer(p->client);
+			if (parent_layer > layer) {
+				layer = parent_layer;
+			}
+		}
+	}
+
+	/* [8 bits layer][8 bits hidden][8 bits transient depth][40 bits MRU] */
+	return ((uint64_t)layer << 56) | ((uint64_t)hidden << 48) |
+		   ((uint64_t)depth << 40) | ((uint64_t)mru);
+}
+
+uint32_t
+get_next_mru_seq(monitor_t *monitor)
+{
+	if (!monitor) {
+		return 1;
+	}
+	return ++monitor->mru_counter;
+}
+
+monitor_t *
+get_monitor_by_window(xcb_window_t win)
+{
+	monitor_t *curr = head_monitor;
+	while (curr) {
+		for (int i = 0; i < curr->n_of_desktops; i++) {
+			node_t *node = find_node_by_window_id(curr->desktops[i]->tree, win);
+			if (node) {
+				return curr;
+			}
+		}
+		curr = curr->next;
+	}
+	return NULL;
+}
+
 static int
 handle_first_window(client_t *client, desktop_t *d)
 {
@@ -4313,6 +4474,8 @@ handle_first_window(client_t *client, desktop_t *d)
 	set_focus(d->tree, true);
 	/*d->node = d->tree;*/
 	ewmh_update_client_list();
+	client->mru_seq = get_next_mru_seq(curr_monitor);
+	restack();
 	return tile(d->tree);
 }
 
@@ -4365,6 +4528,8 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	}
 	/*curr_monitor->desk->node = new_node;*/
 	ewmh_update_client_list();
+	client->mru_seq = get_next_mru_seq(curr_monitor);
+	restack();
 	return render_tree(d->tree);
 }
 
@@ -4392,6 +4557,8 @@ handle_floating_window(client_t *client, desktop_t *d)
 		d->n_count += 1;
 		ewmh_update_client_list();
 		set_focus(d->tree, true);
+		client->mru_seq = get_next_mru_seq(curr_monitor);
+		restack();
 		return tile(d->tree);
 	} else {
 		xcb_window_t wi =
@@ -4425,6 +4592,8 @@ handle_floating_window(client_t *client, desktop_t *d)
 		insert_node(n, new_node, d->layout);
 		d->n_count += 1;
 		ewmh_update_client_list();
+		client->mru_seq = get_next_mru_seq(curr_monitor);
+		restack();
 		return render_tree(d->tree);
 	}
 }
@@ -4542,6 +4711,7 @@ handle_tiled_window_request(xcb_window_t win, desktop_t *d)
 	if (!conf.focus_follow_pointer) {
 		window_grab_buttons(client->window);
 	}
+	fill_icccm_ewmh(client);
 
 	if (is_tree_empty(d->tree)) {
 		return handle_first_window(client, d);
@@ -4568,7 +4738,7 @@ handle_floating_window_request(xcb_window_t win, desktop_t *d)
 	if (!conf.focus_follow_pointer) {
 		window_grab_buttons(client->window);
 	}
-
+	fill_icccm_ewmh(client);
 	return handle_floating_window(client, d);
 }
 
@@ -4695,6 +4865,7 @@ out:
 	}
 	set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL);
 	xcb_flush(wm->connection);
+
 	return 0;
 }
 
@@ -4818,7 +4989,11 @@ handle_enter_notify(const xcb_event_t *event)
 	update_focus(root, n);
 	/*curr_monitor->desk->node = n;*/
 
-	if (has_floating_window(root)) {
+	// if (has_floating_window(root)) {
+	// 	restack();
+	// }
+	if (n && n->client) {
+		n->client->mru_seq = get_next_mru_seq(curr_monitor);
 		restack();
 	}
 
@@ -4991,7 +5166,7 @@ get_client_message_type(xcb_atom_t type, xcb_ewmh_conn_t *ewmh)
 	return CLIENT_MESSAGE_UNSUPPORTED;
 }
 
-static inline window_state_type_t
+window_state_type_t
 get_window_state_type(uint32_t state, xcb_ewmh_conn_t *ewmh)
 {
 	if (state == ewmh->_NET_WM_STATE_FULLSCREEN)
@@ -5126,6 +5301,20 @@ handle_net_active_window(xcb_window_t win)
 	if (d == -1) {
 		return 0;
 	}
+	
+	/*
+	monitor_t *target_monitor = get_monitor_by_window(win);
+	if (target_monitor && target_monitor != curr_monitor) {
+		node_t *node = find_node_by_window_id(target_monitor->desk->tree, win);
+		if (node && node->client) {
+			node->client->mru_seq = get_next_mru_seq(target_monitor);
+			monitor_t *old_curr = curr_monitor;
+			curr_monitor = target_monitor;
+			restack();
+			curr_monitor = old_curr;
+		}
+	} */
+	
 	return switch_desktop(d);
 }
 

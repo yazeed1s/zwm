@@ -195,6 +195,26 @@ struct icccm_props_t {
 	bool delete_window;
 };
 
+/* Bitmask enum for _NET_WM_STATE */
+typedef enum {
+	EWMH_STATE_NONE			= 0,
+	EWMH_STATE_ABOVE		= 1u << 0,
+	EWMH_STATE_BELOW		= 1u << 1,
+	EWMH_STATE_FULLSCREEN	= 1u << 2,
+	EWMH_STATE_MODAL		= 1u << 3,
+	EWMH_STATE_HIDDEN		= 1u << 4,
+	EWMH_STATE_STICKY		= 1u << 5,
+	EWMH_STATE_DEMANDS_ATTN = 1u << 6,
+} ewmh_state_t;
+
+typedef enum {
+	LAYER_DESKTOP	 = 0, /* if you later add WINDOW_TYPE_DESKTOP */
+	LAYER_BELOW		 = 1,
+	LAYER_NORMAL	 = 2,
+	LAYER_ABOVE		 = 3,
+	LAYER_FULLSCREEN = 4,
+} layer_t;
+
 /* defines the client, like an opened application like firefox of a text editor.
  * every leaf node in the tree contains a non-null client, internal nodes ALWAYS
  * have null clients.
@@ -202,13 +222,24 @@ struct icccm_props_t {
 typedef struct {
 	/*char			 class_name[MAXLEN];*/
 	/*char			 wm_name[MAXLEN];*/
-	uint32_t		 border_width;
-	xcb_window_t	 window;
-	xcb_atom_t		 type;
-	state_t			 state;
-	icccm_props_t	 props;
-	xcb_size_hints_t size_hints;
+	uint32_t		   border_width;
+	xcb_window_t	   window;
+	xcb_atom_t		   type;
+	state_t			   state;
+	icccm_props_t	   props;
+	xcb_size_hints_t   size_hints;
+	/* NEW parsed hints */
+	ewmh_window_type_t ewmh_type;	  /* from _NET_WM_WINDOW_TYPE */
+	ewmh_state_t	   ewmh_state;	  /* from _NET_WM_STATE (bitmask enum) */
+	xcb_window_t	   transient_for; /* from WM_TRANSIENT_FOR (0 if none) */
+	bool			   override_redirect; /* from X attributes */
+	uint32_t		   mru_seq;			  /* bump on focus/raise */
 } client_t;
+
+typedef struct {
+	uint64_t  key;
+	client_t *c;
+} stack_item_t;
 
 /* types for tree nodes */
 typedef enum {
@@ -267,6 +298,7 @@ struct monitor_t {
 	bool			   is_primary;	/* primary monitor */
 	uint16_t		   n_of_desktops; /* total desktops, defined in
 									   * the config file  */
+	uint32_t		   mru_counter; /* per-monitor MRU counter */
 };
 
 /* status bar representation */
@@ -329,7 +361,7 @@ typedef struct {
 /* key mapping structure */
 typedef struct {
 	char		 key[10]; /* key representation */
-	xcb_keysym_t keysym; /* key symbol */
+	xcb_keysym_t keysym;  /* key symbol */
 } key_mapper_t;
 
 /* window manager configuration */
