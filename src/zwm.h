@@ -54,6 +54,7 @@ void window_below(xcb_window_t, xcb_window_t);
 void grab_pointer(xcb_window_t, bool);
 void ungrab_pointer(void);
 char *win_name(xcb_window_t);
+int check_window_map_state(xcb_window_t win, win_map_state_t s);
 int set_visibility(xcb_window_t win, bool is_visible);
 int resize_window(xcb_window_t, uint16_t, uint16_t);
 int move_window(xcb_window_t, int16_t, int16_t);
@@ -79,13 +80,9 @@ int tile(node_t *node);
 int set_focus(node_t *n, bool flag);
 int swap_node_wrapper(arg_t *arg);
 int change_state(arg_t *arg);
-uint64_t
-stack_key(const client_t *c);
-ewmh_window_type_t
-window_type(xcb_window_t win);
-uint32_t
-get_next_mru_seq(monitor_t *monitor);
-monitor_t *
-get_monitor_by_window(xcb_window_t win);
+uint64_t stack_key(const client_t *c);
+ewmh_window_type_t window_type(xcb_window_t win);
+uint32_t get_next_mru_seq(monitor_t *monitor);
+monitor_t *get_monitor_by_window(xcb_window_t win);
 /* clang-format on */
 #endif /* ZWM_ZWM_H */

@@ -33,7 +33,7 @@
 
 #include <assert.h>
 
-#include <stdbool.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -627,14 +627,16 @@ restack(void)
 	/* start chain above root */
 	xcb_window_t sib = wm->root_window;
 	for (size_t i = 0; i < len; i++) {
-		client_t *c		  = v[i].c;
-		uint32_t  vals[2] = {sib, XCB_STACK_MODE_ABOVE};
+		client_t *c = v[i].c;
+		if (!c)
+			continue;
+		uint32_t vals[2] = {sib, XCB_STACK_MODE_ABOVE};
 		window_above(c->window, sib);
 		sib = c->window;
 	}
 	xcb_flush(wm->connection);
 
-	/* publish _NET_CLIENT_LIST_STACKING (bottom→top) if you keep that prop */
+	/* publish _NET_CLIENT_LIST_STACKING */
 	/* ewmh_update_client_list_stacking(v, len); */
 
 	free(v);
@@ -1193,8 +1195,47 @@ stack_layout(node_t *root)
 	apply_stack_layout(root);
 }
 
-// void grid_layout(node_t *root) {
-// }
+void
+count_windows(node_t *r, int *n)
+{
+	if (!r)
+		return;
+	if (IS_EXTERNAL(r) && r->client)
+		(*n)++;
+	count_windows(r->first_child, n);
+	count_windows(r->second_child, n);
+}
+
+void
+grid_layout(node_t *root)
+{
+	int n = 0;
+	count_windows(root, &n);
+	if (n == 0)
+		return;
+
+	int		 rows	 = sqrt(n);
+	int		 cols	 = ceil((float)n / rows);
+
+	uint16_t total_w = curr_monitor->rectangle.width;
+	uint16_t total_h = curr_monitor->rectangle.height;
+	uint16_t w		 = 0;
+	uint16_t cell_w	 = total_w / cols;
+	uint16_t cell_h	 = total_h / rows;
+
+	/*
+	 * grid layout logic:
+	 *  - each window is placed in a cell (row, col)
+	 *  - x = col_index * cell_w
+	 *  - y = row_index * cell_h
+	 */
+
+	/* TODO: traverse all external nodes and assign:
+	 * node->rectangle.x = col * cell_w;
+	 * node->rectangle.y = row * cell_h;
+	 * node->rectangle.width  = cell_w;
+	 */
+}
 
 /* apply_layout - applies the specified layout to the given tree.
  *

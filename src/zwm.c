@@ -189,6 +189,7 @@ static int switch_desktop(int);
 static int handle_tiled_window_request(xcb_window_t, desktop_t *);
 static int handle_floating_window_request(xcb_window_t, desktop_t *);
 static int handle_bar_request(xcb_window_t, desktop_t *);
+// static int show_window(xcb_window_t win, node_t *n);
 static int show_window(xcb_window_t win);
 static int hide_window(xcb_window_t win);
 static xcb_get_geometry_reply_t *get_geometry(xcb_window_t win, xcb_conn_t *conn);
@@ -334,6 +335,35 @@ win_name(xcb_window_t win)
 	xcb_icccm_get_text_property_reply_wipe(&t_reply);
 
 	return str;
+}
+
+/* checks if window is in the expected state
+ *
+ * workaround for a bug where windows aren't always mapped when they
+ * should be, which causes some ops to fail or crash.
+ *
+ * TODO: fix the bug
+ */
+int
+check_window_map_state(xcb_window_t win, win_map_state_t state)
+{
+	xcb_get_window_attributes_cookie_t attr_cookie =
+		xcb_get_window_attributes(wm->connection, win);
+	xcb_get_window_attributes_reply_t *attr =
+		xcb_get_window_attributes_reply(wm->connection, attr_cookie, NULL);
+
+	if (attr == NULL) {
+		return 0;
+	}
+
+	if (state == WIN_MAP_STATE_ANY) {
+		_FREE_(attr);
+		return 1;
+	}
+
+	int matched = (attr->map_state == (uint8_t)state);
+	_FREE_(attr);
+	return matched;
 }
 
 int
@@ -712,9 +742,12 @@ release_grab:
 void
 window_above(xcb_window_t win1, xcb_window_t win2)
 {
-	if (win2 == XCB_NONE) {
+	if (win1 == wm->root_window || win2 == XCB_NONE)
 		return;
-	}
+
+	if (win2 == wm->root_window)
+		return;
+
 	uint16_t mask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
 	uint32_t values[] = {win2, XCB_STACK_MODE_ABOVE};
 	xcb_cookie_t cookie =
@@ -1596,8 +1629,12 @@ get_active_clients_size_prime()
 static size_t
 get_active_clients_size(desktop_t **d, const int n)
 {
+	if (!d)
+		return -1;
 	size_t t = 0;
 	for (int i = 0; i < n; ++i) {
+		if (!d[i])
+			continue;
 		t += d[i]->n_count;
 	}
 	return t;
@@ -1625,7 +1662,7 @@ ewmh_update_client_list(void)
 										  prim_monitor->n_of_desktops);
 	if (size == 0) {
 		xcb_ewmh_set_client_list(wm->ewmh, wm->screen_nbr, 0, NULL);
-		_LOG_(ERROR, "unable to get clients size");
+		/* _LOG_(ERROR, "unable to get clients size"); */
 		return;
 	}
 	/* TODO handle stacking client list --
@@ -2990,7 +3027,7 @@ get_net_wm_state_mask(xcb_window_t win)
 	xcb_get_property_cookie_t  ck	= xcb_ewmh_get_wm_state(wm->ewmh, win);
 	xcb_ewmh_get_atoms_reply_t rep;
 	if (!xcb_ewmh_get_wm_state_reply(wm->ewmh, ck, &rep, NULL)) {
-		return EWMH_STATE_NONE; 
+		return EWMH_STATE_NONE;
 	}
 
 	for (unsigned i = 0; i < rep.atoms_len; ++i) {
@@ -3089,11 +3126,16 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 static int
 fullscreen_focus(xcb_window_t win)
 {
-	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
-	uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
-	uint32_t input	   = XCB_INPUT_FOCUS_PARENT;
-	uint32_t bcolor	   = 0;
-	uint32_t bwidth	   = 0;
+	uint32_t						   bpx_width = XCB_CW_BORDER_PIXEL;
+	uint32_t						   b_width = XCB_CONFIG_WINDOW_BORDER_WIDTH;
+	uint32_t						   input   = XCB_INPUT_FOCUS_PARENT;
+	uint32_t						   bcolor  = 0;
+	uint32_t						   bwidth  = 0;
+
+	/* if window is viewable before attempting focus */
+	if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
+		return 0;
+	}
 
 	if (change_window_attr(wm->connection, win, bpx_width, &bcolor) != 0) {
 		_LOG_(ERROR, "cannot update win attributes");
@@ -3119,12 +3161,28 @@ fullscreen_focus(xcb_window_t win)
 static int
 win_focus(xcb_window_t win, bool set_focus)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG,
+		  "[WIN_FOCUS] win=%d name='%s' set_focus=%s",
+		  win,
+		  name ? name : "(null)",
+		  set_focus ? "TRUE" : "FALSE");
+	_FREE_(name);
+#endif
 	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
 	uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
 	uint32_t input	   = XCB_INPUT_FOCUS_PARENT;
 	uint32_t bcolor =
 		set_focus ? conf.active_border_color : conf.normal_border_color;
 	uint32_t bwidth = conf.border_width;
+
+	/* check if window is viewable before attempting focus operations */
+	if (set_focus) {
+		if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
+			return 0;
+		}
+	}
 
 	if (change_window_attr(wm->connection, win, bpx_width, &bcolor) != 0) {
 		_LOG_(ERROR, "cannot update win attributes");
@@ -3246,6 +3304,11 @@ set_input_focus(xcb_conn_t	   *conn,
 				xcb_window_t	win,
 				xcb_timestamp_t time)
 {
+	/* if window is viewable before attempting to set focus */
+	if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
+		return -1;
+	}
+
 	xcb_cookie_t focus_cookie =
 		xcb_set_input_focus_checked(conn, revert_to, win, time);
 	xcb_error_t *err = xcb_request_check(conn, focus_cookie);
@@ -3750,7 +3813,19 @@ client_exist_in_desktops(xcb_window_t win)
 static int
 kill_window(xcb_window_t win)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG, "[KILL_WINDOW] KILL WINDOW START ");
+	_LOG_(DEBUG,
+		  "[KILL_WINDOW] killing win=%d name='%s'",
+		  win,
+		  name ? name : "(null)");
+	_FREE_(name);
+#endif
 	if (win == XCB_NONE) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG, "[KILL_WINDOW] win is XCB_NONE, aborting");
+#endif
 		return -1;
 	}
 
@@ -3777,6 +3852,13 @@ kill_window(xcb_window_t win)
 	client_t  *c			   = (n) ? n->client : NULL;
 	bool	   another_desktop = false;
 	if (c == NULL) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "[KILL_WINDOW] win %d not in current desktop %d, searching other "
+			  "desktops",
+			  win,
+			  d->id);
+#endif
 		/* window isn't in current desktop */
 		find_window_in_desktops(&d, &n, win, &another_desktop);
 		c = (n) ? n->client : NULL;
@@ -3784,8 +3866,21 @@ kill_window(xcb_window_t win)
 			_LOG_(ERROR, "cannot find client with window %d", win);
 			return -1;
 		}
+#ifdef _DEBUG__
+		_LOG_(DEBUG, "[KILL_WINDOW] found win %d in desktop %d", win, d->id);
+#endif
+	} else {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "[KILL_WINDOW] found win %d in current desktop %d",
+			  win,
+			  d->id);
+#endif
 	}
 
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[KILL_WINDOW] unmapping win=%d before deletion", c->window);
+#endif
 	xcb_cookie_t cookie = xcb_unmap_window(wm->connection, c->window);
 	xcb_error_t *err	= xcb_request_check(wm->connection, cookie);
 
@@ -3798,6 +3893,9 @@ kill_window(xcb_window_t win)
 		return -1;
 	}
 
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[KILL_WINDOW] calling delete_node for win=%d", c->window);
+#endif
 	delete_node(n, d);
 	ewmh_update_client_list();
 
@@ -3814,12 +3912,65 @@ kill_window(xcb_window_t win)
 		}
 	}
 
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[KILL_WINDOW] kill_window complete for win=%d", win);
+#endif
 	return 0;
+}
+
+static node_t *
+find_node_global(xcb_window_t win)
+{
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(
+		DEBUG,
+		"[FIND_NODE_GLOBAL] searching for win=%d name='%s' across all desktops",
+		win,
+		name ? name : "(null)");
+	_FREE_(name);
+#endif
+	monitor_t *m = head_monitor;
+
+	while (m) {
+		for (int i = 0; i < m->n_of_desktops; i++) {
+			desktop_t *d = m->desktops[i];
+			if (!d || !d->tree)
+				continue;
+			node_t *n = find_node_by_window_id(d->tree, win);
+			if (n) {
+#ifdef _DEBUG__
+				_LOG_(DEBUG,
+					  "[FIND_NODE_GLOBAL] window %d found in monitor='%s' "
+					  "desktop=%d",
+					  win,
+					  m->name,
+					  d->id);
+#endif
+				return n;
+			}
+		}
+		m = m->next;
+	}
+
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[FIND_NODE_GLOBAL] window %d not found in ANY desktop", win);
+#endif
+	return NULL;
 }
 
 int
 set_visibility(xcb_window_t win, bool is_visible)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG,
+		  "[VISIBILITY] set_visibility called: win=%d name='%s' is_visible=%s",
+		  win,
+		  name ? name : "(null)",
+		  is_visible ? "TRUE" : "FALSE");
+	_FREE_(name);
+#endif
 	/* zwm must NOT recieve events before mapping (showing) or unmapping
 	 * (hiding) windows.
 	 * otherwise, it will recieve unmap/map notify and handle it as it
@@ -3844,11 +3995,29 @@ set_visibility(xcb_window_t win, bool is_visible)
 		_FREE_(err);
 		return -1;
 	}
-
+	// node_t *n = find_node_global(win);
+	// if (!n) {
+	// 	_LOG_(ERROR, "cannot fin win %d", win);
+	// 	return -1;
+	// }
+	// ret = is_visible ? show_window(win, n) : hide_window(win);
+#ifdef _DEBUG__
+	_LOG_(DEBUG,
+		  "[VISIBILITY] calling %s for win=%d",
+		  is_visible ? "show_window" : "hide_window",
+		  win);
+#endif
 	ret = is_visible ? show_window(win) : hide_window(win);
 	if (ret == -1) {
 		_LOG_(
 			ERROR, "cannot set visibilty to %s", is_visible ? "true" : "false");
+#ifdef _DEBUG__
+	} else {
+		_LOG_(DEBUG,
+			  "[VISIBILITY] successfully set visibility to %s for win=%d",
+			  is_visible ? "true" : "false",
+			  win);
+#endif
 	}
 
 	/* subscribe for events again */
@@ -3863,12 +4032,78 @@ set_visibility(xcb_window_t win, bool is_visible)
 		_FREE_(err);
 		return -1;
 	}
+#ifdef _DEBUG__
+	_LOG_(DEBUG,
+		  "[VISIBILITY] set_visibility completed successfully for win=%d",
+		  win);
+#endif
 	return 0;
 }
+
+#if 0
+static int
+show_window(xcb_window_t win, node_t *n)
+{
+	if (win == XCB_NONE || n == NULL) {
+		_LOG_(ERROR, "show_window: invalid args (win=%d, node=%p)", win, n);
+		return -1;
+	}
+
+	if (!n->client) {
+		_LOG_(ERROR, "show_window: node has no client for win=%d", win);
+		return -1;
+	}
+
+	rectangle_t r =
+		IS_FLOATING(n->client) ? n->floating_rectangle : n->rectangle;
+	uint32_t	   vals[4] = {r.x, r.y, r.width, r.height};
+
+	const uint16_t mask	   = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+						  XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+
+	_LOG_(DEBUG,
+		  "showing window %d at (%d, %d) size (%d x %d)%s",
+		  win,
+		  r.x,
+		  r.y,
+		  r.width,
+		  r.height,
+		  IS_FLOATING(n->client) ? " [FLOATING]" : "");
+
+	xcb_cookie_t ck =
+		xcb_configure_window_checked(wm->connection, win, mask, vals);
+
+	xcb_error_t *err = xcb_request_check(wm->connection, ck);
+	if (err) {
+		_LOG_(ERROR,
+			  "show_window: failed to show window %d "
+			  "pos (%d,%d) size (%d,%d) error=%d",
+			  win,
+			  r.x,
+			  r.y,
+			  r.width,
+			  r.height,
+			  err->error_code);
+		_FREE_(err);
+		return -1;
+	}
+
+	return 0;
+}
+#endif
 
 static int
 show_window(xcb_window_t win)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG,
+		  "[SHOW_WINDOW] showing win=%d name='%s' (setting WM_STATE to NORMAL, "
+		  "then mapping)",
+		  win,
+		  name ? name : "(null)");
+	_FREE_(name);
+#endif
 	xcb_error_t		*err;
 	xcb_cookie_t	 c;
 	/* According to ewmh:
@@ -3900,12 +4135,56 @@ show_window(xcb_window_t win)
 		_FREE_(err);
 		return -1;
 	}
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[SHOW_WINDOW] successfully mapped win=%d", win);
+#endif
 	return 0;
 }
+
+#if 0
+static int
+hide_window(xcb_window_t win)
+{
+	if (win == XCB_NONE) {
+		_LOG_(ERROR, "invalid window (XCB_NONE)");
+		return -1;
+	}
+
+	const int32_t  offscreen = -20000;
+	const uint32_t values[2] = {offscreen, offscreen};
+	const uint16_t mask		 = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y;
+
+	_LOG_(DEBUG, "hiding window %d at (%d, %d)", win, offscreen, offscreen);
+
+	xcb_cookie_t ck =
+		xcb_configure_window_checked(wm->connection, win, mask, values);
+
+	xcb_error_t *err = xcb_request_check(wm->connection, ck);
+	if (err) {
+		_LOG_(ERROR,
+			  "failed to configure window %d offscreen (error=%d)",
+			  win,
+			  err->error_code);
+		_FREE_(err);
+		return -1;
+	}
+
+	return 0;
+}
+#endif
 
 static int
 hide_window(xcb_window_t win)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(DEBUG,
+		  "[HIDE_WINDOW] hiding win=%d name='%s' (setting WM_STATE to ICONIC, "
+		  "then unmapping)",
+		  win,
+		  name ? name : "(null)");
+	_FREE_(name);
+#endif
 	xcb_error_t		*err;
 	xcb_cookie_t	 c;
 	/* According to ewmh:
@@ -3940,6 +4219,9 @@ hide_window(xcb_window_t win)
 		_FREE_(err);
 		return -1;
 	}
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[HIDE_WINDOW] successfully unmapped win=%d", win);
+#endif
 	return 0;
 }
 
@@ -3994,7 +4276,25 @@ update_focused_desktop(int id)
 int
 set_focus(node_t *n, bool flag)
 {
+#ifdef _DEBUG__
+	char *name = (n && n->client) ? win_name(n->client->window) : NULL;
+	_LOG_(DEBUG,
+		  "[SET_FOCUS] set_focus called: win=%d name='%s' flag=%s state=%s",
+		  (n && n->client) ? n->client->window : 0,
+		  name ? name : "(null)",
+		  flag ? "TRUE" : "FALSE",
+		  (n && n->client && IS_FLOATING(n->client)) ? "FLOATING" : "TILED");
+	_FREE_(name);
+#endif
 	n->is_focused = flag;
+
+	/* Skip focus attempt if trying to set focus on unmapped window */
+	if (flag) {
+		if (!check_window_map_state(n->client->window, WIN_MAP_STATE_VIEWABLE)) {
+			return 0; /* Not an error - just skip focusing */
+		}
+	}
+
 	if (win_focus(n->client->window, flag) != 0) {
 		_LOG_(ERROR, "cannot set focus");
 		return -1;
@@ -4023,7 +4323,20 @@ switch_desktop_wrapper(arg_t *arg)
 static int
 switch_desktop(const int nd)
 {
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[SWITCH_DESKTOP] ========== DESKTOP SWITCH START ==========");
+	_LOG_(DEBUG,
+		  "[SWITCH_DESKTOP] switching from desktop %d to desktop %d",
+		  curr_monitor->desk->id,
+		  nd);
+#endif
 	if (nd > conf.virtual_desktops) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "[SWITCH_DESKTOP] requested desktop %d > max %d, aborting",
+			  nd,
+			  conf.virtual_desktops);
+#endif
 		return 0;
 	}
 
@@ -4031,15 +4344,38 @@ switch_desktop(const int nd)
 	node_t	  *tree_to_show	  = curr_monitor->desktops[nd]->tree;
 	desktop_t *target_desktop = curr_monitor->desktops[nd];
 
-	if (curr_monitor->desk == curr_monitor->desktops[nd])
+	if (curr_monitor->desk == curr_monitor->desktops[nd]) {
+#ifdef _DEBUG__
+		_LOG_(
+			DEBUG, "[SWITCH_DESKTOP] already on desktop %d, nothing to do", nd);
+#endif
 		return 0;
+	}
+#ifdef _DEBUG__
+	_LOG_(DEBUG, "[SWITCH_DESKTOP] updating focused desktop to %d", nd);
+#endif
 	update_focused_desktop(nd);
 
+#ifdef _DEBUG__
+	_LOG_(
+		DEBUG, "[SWITCH_DESKTOP] calling show_windows for desktop %d tree", nd);
+#endif
 	if (show_windows(tree_to_show) != 0) {
+#ifdef _DEBUG__
+		_LOG_(ERROR, "[SWITCH_DESKTOP] show_windows failed for desktop %d", nd);
+#endif
 		return -1;
 	}
 
+#ifdef _DEBUG__
+	_LOG_(DEBUG,
+		  "[SWITCH_DESKTOP] calling hide_windows for desktop %d tree",
+		  curr_monitor->desk->id);
+#endif
 	if (hide_windows(tree_to_hide) != 0) {
+#ifdef _DEBUG__
+		_LOG_(ERROR, "[SWITCH_DESKTOP] hide_windows failed for old desktop");
+#endif
 		return -1;
 	}
 	set_active_window_name(XCB_NONE);
@@ -4077,11 +4413,18 @@ switch_desktop(const int nd)
 #endif
 
 	if (ewmh_update_current_desktop(wm->ewmh, wm->screen_nbr, nd) != 0) {
+#ifdef _DEBUG__
+		_LOG_(ERROR, "[SWITCH_DESKTOP] ewmh_update_current_desktop failed");
+#endif
 		return -1;
 	}
 
 	xcb_flush(wm->connection);
 
+#ifdef _DEBUG__
+	_LOG_(DEBUG,
+		  "[SWITCH_DESKTOP] ========== DESKTOP SWITCH COMPLETE ==========");
+#endif
 	return 0;
 }
 
@@ -4544,6 +4887,11 @@ handle_floating_window(client_t *client, desktop_t *d)
 
 	xcb_get_geometry_reply_t *g = NULL;
 	if (is_tree_empty(d->tree)) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "[HANDLE_FLOATING] tree is empty, creating root node for win=%d",
+			  client->window);
+#endif
 		d->tree			= init_root();
 		d->tree->client = client;
 		g				= get_geometry(client->window, wm->connection);
@@ -4791,8 +5139,13 @@ handle_map_request(const xcb_event_t *event)
 		return 0;
 	}
 
-	/* check if the window already exists in the tree to avoid duplication */
-	if (find_node_by_window_id(curr_monitor->desk->tree, win) != NULL) {
+	/* check if the window already exists in ANY desktop to avoid duplication */
+	if (client_exist_in_desktops(win)) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "[MAP_REQUEST] win %d already exists in a desktop, ignoring "
+			  win);
+#endif
 		return 0;
 	}
 
@@ -5297,11 +5650,26 @@ handle_net_desktop_change(uint32_t nd)
 static int
 handle_net_active_window(xcb_window_t win)
 {
+#ifdef _DEBUG__
+	char *name = win_name(win);
+	_LOG_(
+		DEBUG,
+		"[NET_ACTIVE_WINDOW] received _NET_ACTIVE_WINDOW for win=%d name='%s'",
+		win,
+		name ? name : "(null)");
+	_FREE_(name);
+#endif
 	int d = find_desktop_by_window(win);
 	if (d == -1) {
+#ifdef _DEBUG__
+		_LOG_(
+			DEBUG,
+			"[NET_ACTIVE_WINDOW] window %d not found in any desktop, ignoring",
+			win);
+#endif
 		return 0;
 	}
-	
+
 	/*
 	monitor_t *target_monitor = get_monitor_by_window(win);
 	if (target_monitor && target_monitor != curr_monitor) {
@@ -5314,7 +5682,7 @@ handle_net_active_window(xcb_window_t win)
 			curr_monitor = old_curr;
 		}
 	} */
-	
+
 	return switch_desktop(d);
 }
 
@@ -5422,7 +5790,7 @@ handle_client_message(const xcb_event_t *event)
 	}
 	default: break;
 	}
-
+	_LOG_CLIENT_MESSAGE_(UNKNOWN_EVENT, win, name);
 	_FREE_(name);
 	xcb_flush(wm->connection);
 	return result;
@@ -5493,6 +5861,7 @@ handle_configure_request(const xcb_event_t *event)
 	if (!is_managed) {
 		uint16_t mask = 0;
 		uint32_t values[7];
+		memset(values, 0, sizeof(values));
 		uint16_t i = 0;
 		if (ev->value_mask & XCB_CONFIG_WINDOW_X) {
 			mask |= XCB_CONFIG_WINDOW_X;
@@ -5540,18 +5909,19 @@ handle_configure_request(const xcb_event_t *event)
 		}
 		/* TODO: deal with *node */
 		xcb_configure_notify_event_t evt;
-		unsigned int				 bw = conf.border_width;
-		rectangle_t					 r	= node->rectangle;
-		evt.response_type				= XCB_CONFIGURE_NOTIFY;
-		evt.event						= win;
-		evt.window						= win;
-		evt.above_sibling				= XCB_NONE;
-		evt.x							= r.x;
-		evt.y							= r.y;
-		evt.width						= r.width;
-		evt.height						= r.height;
-		evt.border_width				= bw;
-		evt.override_redirect			= false;
+		memset(&evt, 0, sizeof(evt));
+		unsigned int bw		  = conf.border_width;
+		rectangle_t	 r		  = node->rectangle;
+		evt.response_type	  = XCB_CONFIGURE_NOTIFY;
+		evt.event			  = win;
+		evt.window			  = win;
+		evt.above_sibling	  = XCB_NONE;
+		evt.x				  = r.x;
+		evt.y				  = r.y;
+		evt.width			  = r.width;
+		evt.height			  = r.height;
+		evt.border_width	  = bw;
+		evt.override_redirect = false;
 		xcb_send_event(wm->connection,
 					   false,
 					   win,
