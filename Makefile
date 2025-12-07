@@ -26,6 +26,16 @@ $(TARGET): $(OBJ_FILES)
 clean:
 	rm -f $(TARGET) $(OBJ_FILES)
 
+install: $(TARGET)
+	mkdir -p "$(DESTDIR)$(BINDIR)" 
+	cp -pf $(TARGET) "$(DESTDIR)$(BINDIR)" 
+	mkdir -p "$(DESTDIR)$(MANDIR)" 
+	cp -pf $(MANPAGE) "$(DESTDIR)$(MANDIR)"
+
+uninstall: 
+	rm -f "$(DESTDIR)$(BINDIR)/$(TARGET)" 
+	rm -f "$(DESTDIR)$(MANDIR)/$(MANPAGE)"
+
 asan: CFLAGS += $(ASAN_FLAGS) -g -O0
 asan: LDFLAGS += $(ASAN_FLAGS)
 asan: clean $(TARGET)

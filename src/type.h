@@ -341,10 +341,10 @@ typedef struct {
 
 /* key binding structure. used for the global fallback array in zwm.c */
 typedef struct {
-	int (*execute)(arg_t *); /* action function */
-	arg_t *arg;				 /* function arguments */
 	uint32_t	 mod;		 /* modifier key */
 	xcb_keysym_t keysym;	 /* key symbol */
+	int (*execute)(arg_t *); /* action function */
+	arg_t *arg;				 /* function arguments */
 } _key__t;
 
 /* config key structure (linked list),
@@ -361,8 +361,8 @@ struct conf_key_t {
 
 /* function mapping structure */
 typedef struct {
-	int (*execute)(arg_t *); /* function pointer */
 	char *func_name;		 /* function name */
+	int (*execute)(arg_t *); /* function pointer */
 } conf_mapper_t;
 
 /* key mapping structure */
