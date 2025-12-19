@@ -45,8 +45,10 @@
 
 #ifdef __LTEST__
 #define CONF_PATH "./zwm.conf"
+#define TEMPLATE_PATH "./zwm.conf"
 #else
 #define CONF_PATH ".config/zwm/zwm.conf"
+#define TEMPLATE_PATH "/usr/share/zwm/zwm.conf"
 #endif
 #define ALT	  XCB_MOD_MASK_1
 #define SUPER XCB_MOD_MASK_4
@@ -211,196 +213,9 @@ print_key_array(void)
 static int
 write_default_config(const char *filename, config_t *c)
 {
-	/* clang-format off */
-	const char *content =
-    "; ----------- ZWM Configuration File -------------\n"
-    ";\n"
-    "; This configuration file is used to customize the Zee Window Manager (ZWM) settings.\n"
-    "; It allows you to define window appearance, behavior, and key bindings for various actions.\n"
-    "\n"
-    "; Command to run on startup\n"
-    "; Use the exec directive to specify programs that should be started when ZWM is launched.\n"
-    "; For single command: use -> exec = \"command\"\n"
-    "; You can also specify additional arguments as a list.\n"
-    "exec = [\"polybar\", \"-c\", \".config/polybar/config.ini\"]\n"
-    "\n"
-    "; Available Variables:\n"
-    "; These variables control the appearance and behavior of the window manager.\n"
-    ";\n"
-    "; - border_width: defines the width of the window borders in pixels.\n"
-    "border_width = 2\n"
-    "; - active_border_color: specifies the color of the border for the active (focused) window.\n"
-    "active_border_color = 0x4a4a48\n"
-    "; - normal_border_color: specifies the color of the border for inactive (unfocused) windows.\n"
-    "normal_border_color = 0x30302f\n"
-    "; - window_gap: sets the gap between windows in pixels.\n"
-    "window_gap = 10\n"
-    "; - virtual_desktops: sets the number of virtual desktops available.\n"
-    "virtual_desktops = 7\n"
-    "; - focus_follow_pointer: If false, the window is focused on click.\n"
-    ";                        If true, the window is focused when the cursor enters it.\n"
-    "focus_follow_pointer = true\n"
-    "\n"
-    "; - focus_follow_spawn: If false, new windows require manual focus (e.g., via click).\n"
-    ";                      If true, newly spawned windows will automatically receive focus.\n"
-    "focus_follow_spawn = false\n"
-    "\n"
- 	"; - restore_last_focus: If true, restore the previously focused window when switching desktops (only if layout is not stack).\n"
-    "restore_last_focus = false\n"
-    "\n"
-	"; Custom window rules\n"
-	"; Custom window rules allow you to define specific behaviors for windows based on their window class.\n"
-	";\n"
-	"; Syntax:\n"
-	"; rule = wm_class(\"window class name\"), state(tiled|floated), desktop(1..N)\n"
-	";\n"
-	"; Explanation:\n"
-	";  - wm_class: The window class name used to identify the window. Use the 'xprop' tool to find the wm_class of a window.\n"
-	"; - state: Specifies whether the window should be tiled or floated.\n"
-	";   - tiled: The window will be tiled, clearly.\n"
-	";   - floated: The window will be floated, clearly.\n"
-	"; - desktop: The virtual desktop number where the window should be placed. Use -1 if you do not want to set it to a specific desktop.\n"
-	";\n"
-	"; Example:\n"
-	"; rule = wm_class(\"firefox\"), state(tiled), desktop(-1)\n"
-	"; This rule sets \"firefox\" window to be tiled and does not change its virtual desktop.\n"
-	"\n"
-	"rule = wm_class(\"emacs\"), state(tiled), desktop(-1)\n"
-	"\n"
-    "; Key Bindings:\n"
-    "; Define keyboard shortcuts to perform various actions.\n"
-    "; The syntax for defining key bindings is:\n"
-    "; bind = modifier + key -> action/function\n"
-    "; If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as alt|shift.\n"
-    "; Colon Syntax:\n"
-    "; Some functions require additional arguments to specify details of the action.\n"
-    "; These arguments are provided using a colon syntax, where the function and its argument\n"
-    "; are separated by a colon.\n"
-    "; Example: func(switch_desktop:1) means \"switch to desktop 1\".\n"
-    "; Example: func(resize:grow) means \"grow the size of the window\".\n"
-    "; Example: func(layout:master) means \"toggle master layout\".\n"
-    "\n"
-    "; Available Modifiers:\n"
-    "; - super: The \"Windows\" key or \"Command\" key on a Mac.\n"
-    "; - alt: The \"Alt\" key.\n"
-    "; - shift: The \"Shift\" key.\n"
-    "; - ctr: The \"Control\" key.\n"
-    ";\n"
-    "; Available Actions:\n"
-    "; These actions specify what happens when a key binding is triggered.\n"
-    "; - run(...): Executes a specified process.\n"
-    ";   - Example: bind = super + return -> run(\"alacritty\")\n"
-    ";   - To run a process with arguments, use a list:\n"
-    ";     Example: bind = super + p -> run([\"rofi\", \"-show\", \"drun\"])\n"
-    ";\n"
-    "; - func(...): Calls a predefined function. The following functions are available:\n"
-    ";   - kill: Kills the focused window.\n"
-    ";   - switch_desktop: Switches to a specified virtual desktop.\n"
-    ";   - fullscreen: Toggles fullscreen mode for the focused window.\n"
-    ";   - swap: Swaps the focused window with its sibling.\n"
-    ";   - transfer_node: Moves the focused window to another virtual desktop.\n"
-    ";   - layout: Toggles the specified layout (master, default, stack).\n"
-    ";   - traverse: (In stack layout only) Moves focus to the window above or below.\n"
-    ";   - flip: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.\n"
-    ";   - cycle_window: Moves focus to the window in the specified direction (up, down, left, right).\n"
-    ";   - cycle_desktop: Cycles through the virtual desktops (left, right).\n"
-    ";   - resize: Adjusts the size of the focused window (grow, shrink).\n"
-    ";   - reload_config: Reloads the configuration file without restarting ZWM.\n"
-	";   - shift_window: Shift floating window position to the specified direction (up, down, left, right).\n"
-	";   - gap_handler: Increase or decrease window gaps (GROW, SHRINK).\n"
-	";   - change_state: Set window state (FLAOTING, TILED).\n"
-    "\n"
-    "; Define key bindings\n"
-    "\n"
-    "; run processes on some keys\n"
-    "bind = super + return -> run(\"alacritty\")\n"
-    "bind = super + space -> run(\"dmenu_run\")\n"
-    "bind = super + p -> run([\"rofi\", \"-show\", \"drun\"])\n"
-    "\n"
-    "; kill the focused window\n"
-    "bind = super + w -> func(kill)\n"
-    "\n"
-    "; switch to specific virtual desktops\n"
-    "bind = super + 1 -> func(switch_desktop:1)\n"
-    "bind = super + 2 -> func(switch_desktop:2)\n"
-    "bind = super + 3 -> func(switch_desktop:3)\n"
-    "bind = super + 4 -> func(switch_desktop:4)\n"
-    "bind = super + 5 -> func(switch_desktop:5)\n"
-    "bind = super + 6 -> func(switch_desktop:6)\n"
-    "bind = super + 7 -> func(switch_desktop:7)\n"
-    "\n"
-    "; resize the focused window\n"
-    "bind = super + l -> func(resize:grow)\n"
-    "bind = super + h -> func(resize:shrink)\n"
-    "\n"
-    "; change the gaps between windows\n"
-    "bind = super + i -> func(gap_handler:grow)\n"
-    "bind = super + d -> func(gap_handler:shrink)\n"
-    "\n"
-    "; change window state\n"
-    "bind = shift + t -> func(change_state:tile)\n"
-    "bind = shift + f -> func(change_state:float)\n"
-    "\n"
-    "; toggle fullscreen mode\n"
-    "bind = super + f -> func(fullscreen)\n"
-    "\n"
-    "; swap the focused window with its sibling\n"
-    "bind = super + s -> func(swap)\n"
-    "\n"
-    "; cycle focus between windows\n"
-    "bind = super + up -> func(cycle_window:up)\n"
-    "bind = super + right -> func(cycle_window:right)\n"
-    "bind = super + left -> func(cycle_window:left)\n"
-    "bind = super + down -> func(cycle_window:down)\n"
-    "\n"
-    "; cycle focus between monitors\n"
-    "bind = super|ctrl + right -> func(cycle_monitors:next)\n"
-    "bind = super|ctrl + left -> func(cycle_monitors:prev)\n"
-    "\n"
-	"; shift floating window position to the specified direction\n"
-    "bind = shift + up -> func(shift_window:up)\n"
-    "bind = shift + right -> func(shift_window:right)\n"
-    "bind = shift + left -> func(shift_window:left)\n"
-    "bind = shift + down -> func(shift_window:down)\n"
- 	"\n"
-	"; grow floating windows\n"
-	"bind = super|shift + y -> func(grow_floating_window:horizontal)\n"
-    "bind = super|shift + h -> func(grow_floating_window:vertical)\n"
-    "\n"
-	"; shrink floating windows\n"
-	"bind = super|shift + t -> func(shrink_floating_window:horizontal)\n"
-	"bind = super|shift + g -> func(shrink_floating_window:vertical)\n"
-	"\n"
-	"; cycle through virtual desktops\n"
-    "bind = super|shift + left -> func(cycle_desktop:left)\n"
-    "bind = super|shift + right -> func(cycle_desktop:right)\n"
-    "\n"
-    "; transfer the focused window to another virtual desktop\n"
-    "bind = super|shift + 1 -> func(transfer_node:1)\n"
-    "bind = super|shift + 2 -> func(transfer_node:2)\n"
-    "bind = super|shift + 3 -> func(transfer_node:3)\n"
-    "bind = super|shift + 4 -> func(transfer_node:4)\n"
-    "bind = super|shift + 5 -> func(transfer_node:5)\n"
-    "bind = super|shift + 6 -> func(transfer_node:6)\n"
-    "bind = super|shift + 7 -> func(transfer_node:7)\n"
-    "\n"
-    "; change the layout\n"
-    "bind = super|shift + m -> func(layout:master)\n"
-    "bind = super|shift + s -> func(layout:stack)\n"
-    "bind = super|shift + d -> func(layout:default)\n"
-    "\n"
-    "; traverse the stack layout\n"
-    "bind = super|shift + k -> func(traverse:up)\n"
-    "bind = super|shift + j -> func(traverse:down)\n"
-    "\n"
-    "; flip the orientation of the window\n"
-    "bind = super|shift + f -> func(flip)\n"
-    "\n"
-    "; reload the configuration file\n"
-    "bind = super|shift + r -> func(reload_config)\n"
-    "\n";
-	/* clang-format on */
+	const char *template_path = TEMPLATE_PATH;
 
+	/* Create directory if it doesn't exist */
 	char dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
@@ -415,20 +230,37 @@ write_default_config(const char *filename, config_t *c)
 		}
 	}
 
-	FILE *file = fopen(filename, "w");
-	if (file == NULL) {
+	/* Open template file for reading */
+	FILE *template_file = fopen(template_path, "r");
+	if (template_file == NULL) {
+		_LOG_(ERROR, "failed to open template file: %s", template_path);
+		return -1;
+	}
+
+	/* Open destination file for writing */
+	FILE *dest_file = fopen(filename, "w");
+	if (dest_file == NULL) {
 		_LOG_(ERROR, "failed to create config file: %s", filename);
+		fclose(template_file);
 		return -1;
 	}
 
-	size_t len	   = strlen(content);
-	size_t written = fwrite(content, 1, len, file);
-	if (written != len) {
-		fclose(file);
-		_LOG_(ERROR, "error writing to file: %s", filename);
-		return -1;
+	/* Copy template to destination */
+	char buffer[4096];
+	size_t bytes;
+	while ((bytes = fread(buffer, 1, sizeof(buffer), template_file)) > 0) {
+		if (fwrite(buffer, 1, bytes, dest_file) != bytes) {
+			_LOG_(ERROR, "error writing to file: %s", filename);
+			fclose(template_file);
+			fclose(dest_file);
+			return -1;
+		}
 	}
 
+	fclose(template_file);
+	fclose(dest_file);
+
+	/* Set default config values */
 	c->active_border_color	= 0x4a4a48;
 	c->normal_border_color	= 0x30302f;
 	c->border_width			= 2;
@@ -436,7 +268,6 @@ write_default_config(const char *filename, config_t *c)
 	c->virtual_desktops		= 7;
 	c->focus_follow_pointer = true;
 
-	fclose(file);
 	return 0;
 }
 
@@ -956,10 +787,15 @@ static conf_key_t *
 init_key(void)
 {
 	conf_key_t *key = (conf_key_t *)calloc(1, sizeof(conf_key_t));
-	key->arg		= (arg_t *)calloc(1, sizeof(arg_t));
+	if (key == NULL) {
+		_LOG_(ERROR, "failed to calloc conf_key_t");
+		return NULL;
+	}
 
-	if (key->arg == NULL || key == NULL) {
-		_LOG_(ERROR, "failed to calloc _key__t or arg_t");
+	key->arg = (arg_t *)calloc(1, sizeof(arg_t));
+	if (key->arg == NULL) {
+		_LOG_(ERROR, "failed to calloc arg_t");
+		_FREE_(key);
 		return NULL;
 	}
 

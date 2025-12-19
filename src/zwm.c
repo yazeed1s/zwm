@@ -102,6 +102,7 @@ bool				  using_xrandr			= false;
 bool				  multi_monitors		= false;
 bool				  using_xinerama		= false;
 config_t			  conf					= {0};
+volatile sig_atomic_t should_shutdown		= 0;
 uint8_t				  randr_base			= 0;
 uint64_t			  last_desk_switch_time = 0;
 xcb_cursor_t		  cursors[CURSOR_MAX];
@@ -3126,11 +3127,11 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 static int
 fullscreen_focus(xcb_window_t win)
 {
-	uint32_t						   bpx_width = XCB_CW_BORDER_PIXEL;
-	uint32_t						   b_width = XCB_CONFIG_WINDOW_BORDER_WIDTH;
-	uint32_t						   input   = XCB_INPUT_FOCUS_PARENT;
-	uint32_t						   bcolor  = 0;
-	uint32_t						   bwidth  = 0;
+	uint32_t bpx_width = XCB_CW_BORDER_PIXEL;
+	uint32_t b_width   = XCB_CONFIG_WINDOW_BORDER_WIDTH;
+	uint32_t input	   = XCB_INPUT_FOCUS_PARENT;
+	uint32_t bcolor	   = 0;
+	uint32_t bwidth	   = 0;
 
 	/* if window is viewable before attempting focus */
 	if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
@@ -4290,7 +4291,8 @@ set_focus(node_t *n, bool flag)
 
 	/* Skip focus attempt if trying to set focus on unmapped window */
 	if (flag) {
-		if (!check_window_map_state(n->client->window, WIN_MAP_STATE_VIEWABLE)) {
+		if (!check_window_map_state(n->client->window,
+									WIN_MAP_STATE_VIEWABLE)) {
 			return 0; /* Not an error - just skip focusing */
 		}
 	}
@@ -5142,9 +5144,9 @@ handle_map_request(const xcb_event_t *event)
 	/* check if the window already exists in ANY desktop to avoid duplication */
 	if (client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
-		_LOG_(DEBUG,
-			  "[MAP_REQUEST] win %d already exists in a desktop, ignoring "
-			  win);
+		_LOG_(
+			DEBUG,
+			"[MAP_REQUEST] win %d already exists in a desktop, ignoring " win);
 #endif
 		return 0;
 	}
@@ -6237,7 +6239,7 @@ static void
 event_loop(wm_t *w)
 {
 	xcb_event_t *event;
-	while ((event = xcb_wait_for_event(w->connection))) {
+	while (!should_shutdown && (event = xcb_wait_for_event(w->connection))) {
 		if (event->response_type == 0) {
 			_FREE_(event);
 			continue;
@@ -6252,14 +6254,28 @@ event_loop(wm_t *w)
 }
 
 static void
+signal_handler(int sig)
+{
+	/* Set shutdown flag to exit event loop cleanly */
+	should_shutdown = 1;
+}
+
+static void
 cleanup(int sig)
 {
-	xcb_disconnect(wm->connection);
-	xcb_ewmh_connection_wipe(wm->ewmh);
+	if (wm != NULL) {
+		if (wm->connection != NULL) {
+			xcb_disconnect(wm->connection);
+		}
+		if (wm->ewmh != NULL) {
+			xcb_ewmh_connection_wipe(wm->ewmh);
+			free(wm->ewmh);
+		}
+		_FREE_(wm);
+	}
 	free_keys();
 	free_rules();
 	free_monitors(); /* frees desktops and trees as well */
-	_FREE_(wm);
 	_LOG_(INFO, "ZWM exits with signal number %d", sig);
 	/* uncommenting the following line *exit(sig)* prevents the os
 	 * from generating a core dump file when zwm crashes */
@@ -6304,10 +6320,10 @@ main(int argc, char **argv)
 		_LOG_(ERROR, "cannot grab keys");
 	}
 
-	signal(SIGINT, cleanup);
-	signal(SIGTERM, cleanup);
-	signal(SIGSEGV, cleanup);
-	signal(SIGABRT, cleanup);
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGSEGV, signal_handler);
+	signal(SIGABRT, signal_handler);
 
 	event_loop(wm);
 	cleanup(0);
