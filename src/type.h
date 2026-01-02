@@ -188,12 +188,40 @@ typedef enum {
 	CLIENT_MESSAGE_CLOSE_WINDOW
 } client_message_type_t;
 
+/* window map state types for checking window visibility */
+typedef enum {
+	WIN_MAP_STATE_UNMAPPED		= XCB_MAP_STATE_UNMAPPED,	 /* 0 - window is unmapped */
+	WIN_MAP_STATE_UNVIEWABLE	= XCB_MAP_STATE_UNVIEWABLE, /* 1 - window is unviewable */
+	WIN_MAP_STATE_VIEWABLE		= XCB_MAP_STATE_VIEWABLE,	 /* 2 - window is viewable */
+	WIN_MAP_STATE_ANY			= 0xFF						 /* match any state */
+} win_map_state_t;
+
 typedef struct icccm_props_t icccm_props_t;
 struct icccm_props_t {
 	bool take_focus;
 	bool input_hint;
 	bool delete_window;
 };
+
+/* bitmask enum for _NET_WM_STATE */
+typedef enum {
+	EWMH_STATE_NONE			= 0,
+	EWMH_STATE_ABOVE		= 1u << 0,
+	EWMH_STATE_BELOW		= 1u << 1,
+	EWMH_STATE_FULLSCREEN	= 1u << 2,
+	EWMH_STATE_MODAL		= 1u << 3,
+	EWMH_STATE_HIDDEN		= 1u << 4,
+	EWMH_STATE_STICKY		= 1u << 5,
+	EWMH_STATE_DEMANDS_ATTN = 1u << 6,
+} ewmh_state_t;
+
+typedef enum {
+	LAYER_DESKTOP	 = 0, /* if you later add WINDOW_TYPE_DESKTOP */
+	LAYER_BELOW		 = 1,
+	LAYER_NORMAL	 = 2,
+	LAYER_ABOVE		 = 3,
+	LAYER_FULLSCREEN = 4,
+} layer_t;
 
 /* defines the client, like an opened application like firefox of a text editor.
  * every leaf node in the tree contains a non-null client, internal nodes ALWAYS
@@ -202,13 +230,23 @@ struct icccm_props_t {
 typedef struct {
 	/*char			 class_name[MAXLEN];*/
 	/*char			 wm_name[MAXLEN];*/
-	uint32_t		 border_width;
-	xcb_window_t	 window;
-	xcb_atom_t		 type;
-	state_t			 state;
-	icccm_props_t	 props;
-	xcb_size_hints_t size_hints;
+	xcb_window_t	   window;
+	xcb_window_t	   transient_for; /* from WM_TRANSIENT_FOR (0 if none) */
+	xcb_atom_t		   type;
+	uint32_t		   border_width;
+	uint32_t		   mru_seq;			  /* bump on focus/raise */
+	xcb_size_hints_t   size_hints;
+	ewmh_state_t	   ewmh_state;	  /* from _NET_WM_STATE (bitmask enum) */
+	icccm_props_t	   props;
+	ewmh_window_type_t ewmh_type;	  /* from _NET_WM_WINDOW_TYPE */
+	state_t			   state;
+	bool			   override_redirect; /* from X attributes */
 } client_t;
+
+typedef struct {
+	client_t *c;
+	uint64_t  key;
+} stack_item_t;
 
 /* types for tree nodes */
 typedef enum {
@@ -224,9 +262,9 @@ struct node_t {
 	node_t	   *first_child;
 	node_t	   *second_child;
 	client_t   *client; /* the actual window this node hold, if it's a leaf */
-	node_type_t node_type; /* node type */
 	rectangle_t rectangle; /* the position and size for this node */
 	rectangle_t floating_rectangle;
+	node_type_t node_type; /* node type */
 	bool		is_focused; /* whether or not this guy is focused */
 	bool		is_master;	/* whether this node is the master node */
 };
@@ -238,13 +276,13 @@ struct node_t {
 typedef struct {
 	node_t	*tree; /* the tree in this desktop */
 	/* node_t	*node;		 focused node */
-	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
+	xcb_window_t last_focused;
 	uint16_t id;		 /* the number of this desktop */
 	uint16_t n_count;	 /* the number of active windows/external nodes */
 	layout_t layout;	 /* the layout (master, default, stack) */
 	bool	 is_focused; /* whether this is focused, only focused desktops
 						  * are rendered */
-	xcb_window_t last_focused;
+	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
 } desktop_t;
 
 /* monitor representation (also a linked list of monitors).
@@ -256,24 +294,25 @@ struct monitor_t {
 	desktop_t		 **desktops;	/* array of desktops */
 	desktop_t		  *desk;		/* focused desktop */
 	monitor_t		  *next;		/* next monitor in list */
-	char			   name[DLEN];	/* monitor name (e.g. HDMI or eDP) */
-	uint32_t		   id;			/* monitor identifier, used with xinerama */
+	rectangle_t		   rectangle;	/* monitor dimensions */
 	xcb_randr_output_t randr_id;	/* randr output id, used with xrnadr */
 	xcb_window_t	   root;		/* the root window on this monitor */
-	rectangle_t		   rectangle;	/* monitor dimensions */
+	uint32_t		   id;			/* monitor identifier, used with xinerama */
+	uint32_t		   mru_counter; /* per-monitor MRU counter */
+	uint16_t		   n_of_desktops; /* total desktops, defined in
+									   * the config file  */
+	char			   name[DLEN];	/* monitor name (e.g. HDMI or eDP) */
 	bool			   is_wired;	/* connection status */
 	bool			   is_focused;	/* focus status */
 	bool			   is_occupied; /* window presence */
 	bool			   is_primary;	/* primary monitor */
-	uint16_t		   n_of_desktops; /* total desktops, defined in
-									   * the config file  */
 };
 
 /* status bar representation */
 typedef struct {
-	uint32_t	 id;		/* bar identifier */
-	xcb_window_t window;	/* xcb window reference */
 	rectangle_t	 rectangle; /* bar dimensions */
+	xcb_window_t window;	/* xcb window reference */
+	uint32_t	 id;		/* bar identifier */
 } bar_t;
 
 /* window manager global state */
@@ -313,11 +352,11 @@ typedef struct {
  */
 typedef struct conf_key_t conf_key_t;
 struct conf_key_t {
-	uint32_t	 mod;		 /* modifier key */
-	xcb_keysym_t keysym;	 /* key symbol */
 	int (*execute)(arg_t *); /* action function */
 	arg_t	   *arg;		 /* function arguments */
 	conf_key_t *next;		 /* next key */
+	uint32_t	 mod;		 /* modifier key */
+	xcb_keysym_t keysym;	 /* key symbol */
 };
 
 /* function mapping structure */
@@ -329,7 +368,7 @@ typedef struct {
 /* key mapping structure */
 typedef struct {
 	char		 key[10]; /* key representation */
-	xcb_keysym_t keysym; /* key symbol */
+	xcb_keysym_t keysym;  /* key symbol */
 } key_mapper_t;
 
 /* window manager configuration */
@@ -349,17 +388,17 @@ typedef struct {
 /* window rule structure (linked list) */
 typedef struct rule_t rule_t;
 struct rule_t {
-	char	win_name[256]; /* window name pattern */
-	state_t state;		   /* default window state */
-	int		desktop_id;	   /* target desktop, if desired */
 	rule_t *next;		   /* next rule in list */
+	int		desktop_id;	   /* target desktop, if desired */
+	state_t state;		   /* default window state */
+	char	win_name[256]; /* window name pattern */
 };
 
 /* queue node */
 typedef struct queue_node_t queue_node_t;
 struct queue_node_t {
-	node_t		 *tree_node; /* tree node reference */
 	queue_node_t *next;		 /* next queue node */
+	node_t		 *tree_node; /* tree node reference */
 };
 
 /* queue structure for level-order tree traversal */

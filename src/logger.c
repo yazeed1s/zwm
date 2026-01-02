@@ -27,6 +27,7 @@
  */
 
 #include "type.h"
+#include "helper.h"
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -44,7 +45,6 @@
 #else
 #define MAX_LOG_SIZE (2 << 12) // ~8kb
 #endif
-
 
 void
 log_message(log_level_t level, const char *format, ...)
@@ -99,10 +99,10 @@ log_message(log_level_t level, const char *format, ...)
 
 	fprintf(log_file, "%s ", buf);
 	switch (level) {
-	case ERROR: fprintf(log_file, "[ERROR] "); break;
-	case INFO: fprintf(log_file, "[INFO] "); break;
-	case DEBUG: fprintf(log_file, "[DEBUG] "); break;
-	case WARNING: fprintf(log_file, "[WARNING] "); break;
+	case ERROR: fprintf(log_file, KRED "[ERROR]" KNRM " "); break;
+	case INFO: fprintf(log_file, KYEL "[INFO]" KNRM " "); break;
+	case DEBUG: fprintf(log_file, KCYN "[DEBUG]" KNRM " "); break;
+	case WARNING: fprintf(log_file, KORG "[WARNING]" KNRM " "); break;
 	default: break;
 	}
 

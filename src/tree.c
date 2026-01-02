@@ -33,7 +33,7 @@
 
 #include <assert.h>
 
-#include <stdbool.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -576,49 +576,115 @@ sort(node_t **s, int n)
 	}
 }
 
-/* restack - keeps floating windows above everything else. */
+static void
+collect_clients(node_t *n, stack_item_t **out, size_t *cap, size_t *len)
+{
+	if (!n)
+		return;
+	if (n->client && n->client->window != XCB_NONE &&
+		!n->client->override_redirect) {
+		if (*len == *cap) {
+			*cap = (*cap ? *cap * 2 : 16);
+			*out = realloc(*out, *cap * sizeof(**out));
+			if (!*out)
+				return;
+		}
+		(*out)[*len].c	 = n->client;
+		(*out)[*len].key = stack_key(n->client);
+		(*len)++;
+	}
+	collect_clients(n->first_child, out, cap, len);
+	collect_clients(n->second_child, out, cap, len);
+}
+
+static int
+cmp_stack_item(const void *pa, const void *pb)
+{
+	const stack_item_t *a = pa, *b = pb;
+	if (a->key < b->key)
+		return -1; /* bottom first */
+	if (a->key > b->key)
+		return +1;
+	return 0;
+}
+
 void
 restack(void)
 {
-	node_t *root = curr_monitor->desk->tree;
-	if (root == NULL)
+	node_t *root = curr_monitor ? curr_monitor->desk->tree : NULL;
+	if (!root)
 		return;
 
-	int		 stack_size = 5;
-	int		 top		= -1;
-	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
-	if (stack == NULL) {
-		_LOG_(ERROR, "cannot allocate stack");
+	stack_item_t *v	  = NULL;
+	size_t		  cap = 0, len = 0;
+	collect_clients(root, &v, &cap, &len);
+	if (!v || !len) {
+		free(v);
 		return;
 	}
-	stack_and_lower(
-		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
-	if (top == 0) {
-		if (stack[0]->client)
-			raise_window(stack[0]->client->window);
-	} else if (top > 0) {
-		sort(stack, top);
-		for (int i = 1; i <= top; i++) {
-			if (stack[i]->client && stack[i]->client->window &&
-				stack[i - 1]->client && stack[i - 1]->client->window) {
-				window_above(stack[i]->client->window,
-							 stack[i - 1]->client->window);
-			}
-		}
 
-#ifdef _DEBUG__
-		char *s	 = win_name(stack[0]->client->window);
-		char *ss = win_name(stack[top]->client->window);
-		_LOG_(DEBUG,
-			  "largest floating window: %s, smallest floating window: %s",
-			  s,
-			  ss);
-		_FREE_(s);
-		_FREE_(ss);
-#endif
+	qsort(v, len, sizeof *v, cmp_stack_item);
+	/* start chain above root */
+	xcb_window_t sib = wm->root_window;
+	for (size_t i = 0; i < len; i++) {
+		client_t *c = v[i].c;
+		if (!c)
+			continue;
+		uint32_t vals[2] = {sib, XCB_STACK_MODE_ABOVE};
+		window_above(c->window, sib);
+		sib = c->window;
 	}
-	_FREE_(stack);
+	xcb_flush(wm->connection);
+
+	/* publish _NET_CLIENT_LIST_STACKING */
+	/* ewmh_update_client_list_stacking(v, len); */
+
+	free(v);
 }
+
+/* restack - keeps floating windows above everything else. */
+// void
+// restack(void)
+// {
+// 	node_t *root = curr_monitor->desk->tree;
+// 	if (root == NULL)
+// 		return;
+
+// 	int		 stack_size = 5;
+// 	int		 top		= -1;
+// 	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
+// 	if (stack == NULL) {
+// 		_LOG_(ERROR, "cannot allocate stack");
+// 		return;
+// 	}
+// 	stack_and_lower(
+// 		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
+// 	if (top == 0) {
+// 		if (stack[0]->client)
+// 			raise_window(stack[0]->client->window);
+// 	} else if (top > 0) {
+// 		sort(stack, top);
+// 		for (int i = 1; i <= top; i++) {
+// 			if (stack[i]->client && stack[i]->client->window &&
+// 				stack[i - 1]->client && stack[i - 1]->client->window) {
+// 				window_above(stack[i]->client->window,
+// 							 stack[i - 1]->client->window);
+// 			}
+// 		}
+
+// #ifdef _DEBUG__
+// 		char *s	 = win_name(stack[0]->client->window);
+// 		char *ss = win_name(stack[top]->client->window);
+// 		_LOG_(DEBUG,
+// 			  "largest floating window: %s, smallest floating window: %s",
+// 			  s,
+// 			  ss);
+// 		_FREE_(s);
+// 		_FREE_(ss);
+// #endif
+// 	}
+// 	_FREE_(stack);
+// }
 
 void
 restackv2(node_t *root)
@@ -1129,8 +1195,47 @@ stack_layout(node_t *root)
 	apply_stack_layout(root);
 }
 
-// void grid_layout(node_t *root) {
-// }
+void
+count_windows(node_t *r, int *n)
+{
+	if (!r)
+		return;
+	if (IS_EXTERNAL(r) && r->client)
+		(*n)++;
+	count_windows(r->first_child, n);
+	count_windows(r->second_child, n);
+}
+
+void
+grid_layout(node_t *root)
+{
+	int n = 0;
+	count_windows(root, &n);
+	if (n == 0)
+		return;
+
+	int		 rows	 = sqrt(n);
+	int		 cols	 = ceil((float)n / rows);
+
+	uint16_t total_w = curr_monitor->rectangle.width;
+	uint16_t total_h = curr_monitor->rectangle.height;
+	uint16_t w		 = 0;
+	uint16_t cell_w	 = total_w / cols;
+	uint16_t cell_h	 = total_h / rows;
+
+	/*
+	 * grid layout logic:
+	 *  - each window is placed in a cell (row, col)
+	 *  - x = col_index * cell_w
+	 *  - y = row_index * cell_h
+	 */
+
+	/* TODO: traverse all external nodes and assign:
+	 * node->rectangle.x = col * cell_w;
+	 * node->rectangle.y = row * cell_h;
+	 * node->rectangle.width  = cell_w;
+	 */
+}
 
 /* apply_layout - applies the specified layout to the given tree.
  *

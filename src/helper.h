@@ -30,6 +30,15 @@
 
 #include "logger.h"
 
+#define KNRM								   "\x1B[0m"
+#define KRED								   "\x1B[31m"
+#define KGRN								   "\x1B[32m"
+#define KYEL								   "\x1B[33m"
+#define KBLU								   "\x1B[34m"
+#define KPNK								   "\x1B[95m"
+#define KORG								   "\x1B[38;5;214m"
+#define KCYN								   "\x1B[36m"
+#define KWHT								   "\x1B[37m"
 #define LEN(x)								   (sizeof(x) / sizeof(*x))
 #define CLEANMASK(mask)						   (mask & ~(0 | XCB_MOD_MASK_LOCK))
 #define IS_TILED(c)							   (c->state == TILED)
@@ -55,7 +64,8 @@
 #define _LOG_(level, format, ...)                                              \
 	do {                                                                       \
 		log_message(level,                                                     \
-					"[%s:%s():%d] " format,                                    \
+					KPNK "[%s" KNRM ":" KGRN "%s()" KNRM ":" KYEL "%d]" KNRM   \
+						 " " format,                                           \
 					__FILE__,                                                  \
 					__func__,                                                  \
 					__LINE__,                                                  \
