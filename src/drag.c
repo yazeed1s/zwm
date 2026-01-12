@@ -192,10 +192,10 @@ drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd)
 		wm->connection, win, XCB_CONFIG_WINDOW_STACK_MODE, val);
 
 	/* change cursor */
-	xcb_change_window_attributes(wm->connection,
-								 wm->root_window,
-								 XCB_CW_CURSOR,
-								 (uint32_t[]){get_cursor(CURSOR_MOVE)});
+	// xcb_change_window_attributes(wm->connection,
+	// 							 wm->root_window,
+	// 							 XCB_CW_CURSOR,
+	// 							 (uint32_t[]){get_cursor(CURSOR_MOVE)});
 
 	/* Active Pointer Grab */
 	xcb_grab_pointer_cookie_t cookie =
@@ -287,13 +287,14 @@ drag_end(int16_t x, int16_t y)
 
 cleanup:
 	ungrab_pointer();
-	xcb_change_window_attributes(wm->connection,
-								 wm->root_window,
-								 XCB_CW_CURSOR,
-								 (uint32_t[]){get_cursor(CURSOR_POINTER)});
-
+	// xcb_change_window_attributes(wm->connection,
+	// 							 wm->root_window,
+	// 							 XCB_CW_CURSOR,
+	// 							 (uint32_t[]){get_cursor(CURSOR_POINTER)});
 	drag_state.active		  = false;
 	drag_state.preview_active = false;
+
+	xcb_flush(wm->connection);
 
 	_LOG_(INFO, "drag ended");
 	return 0;
@@ -315,13 +316,15 @@ drag_cancel(void)
 	render_tree_nomap(curr_monitor->desk->tree);
 
 	ungrab_pointer();
-	xcb_change_window_attributes(wm->connection,
-								 wm->root_window,
-								 XCB_CW_CURSOR,
-								 (uint32_t[]){get_cursor(CURSOR_POINTER)});
+	// xcb_change_window_attributes(wm->connection,
+	// 							 wm->root_window,
+	// 							 XCB_CW_CURSOR,
+	// 							 (uint32_t[]){get_cursor(CURSOR_POINTER)});
 
 	drag_state.active		  = false;
 	drag_state.preview_active = false;
+
+	xcb_flush(wm->connection);
 
 	return 0;
 }
