@@ -3573,6 +3573,59 @@ ungrab_pointer(void)
 	xcb_ungrab_pointer(wm->connection, XCB_CURRENT_TIME);
 }
 
+static void
+grab_super_button1(xcb_window_t win)
+{
+	const uint16_t numlock = (uint16_t)modfield_from_keysym(XK_Num_Lock);
+	const uint16_t caps	   = XCB_MOD_MASK_LOCK;
+	const uint16_t mods[]  = {
+		 SUPER,
+		 (uint16_t)(SUPER | caps),
+		 (uint16_t)(SUPER | numlock),
+		 (uint16_t)(SUPER | numlock | caps),
+	 };
+	bool logged = false;
+
+	for (size_t i = 0; i < sizeof(mods) / sizeof(mods[0]); i++) {
+		uint16_t mod = mods[i];
+		bool	 dup = false;
+		for (size_t j = 0; j < i; j++) {
+			if (mods[j] == mod) {
+				dup = true;
+				break;
+			}
+		}
+		if (dup) {
+			continue;
+		}
+
+		xcb_void_cookie_t c = xcb_grab_button_checked(
+			wm->connection,
+			0,	 /* owner_events */
+			win, /* grab_window */
+			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+				XCB_EVENT_MASK_POINTER_MOTION,
+			XCB_GRAB_MODE_ASYNC, /* pointer_mode - allow processing */
+			XCB_GRAB_MODE_ASYNC, /* keyboard_mode */
+			XCB_NONE,			 /* confine_to */
+			XCB_NONE,			 /* cursor */
+			XCB_BUTTON_INDEX_1,	 /* button */
+			mod);				 /* modifiers */
+
+		xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+		if (err) {
+			_LOG_(ERROR,
+				  "Could not grab SUPER+Button1 on root (mod=0x%x): %d",
+				  mod,
+				  err->error_code);
+			_FREE_(err);
+		} else if (!logged) {
+			_LOG_(INFO, "grabbed SUPER+Button1 on root for drag");
+			logged = true;
+		}
+	}
+}
+
 static int
 grab_keys(xcb_conn_t *conn, xcb_window_t win)
 {
@@ -3603,6 +3656,7 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 			current = current->next;
 		}
 		is_kgrabbed = true;
+		grab_super_button1(win);
 		return 0;
 	}
 
@@ -3628,30 +3682,9 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 			return -1;
 		}
 	}
-	is_kgrabbed			= true;
+	is_kgrabbed = true;
 
-	/* Grab SUPER+Button1 on root for drag operations */
-	xcb_void_cookie_t c = xcb_grab_button_checked(
-		wm->connection,
-		0,	 /* owner_events */
-		win, /* grab_window */
-		XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-			XCB_EVENT_MASK_POINTER_MOTION,
-		XCB_GRAB_MODE_ASYNC, /* pointer_mode - allow processing */
-		XCB_GRAB_MODE_ASYNC, /* keyboard_mode */
-		XCB_NONE,			 /* confine_to */
-		XCB_NONE,			 /* cursor */
-		XCB_BUTTON_INDEX_1,	 /* button */
-		SUPER);				 /* modifiers */
-
-	xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
-	if (err) {
-		_LOG_(
-			ERROR, "Could not grab SUPER+Button1 on root: %d", err->error_code);
-		_FREE_(err);
-	} else {
-		_LOG_(INFO, "grabbed SUPER+Button1 on root for drag");
-	}
+	grab_super_button1(win);
 
 	return 0;
 }
@@ -6024,6 +6057,9 @@ handle_button_press_event(const xcb_event_t *event)
 {
 	xcb_button_press_event_t *ev  = (xcb_button_press_event_t *)event;
 	xcb_window_t			  win = ev->event;
+	if (win == wm->root_window && ev->child != XCB_NONE) {
+		win = ev->child;
+	}
 
 	_LOG_(INFO,
 		  "=== BUTTON PRESS: detail=%d, state=0x%x, SUPER=0x%x ===",

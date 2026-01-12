@@ -190,10 +190,13 @@ typedef enum {
 
 /* window map state types for checking window visibility */
 typedef enum {
-	WIN_MAP_STATE_UNMAPPED		= XCB_MAP_STATE_UNMAPPED,	 /* 0 - window is unmapped */
-	WIN_MAP_STATE_UNVIEWABLE	= XCB_MAP_STATE_UNVIEWABLE, /* 1 - window is unviewable */
-	WIN_MAP_STATE_VIEWABLE		= XCB_MAP_STATE_VIEWABLE,	 /* 2 - window is viewable */
-	WIN_MAP_STATE_ANY			= 0xFF						 /* match any state */
+	WIN_MAP_STATE_UNMAPPED =
+		XCB_MAP_STATE_UNMAPPED, /* 0 - window is unmapped */
+	WIN_MAP_STATE_UNVIEWABLE =
+		XCB_MAP_STATE_UNVIEWABLE, /* 1 - window is unviewable */
+	WIN_MAP_STATE_VIEWABLE =
+		XCB_MAP_STATE_VIEWABLE, /* 2 - window is viewable */
+	WIN_MAP_STATE_ANY = 0xFF	/* match any state */
 } win_map_state_t;
 
 typedef struct icccm_props_t icccm_props_t;
@@ -234,11 +237,11 @@ typedef struct {
 	xcb_window_t	   transient_for; /* from WM_TRANSIENT_FOR (0 if none) */
 	xcb_atom_t		   type;
 	uint32_t		   border_width;
-	uint32_t		   mru_seq;			  /* bump on focus/raise */
+	uint32_t		   mru_seq; /* bump on focus/raise */
 	xcb_size_hints_t   size_hints;
-	ewmh_state_t	   ewmh_state;	  /* from _NET_WM_STATE (bitmask enum) */
+	ewmh_state_t	   ewmh_state; /* from _NET_WM_STATE (bitmask enum) */
 	icccm_props_t	   props;
-	ewmh_window_type_t ewmh_type;	  /* from _NET_WM_WINDOW_TYPE */
+	ewmh_window_type_t ewmh_type; /* from _NET_WM_WINDOW_TYPE */
 	state_t			   state;
 	bool			   override_redirect; /* from X attributes */
 } client_t;
@@ -264,9 +267,11 @@ struct node_t {
 	client_t   *client; /* the actual window this node hold, if it's a leaf */
 	rectangle_t rectangle; /* the position and size for this node */
 	rectangle_t floating_rectangle;
-	node_type_t node_type; /* node type */
-	bool		is_focused; /* whether or not this guy is focused */
-	bool		is_master;	/* whether this node is the master node */
+	node_type_t node_type;	  /* node type */
+	split_type_t split_type;  /* split orientation for DEFAULT layout */
+	double		 split_ratio; /* split ratio for DEFAULT layout */
+	bool		 is_focused;  /* whether or not this guy is focused */
+	bool		 is_master;	  /* whether this node is the master node */
 };
 
 /* the defintion of a desktop.
@@ -274,15 +279,15 @@ struct node_t {
  * the wm could have up to 10 desktops.
  */
 typedef struct {
-	node_t	*tree; /* the tree in this desktop */
+	node_t		*tree; /* the tree in this desktop */
 	/* node_t	*node;		 focused node */
 	xcb_window_t last_focused;
-	uint16_t id;		 /* the number of this desktop */
-	uint16_t n_count;	 /* the number of active windows/external nodes */
-	layout_t layout;	 /* the layout (master, default, stack) */
-	bool	 is_focused; /* whether this is focused, only focused desktops
-						  * are rendered */
-	char	 name[DLEN]; /* the name, it stringfeis the index of this desktop */
+	uint16_t	 id;		 /* the number of this desktop */
+	uint16_t	 n_count;	 /* the number of active windows/external nodes */
+	layout_t	 layout;	 /* the layout (master, default, stack) */
+	bool		 is_focused; /* whether this is focused, only focused desktops
+							  * are rendered */
+	char name[DLEN]; /* the name, it stringfeis the index of this desktop */
 } desktop_t;
 
 /* monitor representation (also a linked list of monitors).
@@ -301,11 +306,11 @@ struct monitor_t {
 	uint32_t		   mru_counter; /* per-monitor MRU counter */
 	uint16_t		   n_of_desktops; /* total desktops, defined in
 									   * the config file  */
-	char			   name[DLEN];	/* monitor name (e.g. HDMI or eDP) */
-	bool			   is_wired;	/* connection status */
-	bool			   is_focused;	/* focus status */
-	bool			   is_occupied; /* window presence */
-	bool			   is_primary;	/* primary monitor */
+	char			   name[DLEN];	  /* monitor name (e.g. HDMI or eDP) */
+	bool			   is_wired;	  /* connection status */
+	bool			   is_focused;	  /* focus status */
+	bool			   is_occupied;	  /* window presence */
+	bool			   is_primary;	  /* primary monitor */
 };
 
 /* status bar representation */
@@ -353,8 +358,8 @@ typedef struct {
 typedef struct conf_key_t conf_key_t;
 struct conf_key_t {
 	int (*execute)(arg_t *); /* action function */
-	arg_t	   *arg;		 /* function arguments */
-	conf_key_t *next;		 /* next key */
+	arg_t		*arg;		 /* function arguments */
+	conf_key_t	*next;		 /* next key */
 	uint32_t	 mod;		 /* modifier key */
 	xcb_keysym_t keysym;	 /* key symbol */
 };

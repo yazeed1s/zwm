@@ -74,6 +74,8 @@ create_node(client_t *c)
 	node->second_child		 = NULL;
 	node->is_master			 = false;
 	node->is_focused		 = false;
+	node->split_type		 = DYNAMIC_TYPE;
+	node->split_ratio		 = 0.0;
 
 	return node;
 }
@@ -94,6 +96,8 @@ init_root(void)
 	node->node_type			 = ROOT_NODE;
 	node->is_master			 = false;
 	node->is_focused		 = false;
+	node->split_type		 = DYNAMIC_TYPE;
+	node->split_ratio		 = 0.0;
 
 	return node;
 }
@@ -243,13 +247,44 @@ insert_floating_node(node_t *node, desktop_t *d)
 	node->node_type = EXTERNAL_NODE;
 }
 
+static double
+normalize_split_ratio(double ratio)
+{
+	if (ratio <= 0.0 || ratio >= 1.0)
+		return 0.5;
+	return ratio;
+}
+
+static void
+update_split_ratio(node_t *parent, split_type_t s)
+{
+	if (parent == NULL || parent->first_child == NULL)
+		return;
+
+	const int16_t gap = conf.window_gap - conf.border_width;
+	double		  r	  = 0.5;
+	if (s == HORIZONTAL_TYPE) {
+		int16_t avail = (int16_t)(parent->rectangle.width - gap);
+		if (avail > 0) {
+			r = (double)parent->first_child->rectangle.width / (double)avail;
+		}
+	} else if (s == VERTICAL_TYPE) {
+		int16_t avail = (int16_t)(parent->rectangle.height - gap);
+		if (avail > 0) {
+			r = (double)parent->first_child->rectangle.height / (double)avail;
+		}
+	}
+	parent->split_ratio = normalize_split_ratio(r);
+}
+
 static void
 split_rect(node_t *n, split_type_t s)
 {
 	const int16_t gap		  = conf.window_gap - conf.border_width;
 	const int16_t pgap		  = conf.window_gap + conf.border_width;
-	const int16_t half_width  = (n->rectangle.width - gap) / 2;
-	const int16_t half_height = (n->rectangle.height - gap) / 2;
+	const double  ratio		  = normalize_split_ratio(n->split_ratio);
+	const int16_t half_width  = (int16_t)((n->rectangle.width - gap) * ratio);
+	const int16_t half_height = (int16_t)((n->rectangle.height - gap) * ratio);
 	node_t		 *n1		  = n->first_child;
 	node_t		 *n2		  = n->second_child;
 	rectangle_t	 *fr		  = &n1->rectangle;
@@ -282,13 +317,13 @@ split_node(node_t *n, node_t *nd)
 		n->first_child->rectangle = n->floating_rectangle = n->rectangle;
 		return;
 	}
-	if (n->rectangle.width >= n->rectangle.height) {
+	split_type_t s = n->split_type;
+	if (s == DYNAMIC_TYPE) {
 		/* horizontal split */
-		split_rect(n, HORIZONTAL_TYPE);
-	} else {
-		/* verticall split */
-		split_rect(n, VERTICAL_TYPE);
+		s = (n->rectangle.width >= n->rectangle.height) ? HORIZONTAL_TYPE
+														: VERTICAL_TYPE;
 	}
+	split_rect(n, s);
 }
 
 /* insert_node - change the given focused node type to be internal, and then
@@ -392,6 +427,15 @@ arrange_tree(node_t *tree, layout_t l)
 	}
 }
 
+// this tiling wm. if i flip containers to be horizontal
+//  (with flip_node_wrapper), the flip works, but if i do super+shift+d
+// which triggers the tiling layout (even tho the flipped happened in the
+// tiling layout) it overrides the current horizontal layout and
+// resizes/positions my windows to be evenley placed,
+// like it does not respect what state i am in now.
+// Same happend when drag_end or preview_apply is called,
+//  or when i am draggin windows in a flipped state.
+// Trace, explain and fix!!
 node_t *
 find_node_by_window_id(node_t *root, xcb_window_t win)
 {
@@ -433,11 +477,13 @@ resize_subtree(node_t *parent)
 	if (parent == NULL)
 		return;
 
-	if (parent->rectangle.width >= parent->rectangle.height) {
-		split_rect(parent, HORIZONTAL_TYPE);
-	} else {
-		split_rect(parent, VERTICAL_TYPE);
+	split_type_t s = parent->split_type;
+	if (s == DYNAMIC_TYPE) {
+		s = (parent->rectangle.width >= parent->rectangle.height)
+				? HORIZONTAL_TYPE
+				: VERTICAL_TYPE;
 	}
+	split_rect(parent, s);
 
 	if (parent->first_child) {
 		if (IS_INTERNAL(parent->first_child)) {
@@ -897,8 +943,8 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 /* apply_default_layout - applies the default tiling layout to a given tree
  *
  * recursively applies the default tiling layout to a node and its
- * descendants in the tree. The default layout splits nodes either
- * vertically or horizontally based on their dimensions. */
+ * descendants in the tree. The default layout splits nodes based on
+ * their stored split type (if set) or their dimensions. */
 void
 apply_default_layout(node_t *root)
 {
@@ -910,13 +956,19 @@ apply_default_layout(node_t *root)
 	}
 
 	rectangle_t	   r, r2 = {0};
-	const uint16_t mgap = (conf.window_gap - conf.border_width);
-	/* determine split orientation based on node dimensions */
-	if (root->rectangle.width >= root->rectangle.height) {
+	const uint16_t mgap	 = (conf.window_gap - conf.border_width);
+	split_type_t   s	 = root->split_type;
+	const double   ratio = normalize_split_ratio(root->split_ratio);
+	if (s == DYNAMIC_TYPE) {
+		s = (root->rectangle.width >= root->rectangle.height) ? HORIZONTAL_TYPE
+															  : VERTICAL_TYPE;
+	}
+	/* determine split orientation based on node split type */
+	if (s == HORIZONTAL_TYPE) {
 		/* vertical split (side by side) */
 		r.x		 = root->rectangle.x;
 		r.y		 = root->rectangle.y;
-		r.width	 = (root->rectangle.width - mgap) / 2;
+		r.width	 = (uint16_t)((root->rectangle.width - mgap) * ratio);
 		r.height = root->rectangle.height;
 		r2.x	 = (int16_t)(root->rectangle.x + r.width + conf.window_gap +
 						 conf.border_width);
@@ -929,7 +981,7 @@ apply_default_layout(node_t *root)
 		r.x		  = root->rectangle.x;
 		r.y		  = root->rectangle.y;
 		r.width	  = root->rectangle.width;
-		r.height  = (root->rectangle.height - mgap) / 2;
+		r.height  = (uint16_t)((root->rectangle.height - mgap) * ratio);
 		r2.x	  = root->rectangle.x;
 		r2.y	  = (int16_t)(root->rectangle.y + r.height + conf.window_gap +
 						  conf.border_width);
@@ -1790,6 +1842,10 @@ dynamic_resize(node_t *n, resize_t t)
 			}
 		}
 	}
+	if (vs || hs) {
+		n->parent->split_type = vs ? VERTICAL_TYPE : HORIZONTAL_TYPE;
+		update_split_ratio(n->parent, n->parent->split_type);
+	}
 	if (IS_INTERNAL(s)) {
 		resize_subtree(s);
 	}
@@ -2090,6 +2146,8 @@ flip_node(node_t *node)
 	if (IS_INTERNAL(s)) {
 		resize_subtree(s);
 	}
+	p->split_type = vflip ? HORIZONTAL_TYPE : VERTICAL_TYPE;
+	update_split_ratio(p, p->split_type);
 }
 
 void

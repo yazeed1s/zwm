@@ -98,6 +98,8 @@ clone_tree(node_t *root, node_t *parent)
 	n->node_type		  = root->node_type;
 	n->is_focused		  = root->is_focused;
 	n->is_master		  = root->is_master;
+	n->split_type		  = root->split_type;
+	n->split_ratio		  = root->split_ratio;
 	n->rectangle		  = root->rectangle;
 	n->floating_rectangle = root->floating_rectangle;
 
