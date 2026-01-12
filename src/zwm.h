@@ -53,6 +53,7 @@ void window_above(xcb_window_t, xcb_window_t);
 void window_below(xcb_window_t, xcb_window_t);
 void grab_pointer(xcb_window_t, bool);
 void ungrab_pointer(void);
+xcb_cursor_t get_cursor(cursor_t c);
 char *win_name(xcb_window_t);
 int check_window_map_state(xcb_window_t win, win_map_state_t s);
 int set_visibility(xcb_window_t win, bool is_visible);

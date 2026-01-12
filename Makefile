@@ -10,10 +10,10 @@ LDFLAGS = -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm \
 TARGET = zwm
 SRC_DIR = ./src
 SRC_FILES = $(SRC_DIR)/zwm.c $(SRC_DIR)/logger.c $(SRC_DIR)/tree.c \
-            $(SRC_DIR)/config_parser.c $(SRC_DIR)/queue.c
+            $(SRC_DIR)/config_parser.c $(SRC_DIR)/queue.c $(SRC_DIR)/drag.c
 HEADER_FILES = $(SRC_DIR)/logger.h $(SRC_DIR)/tree.h $(SRC_DIR)/type.h \
                $(SRC_DIR)/zwm.h $(SRC_DIR)/config_parser.h $(SRC_DIR)/helper.h \
-               $(SRC_DIR)/queue.h
+               $(SRC_DIR)/queue.h $(SRC_DIR)/drag.h
 OBJ_FILES = $(SRC_FILES:.c=.o)
 
 # paths

@@ -31,6 +31,7 @@
 
 #include "zwm.h"
 #include "config_parser.h"
+#include "drag.h"
 #include "helper.h"
 #include "queue.h"
 #include "tree.h"
@@ -83,7 +84,7 @@
 	(PROPERTY_CHANGE | FOCUS_CHANGE | ENTER_WINDOW | LEAVE_WINDOW)
 
 #define ROOT_EVENT_MASK                                                        \
-	(SUBSTRUCTURE | BUTTON_PRESS | FOCUS_CHANGE | ENTER_WINDOW)
+	(SUBSTRUCTURE | BUTTON_PRESS | FOCUS_CHANGE | ENTER_WINDOW | POINTER_MOTION)
 
 #define NUMBER_OF_DESKTOPS 7
 #define WM_NAME			   "zwm"
@@ -162,6 +163,7 @@ static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER | SHIFT, _KEY(g),       shrink_floating_window,    &((arg_t){.rd   = VERTICAL_DIR})),
     DEFINE_KEY(SUPER | CTRL,  _KEY(Right),   cycle_monitors,            &((arg_t){.tr   = NEXT})),
     DEFINE_KEY(SUPER | CTRL,  _KEY(Left),    cycle_monitors,            &((arg_t){.tr   = PREV})),
+    DEFINE_KEY(SUPER,         _KEY(m),       start_keyboard_drag_wrapper, NULL),
 };
 
 static const uint32_t _buttons_[] = {
@@ -207,6 +209,7 @@ static int handle_key_press(const xcb_event_t *);
 static int handle_mapping_notify(const xcb_event_t *);
 static int handle_leave_notify(const xcb_event_t *);
 static int handle_motion_notify(const xcb_event_t *);
+static int handle_button_release(const xcb_event_t *);
 static int handle_focus_in(const xcb_event_t *);
 static int handle_property_notify(const xcb_event_t *);
 static int send_client_message(xcb_window_t, xcb_atom_t, xcb_atom_t, xcb_conn_t *);
@@ -253,9 +256,9 @@ static const event_handler_entry_t _handlers_[] = {
      * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
    	/* will be implemented if needed */
-    /* DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),*/
+    DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),
+    DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release),
     /* DEFINE_MAPPING(XCB_LEAVE_NOTIFY, handle_leave_notify), */
-    /* DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release), */
     /* DEFINE_MAPPING(XCB_KEY_RELEASE, handle_key_release), */
     /* DEFINE_MAPPING(XCB_FOCUS_IN, handle_focus_in), */
     /* DEFINE_MAPPING(XCB_FOCUS_OUT, handle_focus_out), */
@@ -285,7 +288,7 @@ load_cursors(void)
 #undef __LOAD__CURSOR__
 }
 
-static xcb_cursor_t
+xcb_cursor_t
 get_cursor(cursor_t c)
 {
 	assert(c < CURSOR_MAX);
@@ -3625,7 +3628,31 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 			return -1;
 		}
 	}
-	is_kgrabbed = true;
+	is_kgrabbed			= true;
+
+	/* Grab SUPER+Button1 on root for drag operations */
+	xcb_void_cookie_t c = xcb_grab_button_checked(
+		wm->connection,
+		0,	 /* owner_events */
+		win, /* grab_window */
+		XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+			XCB_EVENT_MASK_POINTER_MOTION,
+		XCB_GRAB_MODE_ASYNC, /* pointer_mode - allow processing */
+		XCB_GRAB_MODE_ASYNC, /* keyboard_mode */
+		XCB_NONE,			 /* confine_to */
+		XCB_NONE,			 /* cursor */
+		XCB_BUTTON_INDEX_1,	 /* button */
+		SUPER);				 /* modifiers */
+
+	xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+	if (err) {
+		_LOG_(
+			ERROR, "Could not grab SUPER+Button1 on root: %d", err->error_code);
+		_FREE_(err);
+	} else {
+		_LOG_(INFO, "grabbed SUPER+Button1 on root for drag");
+	}
+
 	return 0;
 }
 
@@ -5144,9 +5171,9 @@ handle_map_request(const xcb_event_t *event)
 	/* check if the window already exists in ANY desktop to avoid duplication */
 	if (client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
-		_LOG_(
-			DEBUG,
-			"[MAP_REQUEST] win %d already exists in a desktop, ignoring " win);
+		_LOG_(DEBUG,
+			  "[MAP_REQUEST] win %d already exists in a desktop, ignoring ",
+			  win);
 #endif
 		return 0;
 	}
@@ -5458,6 +5485,13 @@ handle_key_press(const xcb_event_t *event)
 	xcb_key_press_event_t *ev			 = (xcb_key_press_event_t *)event;
 	uint16_t			   cleaned_state = (ev->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t		   k = get_keysym(ev->detail, wm->connection);
+
+	/* handle drag cancel with ESC */
+	extern drag_state_t	   drag_state;
+	if (drag_state.active && k == XK_Escape) {
+		drag_cancel();
+		return 0;
+	}
 
 	if (key_head) {
 		conf_key_t *current = key_head;
@@ -5988,10 +6022,54 @@ update_grabbed_window(node_t *root, node_t *n)
 static int
 handle_button_press_event(const xcb_event_t *event)
 {
+	xcb_button_press_event_t *ev  = (xcb_button_press_event_t *)event;
+	xcb_window_t			  win = ev->event;
+
+	_LOG_(INFO,
+		  "=== BUTTON PRESS: detail=%d, state=0x%x, SUPER=0x%x ===",
+		  ev->detail,
+		  ev->state,
+		  SUPER);
+	_LOG_(INFO,
+		  "    win=%d, root_x=%d, root_y=%d, detail==BTN1? %d, state&SUPER? %d",
+		  win,
+		  ev->root_x,
+		  ev->root_y,
+		  ev->detail == XCB_BUTTON_INDEX_1,
+		  (ev->state & SUPER) != 0);
+
+	/* DRAG CHECK FIRST - works regardless of focus_follow_pointer */
+	if (ev->detail == XCB_BUTTON_INDEX_1 && (ev->state & SUPER)) {
+		_LOG_(INFO, ">>> SUPER+Button1 MATCH! Checking drag conditions...");
+		if (wm->bar && win == wm->bar->window)
+			goto normal_handling;
+		if (!window_exists(wm->connection, win))
+			goto normal_handling;
+		node_t *root = curr_monitor->desk->tree;
+		node_t *n	 = find_node_by_window_id(root, win);
+		if (!n) {
+			_LOG_(INFO, "    Node not found in tree");
+			goto normal_handling;
+		}
+		if (!n->client) {
+			_LOG_(INFO, "    Node has no client");
+			goto normal_handling;
+		}
+		_LOG_(INFO, "    Client state=%d (TILED=%d)", n->client->state, TILED);
+		if (IS_TILED(n->client)) {
+			_LOG_(INFO, "    >>> CALLING drag_start()...");
+			if (drag_start(win, ev->root_x, ev->root_y, false) == 0) {
+				_LOG_(INFO, "    >>> DRAG STARTED SUCCESSFULLY!");
+			}
+		} else {
+			_LOG_(INFO, "    Window is NOT TILED (state=%d)", n->client->state);
+		}
+	}
+
+normal_handling:
 	if (conf.focus_follow_pointer) {
 		return 0;
 	}
-	xcb_button_press_event_t *ev = (xcb_button_press_event_t *)event;
 #ifdef _DEBUG__
 	char *name = win_name(ev->event);
 	_LOG_(DEBUG,
@@ -6000,7 +6078,6 @@ handle_button_press_event(const xcb_event_t *event)
 		  name);
 	_FREE_(name);
 #endif
-	xcb_window_t win = ev->event;
 
 	if (wm->bar && win == wm->bar->window) {
 		return 0;
@@ -6104,6 +6181,15 @@ handle_motion_notify(const xcb_event_t *event)
 		  ev->event_x,
 		  ev->event_y);
 #endif
+
+	/* handle drag if active */
+	extern drag_state_t drag_state;
+	if (drag_state.active) {
+		_LOG_(INFO, "MOTION NOTIFY: x=%d, y=%d", ev->root_x, ev->root_y);
+		drag_move(ev->root_x, ev->root_y);
+		return 0;
+	}
+
 	/* skip events where the pointer was over a child window, we are only
 	 * interested in events on the root window. */
 	if (ev->child != XCB_NONE) {
@@ -6119,6 +6205,21 @@ handle_motion_notify(const xcb_event_t *event)
 	if (curr_monitor && curr_monitor != m) {
 		curr_monitor = m;
 	}
+	return 0;
+}
+
+static int
+handle_button_release(const xcb_event_t *event)
+{
+	xcb_button_release_event_t *ev = (xcb_button_release_event_t *)event;
+
+	/* handle drag end if active */
+	extern drag_state_t			drag_state;
+	if (drag_state.active) {
+		drag_end(ev->root_x, ev->root_y);
+		return 0;
+	}
+
 	return 0;
 }
 
