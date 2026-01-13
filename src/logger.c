@@ -26,8 +26,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "type.h"
 #include "helper.h"
+#include "type.h"
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdbool.h>

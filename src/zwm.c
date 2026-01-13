@@ -1675,8 +1675,36 @@ populate_client_array(node_t *root, xcb_window_t *arr, size_t *index)
 static void
 ewmh_update_client_list(void)
 {
-	size_t size = get_active_clients_size(prim_monitor->desktops,
-										  prim_monitor->n_of_desktops);
+	/*
+	 * update _NET_CLIENT_LIST for EWMH consumers (OBS, switchers, ...).
+	 *
+	 * The client list is global by design. It includes every window managed by
+	 * the WM across all monitors and all desktops, regardless of whether the
+	 * window is currently mapped or unmapped.
+	 *
+	 * IMPORTANT BEHAVIOR:
+	 * Windows that live in a non-active desktops are kept *unmapped* by the WM.
+	 * Unmapped windows have no drawable surface in X11, which means tools like
+	 * OBS can list them but cannot capture their contents
+	 * until the window is mapped by switching to its desktop.
+	 *
+	 * This is expected X11 behavior and not a bug in OBS or other consumers.
+	 * Being present in _NET_CLIENT_LIST only means the window exists and is
+	 * managed. visibility and capture are controlled by mapping state.
+	 *
+	 * It would be possible to force capture of hidden windows using XComposite
+	 * redirection or off-screen mapping, but that adds too much complexity
+	 * and introduces a whole new class of bugs.
+	 * ZWM intentionally avoids doing that.
+	 */
+	monitor_t *m	= head_monitor;
+	size_t	   size = 0;
+	while (m) {
+		if (!m->desktops)
+			continue;
+		size += get_active_clients_size(m->desktops, m->n_of_desktops);
+		m = m->next;
+	}
 	if (size == 0) {
 		xcb_ewmh_set_client_list(wm->ewmh, wm->screen_nbr, 0, NULL);
 		/* _LOG_(ERROR, "unable to get clients size"); */
@@ -5657,6 +5685,7 @@ out:
 		update_focus(curr_monitor->desk->tree, f);
 	}
 	set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL);
+	ewmh_update_client_list();
 	xcb_flush(wm->connection);
 
 	return 0;
@@ -6277,6 +6306,7 @@ handle_unmap_notify(const xcb_event_t *event)
 		_LOG_(ERROR, "cannot kill window %d (unmap)", win);
 		return -1;
 	}
+	ewmh_update_client_list();
 	xcb_flush(wm->connection);
 	return 0;
 }
@@ -6414,6 +6444,7 @@ handle_destroy_notify(const xcb_event_t *event)
 		_LOG_(ERROR, "cannot kill window %d (destroy)", win);
 		return -1;
 	}
+	ewmh_update_client_list();
 	xcb_flush(wm->connection);
 	return 0;
 }
