@@ -401,6 +401,59 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 	}
 }
 
+/* clone_tree creates a deep copy of a tree.
+ * - It allocates memory for a new node and copies the properties of the root
+ * node.
+ * - Recursively clones the children of the root node.
+ * - Returns a pointer to the new tree.
+ */
+node_t *
+clone_tree(node_t *r, node_t *p)
+{
+	if (!r)
+		return NULL;
+
+	node_t *n = (node_t *)calloc(1, sizeof(node_t));
+	if (!n)
+		return NULL;
+
+	n->parent			  = p;
+	n->node_type		  = r->node_type;
+	n->is_focused		  = r->is_focused;
+	n->is_master		  = r->is_master;
+	n->split_type		  = r->split_type;
+	n->split_ratio		  = r->split_ratio;
+	n->rectangle		  = r->rectangle;
+	n->floating_rectangle = r->floating_rectangle;
+
+	if (r->client) {
+		client_t *c = (client_t *)malloc(sizeof(client_t));
+		if (!c) {
+			_FREE_(n);
+			return NULL;
+		}
+		*c		  = *r->client;
+		n->client = c;
+	}
+
+	if (r->first_child) {
+		n->first_child = clone_tree(r->first_child, n);
+		if (!n->first_child) {
+			free_tree(n);
+			return NULL;
+		}
+	}
+	if (r->second_child) {
+		n->second_child = clone_tree(r->second_child, n);
+		if (!n->second_child) {
+			free_tree(n);
+			return NULL;
+		}
+	}
+
+	return n;
+}
+
 /* arrange_tree - applies layout changes to a given tree */
 void
 arrange_tree(node_t *tree, layout_t l)
@@ -427,15 +480,6 @@ arrange_tree(node_t *tree, layout_t l)
 	}
 }
 
-// this tiling wm. if i flip containers to be horizontal
-//  (with flip_node_wrapper), the flip works, but if i do super+shift+d
-// which triggers the tiling layout (even tho the flipped happened in the
-// tiling layout) it overrides the current horizontal layout and
-// resizes/positions my windows to be evenley placed,
-// like it does not respect what state i am in now.
-// Same happend when drag_end or preview_apply is called,
-//  or when i am draggin windows in a flipped state.
-// Trace, explain and fix!!
 node_t *
 find_node_by_window_id(node_t *root, xcb_window_t win)
 {
@@ -599,7 +643,7 @@ stack_and_lower(
 	stack_and_lower(root->second_child, stack, top, max_size, is_stacked);
 }
 
-/* sort - sorts floating windows by size (largest first).
+/* sort; sorts floating windows by size (largest first).
  *
  * Sorts floating windows based on their size (width * height).
  * Biggest windows go first, smallest last.
