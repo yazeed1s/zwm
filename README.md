@@ -39,7 +39,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Resize, flip, and swap windows or partitions.
 - Layouts apply to individual desktops.
 - Keyboard-Driven, fully controlled via keyboard shortcuts.
-- Mouse-driven move/resize for floating/tiled windows and partitions.
+- Mouse for convenience: move/resize for floating/tiled windows and partitions.
 - Drag-and-drop windows between partitions.
 - Customizable settings.
 - Customizable window rules.
@@ -253,7 +253,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 ### 4- Key bindings
 
 - The format for defining key bindings is: `bind = modifier + key -> action`
-- If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
+- If two modifiers are used, combine them with a pipe `(|)`. For example, alt + shift is written as `alt|shift`.
 - Note: Some functions require additional arguments to specify details of the action.
 - These arguments are provided using a colon syntax, where the function and its argument are separated by a colon.
 - Example: `func(switch_desktop:1)` means "switch to desktop 1".
@@ -290,6 +290,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     - **grow_floating_window**: Grow floating window (horizontally or vertically).
     - **shrink_floating_window**: Shrink floating window (horizontally or vertically).
     - **cycle_monitors**: Cycle between monitors (left or right, relative to the linked-list order not the physical positioning).
+    - **start_keyboard_drag**: Enter keyboard-driven drag mode to move tiled windows between partitions.
 
 - Default keys
 
@@ -342,6 +343,7 @@ bind = super|shift + d -> func(layout:default)
 bind = super|shift + k -> func(traverse:up)
 bind = super|shift + j -> func(traverse:down)
 bind = super|shift + f -> func(flip)
+bind = super + m -> func(start_keyboard_drag)
 bind = super|shift + r -> func(reload_config)
 ```
 
@@ -396,24 +398,24 @@ More options will be added in the future as development progresses.
 ZWM is designed to be fully keyboard-driven but also offers robust mouse support for convenience.
  
 **Feature Statistics:**
-- **Keyboard Only Operations**: 25
-- **Keyboard OR Mouse Operations**: 2 (Move/Drag, Resize)
+- **Keyboard only operations**: 25
+- **Keyboard OR mouse operations**: 2 (Move/Drag, Resize)
  
-### Drag and Resize Features
+### Drag and resize features
  
-Detailed below are the operations that can be performed via both Mouse and Keyboard.
+Detailed below are the operations that can be performed via both mouse and keyboard.
  
-#### 1. Move/Drag Window
+#### 1. Move/drag window
 - **Mouse**: `super + button1` (Left Click) while dragging the window.
   - Works on **Tiled Windows**: Drags the window to a new partition (swaps or moves).
   - Works on **Floating Windows**: Moves the window freely.
 - **Keyboard**:
   - **Tiled**: `super + m` initiates keyboard drag mode. Use arrow keys to move the window.
-  - **Floating**: `super + shift + [arrow keys]` shifts the window by 10px.
+  - **Floating**: `super + shift + [arrow keys]` shifts the window to the arrow direction by 10px.
  
-#### 2. Resize Window
+#### 2. Resize window
 - **Mouse**: `super + button3` (Right Click) while dragging near edges/corners.
-  - Works on **Tiled Windows** (Default Layout): Resizes the shared edge between windows.
+  - Works on **Tiled Windows** (Default Layout only): Resizes the shared edge between windows.
   - Works on **Floating Windows**: Resizes the window dimensions.
 - **Keyboard**:
   - **Tiled**: `super + l` (Grow) / `super + h` (Shrink).
