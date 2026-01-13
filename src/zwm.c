@@ -31,6 +31,7 @@
 
 #include "zwm.h"
 #include "config_parser.h"
+#include "drag.h"
 #include "helper.h"
 #include "queue.h"
 #include "tree.h"
@@ -106,6 +107,8 @@ volatile sig_atomic_t should_shutdown		= 0;
 uint8_t				  randr_base			= 0;
 uint64_t			  last_desk_switch_time = 0;
 xcb_cursor_t		  cursors[CURSOR_MAX];
+static mouse_state_t  mouse_state = {0};
+
 /* clang-format off */
 
 /* keys_[] is used as a fallback in case of an
@@ -154,14 +157,15 @@ static const _key__t _keys_[] = {
     DEFINE_KEY(SUPER | SHIFT, _KEY(j),       traverse_stack_wrapper,    &((arg_t){.d    = DOWN})),
     DEFINE_KEY(SUPER | SHIFT, _KEY(f),       flip_node_wrapper,         NULL),
     DEFINE_KEY(SUPER | SHIFT, _KEY(r),       reload_config_wrapper,     NULL),
-    DEFINE_KEY(SUPER | SHIFT, _KEY(Left),    cycle_desktop_wrapper,     &((arg_t){.d    = LEFT})),
-    DEFINE_KEY(SUPER | SHIFT, _KEY(Right),   cycle_desktop_wrapper,     &((arg_t){.d    = RIGHT})),
+    DEFINE_KEY(SUPER | ALT,   _KEY(Left),    cycle_desktop_wrapper,     &((arg_t){.d    = LEFT})),
+    DEFINE_KEY(SUPER | ALT,   _KEY(Right),   cycle_desktop_wrapper,     &((arg_t){.d    = RIGHT})),
     DEFINE_KEY(SUPER | SHIFT, _KEY(y),       grow_floating_window,      &((arg_t){.rd   = HORIZONTAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, _KEY(h),       grow_floating_window,      &((arg_t){.rd   = VERTICAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, _KEY(t),       shrink_floating_window,    &((arg_t){.rd   = HORIZONTAL_DIR})),
     DEFINE_KEY(SUPER | SHIFT, _KEY(g),       shrink_floating_window,    &((arg_t){.rd   = VERTICAL_DIR})),
     DEFINE_KEY(SUPER | CTRL,  _KEY(Right),   cycle_monitors,            &((arg_t){.tr   = NEXT})),
     DEFINE_KEY(SUPER | CTRL,  _KEY(Left),    cycle_monitors,            &((arg_t){.tr   = PREV})),
+    DEFINE_KEY(SUPER,         _KEY(m),       start_keyboard_drag_wrapper, NULL),
 };
 
 static const uint32_t _buttons_[] = {
@@ -172,6 +176,17 @@ static int set_fullscreen(node_t *, bool);
 static int change_border_attr(xcb_conn_t *, xcb_window_t, uint32_t, uint32_t, bool);
 static int win_focus(xcb_window_t, bool);
 static void update_grabbed_window(node_t *, node_t *);
+static bool grab_pointer_for_mouse(cursor_t cursor_id);
+static void clear_mouse_state(void);
+static uint8_t detect_resize_edges(rectangle_t r, int16_t x, int16_t y);
+static bool start_floating_move(node_t *n, int16_t x, int16_t y);
+static bool start_floating_resize(node_t *n, int16_t x, int16_t y);
+static bool start_tiled_resize(node_t *n, int16_t x, int16_t y);
+static void handle_mouse_motion(int16_t x, int16_t y);
+static void finish_mouse_action(void);
+static void cancel_mouse_action(void);
+static double clamp_ratio(double ratio);
+static bool is_resize_band_hit(node_t *parent, split_type_t split_type, int16_t x, int16_t y);
 static void ungrab_keys(xcb_conn_t *, xcb_window_t);
 static void arrange_trees(void);
 static int grab_keys(xcb_conn_t *, xcb_window_t);
@@ -207,6 +222,7 @@ static int handle_key_press(const xcb_event_t *);
 static int handle_mapping_notify(const xcb_event_t *);
 static int handle_leave_notify(const xcb_event_t *);
 static int handle_motion_notify(const xcb_event_t *);
+static int handle_button_release(const xcb_event_t *);
 static int handle_focus_in(const xcb_event_t *);
 static int handle_property_notify(const xcb_event_t *);
 static int send_client_message(xcb_window_t, xcb_atom_t, xcb_atom_t, xcb_conn_t *);
@@ -253,9 +269,9 @@ static const event_handler_entry_t _handlers_[] = {
      * it only ungrab the re-grab the keys */
     DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
    	/* will be implemented if needed */
-    /* DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),*/
+    DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),
+    DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release),
     /* DEFINE_MAPPING(XCB_LEAVE_NOTIFY, handle_leave_notify), */
-    /* DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release), */
     /* DEFINE_MAPPING(XCB_KEY_RELEASE, handle_key_release), */
     /* DEFINE_MAPPING(XCB_FOCUS_IN, handle_focus_in), */
     /* DEFINE_MAPPING(XCB_FOCUS_OUT, handle_focus_out), */
@@ -285,7 +301,7 @@ load_cursors(void)
 #undef __LOAD__CURSOR__
 }
 
-static xcb_cursor_t
+xcb_cursor_t
 get_cursor(cursor_t c)
 {
 	assert(c < CURSOR_MAX);
@@ -3570,6 +3586,422 @@ ungrab_pointer(void)
 	xcb_ungrab_pointer(wm->connection, XCB_CURRENT_TIME);
 }
 
+static bool
+grab_pointer_for_mouse(cursor_t cursor_id)
+{
+	xcb_grab_pointer_reply_t *reply;
+	xcb_grab_pointer_cookie_t cookie = xcb_grab_pointer(
+		wm->connection,
+		false,			 /* owner_events */
+		wm->root_window, /* grab_window */
+		XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION,
+		XCB_GRAB_MODE_ASYNC, /* pointer_mode */
+		XCB_GRAB_MODE_ASYNC, /* keyboard_mode */
+		XCB_NONE,			 /* confine_to */
+		get_cursor(cursor_id),
+		XCB_CURRENT_TIME);
+
+	reply = xcb_grab_pointer_reply(wm->connection, cookie, NULL);
+	if (!reply) {
+		return false;
+	}
+	bool ok = (reply->status == XCB_GRAB_STATUS_SUCCESS);
+	_FREE_(reply);
+	return ok;
+}
+
+static void
+clear_mouse_state(void)
+{
+	mouse_state = (mouse_state_t){0};
+}
+
+static double
+clamp_ratio(double ratio)
+{
+	const double min = 0.05;
+	if (ratio < min) {
+		return min;
+	}
+	if (ratio > (1.0 - min)) {
+		return 1.0 - min;
+	}
+	return ratio;
+}
+
+static uint8_t
+detect_resize_edges(rectangle_t r, int16_t x, int16_t y)
+{
+	const int16_t edge	   = 10;
+	uint8_t		  edges	   = 0;
+	int16_t		  left_d   = (int16_t)(x - r.x);
+	int16_t		  right_d  = (int16_t)((r.x + (int16_t)r.width) - x);
+	int16_t		  top_d	   = (int16_t)(y - r.y);
+	int16_t		  bottom_d = (int16_t)((r.y + (int16_t)r.height) - y);
+
+	if (left_d >= 0 && left_d <= edge) {
+		edges |= RESIZE_EDGE_LEFT;
+	}
+	if (right_d >= 0 && right_d <= edge) {
+		edges |= RESIZE_EDGE_RIGHT;
+	}
+	if (top_d >= 0 && top_d <= edge) {
+		edges |= RESIZE_EDGE_TOP;
+	}
+	if (bottom_d >= 0 && bottom_d <= edge) {
+		edges |= RESIZE_EDGE_BOTTOM;
+	}
+
+	if ((edges & (RESIZE_EDGE_LEFT | RESIZE_EDGE_RIGHT)) ==
+		(RESIZE_EDGE_LEFT | RESIZE_EDGE_RIGHT)) {
+		edges &= (left_d <= right_d) ? ~RESIZE_EDGE_RIGHT : ~RESIZE_EDGE_LEFT;
+	}
+	if ((edges & (RESIZE_EDGE_TOP | RESIZE_EDGE_BOTTOM)) ==
+		(RESIZE_EDGE_TOP | RESIZE_EDGE_BOTTOM)) {
+		edges &= (top_d <= bottom_d) ? ~RESIZE_EDGE_BOTTOM : ~RESIZE_EDGE_TOP;
+	}
+
+	return edges;
+}
+
+static bool
+is_resize_band_hit(node_t	   *parent,
+				   split_type_t split_type,
+				   int16_t		x,
+				   int16_t		y)
+{
+	if (!parent || !parent->first_child || !parent->second_child) {
+		return false;
+	}
+
+	const int16_t edge = 8;
+	if (split_type == HORIZONTAL_TYPE) {
+		rectangle_t a	   = parent->first_child->rectangle;
+		rectangle_t b	   = parent->second_child->rectangle;
+		bool		a_left = (a.x <= b.x);
+		int16_t left_edge = (int16_t)((a_left ? a.x + a.width : b.x + b.width));
+		int16_t right_edge = (int16_t)(a_left ? b.x : a.x);
+		int16_t min_x	   = (left_edge < right_edge) ? left_edge : right_edge;
+		int16_t max_x	   = (left_edge > right_edge) ? left_edge : right_edge;
+		return (x >= (min_x - edge) && x <= (max_x + edge));
+	}
+	if (split_type == VERTICAL_TYPE) {
+		rectangle_t a	  = parent->first_child->rectangle;
+		rectangle_t b	  = parent->second_child->rectangle;
+		bool		a_top = (a.y <= b.y);
+		int16_t top_edge = (int16_t)((a_top ? a.y + a.height : b.y + b.height));
+		int16_t bottom_edge = (int16_t)(a_top ? b.y : a.y);
+		int16_t min_y		= (top_edge < bottom_edge) ? top_edge : bottom_edge;
+		int16_t max_y		= (top_edge > bottom_edge) ? top_edge : bottom_edge;
+		return (y >= (min_y - edge) && y <= (max_y + edge));
+	}
+
+	return false;
+}
+
+static void
+grab_super_button(xcb_window_t win, uint8_t button)
+{
+	const uint16_t numlock = (uint16_t)modfield_from_keysym(XK_Num_Lock);
+	const uint16_t caps	   = XCB_MOD_MASK_LOCK;
+	const uint16_t mods[]  = {
+		 SUPER,
+		 (uint16_t)(SUPER | caps),
+		 (uint16_t)(SUPER | numlock),
+		 (uint16_t)(SUPER | numlock | caps),
+	 };
+	bool logged = false;
+
+	for (size_t i = 0; i < sizeof(mods) / sizeof(mods[0]); i++) {
+		uint16_t mod = mods[i];
+		bool	 dup = false;
+		for (size_t j = 0; j < i; j++) {
+			if (mods[j] == mod) {
+				dup = true;
+				break;
+			}
+		}
+		if (dup) {
+			continue;
+		}
+
+		xcb_void_cookie_t c = xcb_grab_button_checked(
+			wm->connection,
+			0,	 /* owner_events */
+			win, /* grab_window */
+			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+				XCB_EVENT_MASK_POINTER_MOTION,
+			XCB_GRAB_MODE_ASYNC, /* allow processing */
+			XCB_GRAB_MODE_ASYNC, /* keyboard_mode */
+			XCB_NONE,			 /* confine_to */
+			XCB_NONE,			 /* cursor */
+			button,				 /* button */
+			mod);				 /* modifiers */
+
+		xcb_generic_error_t *err = xcb_request_check(wm->connection, c);
+		if (err) {
+			_LOG_(ERROR,
+				  "Could not grab SUPER+Button%d on root (mod=0x%x): %d",
+				  button,
+				  mod,
+				  err->error_code);
+			_FREE_(err);
+		} else if (!logged) {
+			_LOG_(INFO, "grabbed SUPER+Button%d on root", button);
+			logged = true;
+		}
+	}
+}
+
+static bool
+start_floating_move(node_t *n, int16_t x, int16_t y)
+{
+	if (!n || !n->client || !IS_FLOATING(n->client) ||
+		IS_FULLSCREEN(n->client)) {
+		return false;
+	}
+
+	mouse_state.op		   = MOUSE_OP_MOVE_FLOATING;
+	mouse_state.node	   = n;
+	mouse_state.window	   = n->client->window;
+	mouse_state.start_x	   = x;
+	mouse_state.start_y	   = y;
+	mouse_state.start_rect = n->floating_rectangle;
+	mouse_state.edges	   = 0;
+
+	const uint32_t val[]   = {XCB_STACK_MODE_ABOVE};
+	xcb_configure_window(
+		wm->connection, n->client->window, XCB_CONFIG_WINDOW_STACK_MODE, val);
+
+	if (!grab_pointer_for_mouse(CURSOR_MOVE)) {
+		clear_mouse_state();
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+start_floating_resize(node_t *n, int16_t x, int16_t y)
+{
+	if (!n || !n->client || !IS_FLOATING(n->client) ||
+		IS_FULLSCREEN(n->client)) {
+		return false;
+	}
+
+	uint8_t edges = detect_resize_edges(n->floating_rectangle, x, y);
+	if (edges == 0) {
+		return false;
+	}
+
+	mouse_state.op		   = MOUSE_OP_RESIZE_FLOATING;
+	mouse_state.node	   = n;
+	mouse_state.window	   = n->client->window;
+	mouse_state.start_x	   = x;
+	mouse_state.start_y	   = y;
+	mouse_state.start_rect = n->floating_rectangle;
+	mouse_state.edges	   = edges;
+
+	const uint32_t val[]   = {XCB_STACK_MODE_ABOVE};
+	xcb_configure_window(
+		wm->connection, n->client->window, XCB_CONFIG_WINDOW_STACK_MODE, val);
+
+	if (!grab_pointer_for_mouse(CURSOR_MOVE)) {
+		clear_mouse_state();
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+start_tiled_resize(node_t *n, int16_t x, int16_t y)
+{
+	if (!n || !n->client || n->parent == NULL || IS_FLOATING(n->client) ||
+		IS_FULLSCREEN(n->client)) {
+		return false;
+	}
+	if (curr_monitor->desk->layout != DEFAULT) {
+		return false;
+	}
+
+	node_t *p = n->parent;
+	node_t *s = (p->first_child == n) ? p->second_child : p->first_child;
+	if (!s) {
+		return false;
+	}
+
+	bool vs = (n->rectangle.x == s->rectangle.x);
+	bool hs = (n->rectangle.y == s->rectangle.y);
+	if (!vs && !hs) {
+		return false;
+	}
+
+	split_type_t st = hs ? HORIZONTAL_TYPE : VERTICAL_TYPE;
+	if (!is_resize_band_hit(p, st, x, y)) {
+		return false;
+	}
+
+	const int16_t gap	= conf.window_gap - conf.border_width;
+	const int16_t avail = (st == HORIZONTAL_TYPE) ? (p->rectangle.width - gap)
+												  : (p->rectangle.height - gap);
+	if (avail <= 0) {
+		return false;
+	}
+
+	const int16_t first_size = (st == HORIZONTAL_TYPE)
+								   ? p->first_child->rectangle.width
+								   : p->first_child->rectangle.height;
+	const double  ratio		 = (double)first_size / (double)avail;
+
+	mouse_state.op			 = MOUSE_OP_RESIZE_TILED;
+	mouse_state.node		 = n;
+	mouse_state.parent		 = p;
+	mouse_state.start_x		 = x;
+	mouse_state.start_y		 = y;
+	mouse_state.split_type	 = st;
+	mouse_state.start_ratio	 = clamp_ratio(ratio);
+	mouse_state.first_size	 = first_size;
+	mouse_state.avail		 = avail;
+	mouse_state.edges		 = 0;
+
+	if (!grab_pointer_for_mouse(CURSOR_MOVE)) {
+		clear_mouse_state();
+		return false;
+	}
+
+	return true;
+}
+
+static void
+handle_mouse_motion(int16_t x, int16_t y)
+{
+	if (mouse_state.op == MOUSE_OP_MOVE_FLOATING) {
+		int16_t		dx = (int16_t)(x - mouse_state.start_x);
+		int16_t		dy = (int16_t)(y - mouse_state.start_y);
+		rectangle_t r  = mouse_state.start_rect;
+		r.x			   = (int16_t)(r.x + dx);
+		r.y			   = (int16_t)(r.y + dy);
+		mouse_state.node->floating_rectangle = r;
+		move_window(mouse_state.window, r.x, r.y);
+		return;
+	}
+
+	if (mouse_state.op == MOUSE_OP_RESIZE_FLOATING) {
+		const int32_t min_dim = 40;
+		int32_t		  dx	  = (int32_t)(x - mouse_state.start_x);
+		int32_t		  dy	  = (int32_t)(y - mouse_state.start_y);
+		int32_t		  nx	  = mouse_state.start_rect.x;
+		int32_t		  ny	  = mouse_state.start_rect.y;
+		int32_t		  nw	  = mouse_state.start_rect.width;
+		int32_t		  nh	  = mouse_state.start_rect.height;
+
+		if (mouse_state.edges & RESIZE_EDGE_LEFT) {
+			nx += dx;
+			nw -= dx;
+		}
+		if (mouse_state.edges & RESIZE_EDGE_RIGHT) {
+			nw += dx;
+		}
+		if (mouse_state.edges & RESIZE_EDGE_TOP) {
+			ny += dy;
+			nh -= dy;
+		}
+		if (mouse_state.edges & RESIZE_EDGE_BOTTOM) {
+			nh += dy;
+		}
+
+		if (nw < min_dim) {
+			if (mouse_state.edges & RESIZE_EDGE_LEFT) {
+				nx = mouse_state.start_rect.x +
+					 (mouse_state.start_rect.width - min_dim);
+			}
+			nw = min_dim;
+		}
+		if (nh < min_dim) {
+			if (mouse_state.edges & RESIZE_EDGE_TOP) {
+				ny = mouse_state.start_rect.y +
+					 (mouse_state.start_rect.height - min_dim);
+			}
+			nh = min_dim;
+		}
+
+		rectangle_t r = {
+			.x		= (int16_t)nx,
+			.y		= (int16_t)ny,
+			.width	= (uint16_t)nw,
+			.height = (uint16_t)nh,
+		};
+		mouse_state.node->floating_rectangle = r;
+		resize_window(mouse_state.window, r.width, r.height);
+		move_window(mouse_state.window, r.x, r.y);
+		return;
+	}
+
+	if (mouse_state.op == MOUSE_OP_RESIZE_TILED) {
+		int32_t delta	  = (mouse_state.split_type == HORIZONTAL_TYPE)
+								? (int32_t)(x - mouse_state.start_x)
+								: (int32_t)(y - mouse_state.start_y);
+		int32_t new_first = mouse_state.first_size + delta;
+		int32_t min_size  = 40;
+		if (mouse_state.avail < min_size * 2) {
+			min_size = mouse_state.avail / 2;
+		}
+		if (min_size < 1) {
+			min_size = 1;
+		}
+
+		if (new_first < min_size) {
+			new_first = min_size;
+		}
+		if (new_first > (mouse_state.avail - min_size)) {
+			new_first = mouse_state.avail - min_size;
+		}
+
+		double ratio = (double)new_first / (double)mouse_state.avail;
+		mouse_state.parent->split_type	= mouse_state.split_type;
+		mouse_state.parent->split_ratio = clamp_ratio(ratio);
+		resize_subtree(mouse_state.parent);
+		render_tree_nomap(mouse_state.parent);
+		return;
+	}
+}
+
+static void
+finish_mouse_action(void)
+{
+	ungrab_pointer();
+	clear_mouse_state();
+	xcb_flush(wm->connection);
+}
+
+static void
+cancel_mouse_action(void)
+{
+	if (mouse_state.op == MOUSE_OP_MOVE_FLOATING ||
+		mouse_state.op == MOUSE_OP_RESIZE_FLOATING) {
+		if (mouse_state.node && mouse_state.node->client) {
+			mouse_state.node->floating_rectangle = mouse_state.start_rect;
+			resize_window(mouse_state.window,
+						  mouse_state.start_rect.width,
+						  mouse_state.start_rect.height);
+			move_window(mouse_state.window,
+						mouse_state.start_rect.x,
+						mouse_state.start_rect.y);
+		}
+	} else if (mouse_state.op == MOUSE_OP_RESIZE_TILED) {
+		if (mouse_state.parent) {
+			mouse_state.parent->split_type	= mouse_state.split_type;
+			mouse_state.parent->split_ratio = mouse_state.start_ratio;
+			resize_subtree(mouse_state.parent);
+			render_tree_nomap(mouse_state.parent);
+		}
+	}
+	ungrab_pointer();
+	clear_mouse_state();
+	xcb_flush(wm->connection);
+}
+
 static int
 grab_keys(xcb_conn_t *conn, xcb_window_t win)
 {
@@ -3600,6 +4032,8 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 			current = current->next;
 		}
 		is_kgrabbed = true;
+		grab_super_button(win, XCB_BUTTON_INDEX_1);
+		grab_super_button(win, XCB_BUTTON_INDEX_3);
 		return 0;
 	}
 
@@ -3626,6 +4060,10 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 		}
 	}
 	is_kgrabbed = true;
+
+	grab_super_button(win, XCB_BUTTON_INDEX_1);
+	grab_super_button(win, XCB_BUTTON_INDEX_3);
+
 	return 0;
 }
 
@@ -5144,9 +5582,9 @@ handle_map_request(const xcb_event_t *event)
 	/* check if the window already exists in ANY desktop to avoid duplication */
 	if (client_exist_in_desktops(win)) {
 #ifdef _DEBUG__
-		_LOG_(
-			DEBUG,
-			"[MAP_REQUEST] win %d already exists in a desktop, ignoring " win);
+		_LOG_(DEBUG,
+			  "[MAP_REQUEST] win %d already exists in a desktop, ignoring ",
+			  win);
 #endif
 		return 0;
 	}
@@ -5458,6 +5896,17 @@ handle_key_press(const xcb_event_t *event)
 	xcb_key_press_event_t *ev			 = (xcb_key_press_event_t *)event;
 	uint16_t			   cleaned_state = (ev->state & ~(XCB_MOD_MASK_LOCK));
 	xcb_keysym_t		   k = get_keysym(ev->detail, wm->connection);
+
+	/* handle drag cancel with ESC */
+	extern drag_state_t	   drag_state;
+	if (drag_state.active && k == XK_Escape) {
+		drag_cancel();
+		return 0;
+	}
+	if (mouse_state.op != MOUSE_OP_NONE && k == XK_Escape) {
+		cancel_mouse_action();
+		return 0;
+	}
 
 	if (key_head) {
 		conf_key_t *current = key_head;
@@ -5988,10 +6437,74 @@ update_grabbed_window(node_t *root, node_t *n)
 static int
 handle_button_press_event(const xcb_event_t *event)
 {
+	xcb_button_press_event_t *ev  = (xcb_button_press_event_t *)event;
+	xcb_window_t			  win = ev->event;
+	if (win == wm->root_window && ev->child != XCB_NONE) {
+		win = ev->child;
+	}
+
+	_LOG_(INFO,
+		  "=== BUTTON PRESS: detail=%d, state=0x%x, SUPER=0x%x ===",
+		  ev->detail,
+		  ev->state,
+		  SUPER);
+	_LOG_(INFO,
+		  "    win=%d, root_x=%d, root_y=%d, detail==BTN1? %d, state&SUPER? %d",
+		  win,
+		  ev->root_x,
+		  ev->root_y,
+		  ev->detail == XCB_BUTTON_INDEX_1,
+		  (ev->state & SUPER) != 0);
+
+	/* DRAG CHECK FIRST - works regardless of focus_follow_pointer */
+	if (ev->detail == XCB_BUTTON_INDEX_1 && (ev->state & SUPER)) {
+		_LOG_(INFO, ">>> SUPER+Button1 MATCH! Checking drag conditions...");
+		if (wm->bar && win == wm->bar->window)
+			goto normal_handling;
+		if (!window_exists(wm->connection, win))
+			goto normal_handling;
+		node_t *root = curr_monitor->desk->tree;
+		node_t *n	 = find_node_by_window_id(root, win);
+		if (!n) {
+			_LOG_(INFO, "    Node not found in tree");
+			goto normal_handling;
+		}
+		if (!n->client) {
+			_LOG_(INFO, "    Node has no client");
+			goto normal_handling;
+		}
+		_LOG_(INFO, "    Client state=%d (TILED=%d)", n->client->state, TILED);
+		if (IS_TILED(n->client)) {
+			_LOG_(INFO, "    >>> CALLING drag_start()...");
+			if (drag_start(win, ev->root_x, ev->root_y, false) == 0) {
+				_LOG_(INFO, "    >>> DRAG STARTED SUCCESSFULLY!");
+			}
+		} else if (IS_FLOATING(n->client)) {
+			start_floating_move(n, ev->root_x, ev->root_y);
+		}
+	}
+
+	if (ev->detail == XCB_BUTTON_INDEX_3 && (ev->state & SUPER)) {
+		if (wm->bar && win == wm->bar->window)
+			goto normal_handling;
+		if (!window_exists(wm->connection, win))
+			goto normal_handling;
+		node_t *root = curr_monitor->desk->tree;
+		node_t *n	 = find_node_by_window_id(root, win);
+		if (!n || !n->client) {
+			goto normal_handling;
+		}
+		if (IS_FLOATING(n->client)) {
+			start_floating_resize(n, ev->root_x, ev->root_y);
+		} else if (IS_TILED(n->client)) {
+			start_tiled_resize(n, ev->root_x, ev->root_y);
+		}
+	}
+
+normal_handling:
 	if (conf.focus_follow_pointer) {
 		return 0;
 	}
-	xcb_button_press_event_t *ev = (xcb_button_press_event_t *)event;
 #ifdef _DEBUG__
 	char *name = win_name(ev->event);
 	_LOG_(DEBUG,
@@ -6000,7 +6513,6 @@ handle_button_press_event(const xcb_event_t *event)
 		  name);
 	_FREE_(name);
 #endif
-	xcb_window_t win = ev->event;
 
 	if (wm->bar && win == wm->bar->window) {
 		return 0;
@@ -6104,6 +6616,19 @@ handle_motion_notify(const xcb_event_t *event)
 		  ev->event_x,
 		  ev->event_y);
 #endif
+
+	/* handle drag if active */
+	extern drag_state_t drag_state;
+	if (mouse_state.op != MOUSE_OP_NONE) {
+		handle_mouse_motion(ev->root_x, ev->root_y);
+		return 0;
+	}
+	if (drag_state.active) {
+		_LOG_(INFO, "MOTION NOTIFY: x=%d, y=%d", ev->root_x, ev->root_y);
+		drag_move(ev->root_x, ev->root_y);
+		return 0;
+	}
+
 	/* skip events where the pointer was over a child window, we are only
 	 * interested in events on the root window. */
 	if (ev->child != XCB_NONE) {
@@ -6119,6 +6644,25 @@ handle_motion_notify(const xcb_event_t *event)
 	if (curr_monitor && curr_monitor != m) {
 		curr_monitor = m;
 	}
+	return 0;
+}
+
+static int
+handle_button_release(const xcb_event_t *event)
+{
+	xcb_button_release_event_t *ev = (xcb_button_release_event_t *)event;
+
+	/* handle drag end if active */
+	extern drag_state_t			drag_state;
+	if (mouse_state.op != MOUSE_OP_NONE) {
+		finish_mouse_action();
+		return 0;
+	}
+	if (drag_state.active) {
+		drag_end(ev->root_x, ev->root_y);
+		return 0;
+	}
+
 	return 0;
 }
 

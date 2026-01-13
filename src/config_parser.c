@@ -44,10 +44,10 @@
 #define MAX_KEYBINDINGS 45
 
 #ifdef __LTEST__
-#define CONF_PATH "./zwm.conf"
+#define CONF_PATH	  "./zwm.conf"
 #define TEMPLATE_PATH "./zwm.conf"
 #else
-#define CONF_PATH ".config/zwm/zwm.conf"
+#define CONF_PATH	  ".config/zwm/zwm.conf"
 #define TEMPLATE_PATH "/usr/share/zwm/zwm.conf"
 #endif
 #define ALT	  XCB_MOD_MASK_1
@@ -90,6 +90,7 @@ static const conf_mapper_t _cmapper_[] = {
     DEFINE_MAPPING("shrink_floating_window", shrink_floating_window),
     DEFINE_MAPPING("gap_handler",    		 gap_handler),
     DEFINE_MAPPING("change_state",  		 change_state),
+    DEFINE_MAPPING("start_keyboard_drag",	 start_keyboard_drag_wrapper),
 };
 
 static key_mapper_t _kmapper_[] = {
@@ -216,7 +217,7 @@ write_default_config(const char *filename, config_t *c)
 	const char *template_path = TEMPLATE_PATH;
 
 	/* Create directory if it doesn't exist */
-	char dir_path[strlen(filename) + 1];
+	char		dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
 	if (last_slash) {
@@ -246,7 +247,7 @@ write_default_config(const char *filename, config_t *c)
 	}
 
 	/* Copy template to destination */
-	char buffer[4096];
+	char   buffer[4096];
 	size_t bytes;
 	while ((bytes = fread(buffer, 1, sizeof(buffer), template_file)) > 0) {
 		if (fwrite(buffer, 1, bytes, dest_file) != bytes) {

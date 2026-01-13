@@ -2,17 +2,17 @@
 
 ## Table of Contents
 
--   [About ZWM](#about-zwm)
--   [Motivation](#motivation)
--   [Goals](#goals)
--   [Features](#features)
--   [The underlying data structure](#the-underlying-data-structure)
--   [Screenshots](#screenshots)
--   [Installation](#installation)
--   [Configuration](#configuration)
--   [Default Keybindings](#default-keybindings)
--   [ewmh specific settings for polybar](#ewmh-specific-settings-for-polybar)
--   [Contributing](#contributing)
+- [About ZWM](#about-zwm)
+- [Motivation](#motivation)
+- [Goals](#goals)
+- [Features](#features)
+- [The underlying data structure](#the-underlying-data-structure)
+- [Screenshots](#screenshots)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Default Keybindings](#default-keybindings)
+- [ewmh specific settings for polybar](#ewmh-specific-settings-for-polybar)
+- [Contributing](#contributing)
 
 ## About ZWM
 
@@ -24,35 +24,37 @@ The motivation behind zwm stems from a desire to create a window manager that is
 
 ## Goals
 
--   Minimalism
--   Efficiency
--   Performance
+- Minimalism
+- Efficiency
+- Performance
 
 ## Features
 
--   Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html)
--   Multiple Layouts (default, master, stack, grid).
--   Multiple virtual desktops.
--   Multi-monitor support.
--   Independent workspaces for each monitor by default.
--   Low memory footprint, runs within ~2MB of memory
--   Resize, flip, and swap windows or partitions.
--   Layouts apply to individual desktops.
--   Customizable settings.
--   Customizable window rules.
--   Keyboard-Driven, fully controlled via keyboard shortcuts.
--   Can be integrated with any status bar.
--   Config reload on the fly.
+- Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html)
+- Multiple Layouts (default, master, stack, grid).
+- Multiple virtual desktops.
+- Multi-monitor support.
+- Independent workspaces for each monitor by default.
+- Low memory footprint, runs within ~2MB of memory
+- Resize, flip, and swap windows or partitions.
+- Layouts apply to individual desktops.
+- Keyboard-Driven, fully controlled via keyboard shortcuts.
+- Mouse for convenience: move/resize for floating/tiled windows and partitions.
+- Drag-and-drop windows between partitions.
+- Customizable settings.
+- Customizable window rules.
+- Can be integrated with any status bar.
+- Config reload on the fly.
 
 ## The underlying data structure:
 
 ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
 
--   Each desktop has its own pointer to a bsp-tree.
--   The tree is a partition of a monitor's rectangle into smaller rectangular regions.
--   Each leaf node holds exactly one window.
--   Each node in a bsp-tree either has zero or two children.
--   Each internal node is responsible for splitting a rectangle in half.
+- Each desktop has its own pointer to a bsp-tree.
+- The tree is a partition of a monitor's rectangle into smaller rectangular regions.
+- Each leaf node holds exactly one window.
+- Each node in a bsp-tree either has zero or two children.
+- Each internal node is responsible for splitting a rectangle in half.
 
 #### The following should illustrate how bsp-tree is used to achieve window management:
 
@@ -160,14 +162,14 @@ xbps-install -S zwm
 
 ##### Dependencies
 
--   gcc
--   libxcb
--   xcb-util
--   xcb-util-keysyms
--   xcb-util-wm (ewmh,icccm)
--   lxcb-randr
--   lxcb-xinerama
--   lxcb-cursor
+- gcc
+- libxcb
+- xcb-util
+- xcb-util-keysyms
+- xcb-util-wm (ewmh,icccm)
+- lxcb-randr
+- lxcb-xinerama
+- lxcb-cursor
 
 ```bash
 git clone https://github.com/Yazeed1s/zwm.git
@@ -178,7 +180,7 @@ cd zwm && sudo make install
 
 ##### A config file will be generated when you first start `zwm`. The file can be found in the following location:
 
--   ~/.config/zwm/zwm.conf
+- ~/.config/zwm/zwm.conf
 
 ###### As of now, the following configs are offered:
 
@@ -197,25 +199,26 @@ restore_last_focus = false
 
 ##### Available Variables:
 
--   **border_width**: Defines the width of the window borders in pixels.
--   **active_border_color**: Specifies the color of the border for the active (focused) window.
--   **normal_border_color**: Specifies the color of the border for inactive (unfocused) windows.
--   **window_gap**: Sets the gap between windows in pixels.
--   **virtual_desktops**: sets the number of virtual desktops.
--   **focus_follow_pointer**: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
--   **focus_follow_spawn**: If false, new windows require manual focus (e.g., via click); if true, newly spawned windows will automatically receive focus.
--   **restore_last_focus**: If true, ZWM will restore the previously focused window when switching to a desktop, only if that desktop’s layout is not set to stack.
+- **border_width**: Defines the width of the window borders in pixels.
+- **active_border_color**: Specifies the color of the border for the active (focused) window.
+- **normal_border_color**: Specifies the color of the border for inactive (unfocused) windows.
+- **window_gap**: Sets the gap between windows in pixels.
+- **virtual_desktops**: sets the number of virtual desktops.
+- **focus_follow_pointer**: If false, the window is focused on click; if true, the window is focused when the cursor enters it.
+- **focus_follow_spawn**: If false, new windows require manual focus (e.g., via click); if true, newly spawned windows will automatically receive focus.
+- **restore_last_focus**: If true, ZWM will restore the previously focused window when switching to a desktop, only if that desktop’s layout is not set to stack.
+
 ### 2- Commands to run on startup
 
 ##### Use the `exec` directive to specify programs that should be started when ZWM is launched.
 
--   For a single command:
+- For a single command:
 
 ```ini
 exec = "polybar"
 ```
 
--   To specify additional arguments as a list:
+- To specify additional arguments as a list:
 
 ```ini
 exec = ["polybar", "-c", ".config/polybar/config.ini"]
@@ -233,13 +236,13 @@ rule = wm_class("window class name"), state(tiled|floated), desktop(1..N)
 
 ##### Explanation:
 
--   **wm_class**: The window class name used to identify the window.
-    -   Use the **`xprop`** tool to find the wm_class of a window.
--   **state**: Specifies whether the window should be tiled or floated.
--   **tiled**: The window will be tiled... clearly.
--   **floated**: The window will be floated... clearly.
--   **desktop**: The virtual desktop number where the window should be placed.
-    -   Use **-1** if you do not want to set it to a specific desktop.
+- **wm_class**: The window class name used to identify the window.
+    - Use the **`xprop`** tool to find the wm_class of a window.
+- **state**: Specifies whether the window should be tiled or floated.
+- **tiled**: The window will be tiled... clearly.
+- **floated**: The window will be floated... clearly.
+- **desktop**: The virtual desktop number where the window should be placed.
+    - Use **-1** if you do not want to set it to a specific desktop.
 
 ```ini
 ; Example:
@@ -249,48 +252,47 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 
 ### 4- Key bindings
 
--   The format for defining key bindings is: `bind = modifier + key -> action`
--   If two modifiers are used, combine them with a pipe (|). For example, alt + shift is written as `alt|shift`.
--   Note: Some functions require additional arguments to specify details of the action.
--   These arguments are provided using a colon syntax, where the function and its argument are separated by a colon.
--   Example: `func(switch_desktop:1)` means "switch to desktop 1".
--   Example: `func(resize:grow)` means "grow the size of the window".
--   Example: `func(layout:master)` means "toggle master layout".
+- The format for defining key bindings is: `bind = modifier + key -> action`
+- If two modifiers are used, combine them with a pipe `(|)`. For example, alt + shift is written as `alt|shift`.
+- Note: Some functions require additional arguments to specify details of the action.
+- These arguments are provided using a colon syntax, where the function and its argument are separated by a colon.
+- Example: `func(switch_desktop:1)` means "switch to desktop 1".
+- Example: `func(resize:grow)` means "grow the size of the window".
+- Example: `func(layout:master)` means "toggle master layout".
 
 #### Available modifiers:
 
--   **super (meta)**, **alt**, **shift**, **ctrl**
+- **super (meta)**, **alt**, **shift**, **ctrl**
 
 #### Available Actions:
 
--   run(...): Executes a specified process.
+- run(...): Executes a specified process.
+    - Example: `bind = super + return -> run("alacritty")`
+    - To run a process with arguments, use a list:
+      Example: `bind = super + p -> run(["rofi", "-show", "drun"])`
 
-    -   Example: `bind = super + return -> run("alacritty")`
-    -   To run a process with arguments, use a list:
-        Example: `bind = super + p -> run(["rofi", "-show", "drun"])`
+- func(...): Calls a predefined function. The following functions are available:
+    - **kill**: Kills the focused window.
+    - **switch_desktop**: Switches to a specified virtual desktop.
+    - **fullscreen**: Toggles fullscreen mode for the focused window.
+    - **swap**: Swaps the focused window with its sibling.
+    - **transfer_node**: Moves the focused window to another virtual desktop.
+    - **layout**: Toggles the specified layout (master, default, stack).
+    - **traverse**: (In stack layout only) Moves focus to the window above or below.
+    - **flip**: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
+    - **cycle_window**: Moves focus to the window in the specified direction (up, down, left, right).
+    - **cycle_desktop**: Cycles through the virtual desktops (left, right).
+    - **resize**: Adjusts the size of the focused window (grow, shrink).
+    - **reload_config**: Reloads the configuration file without restarting ZWM.
+    - **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
+    - **gap_handler**: Increase or decrease window gaps (GROW, SHRINK).
+    - **change_state**: Set window state (FLOATING, TILED).
+    - **grow_floating_window**: Grow floating window (horizontally or vertically).
+    - **shrink_floating_window**: Shrink floating window (horizontally or vertically).
+    - **cycle_monitors**: Cycle between monitors (left or right, relative to the linked-list order not the physical positioning).
+    - **start_keyboard_drag**: Enter keyboard-driven drag mode to move tiled windows between partitions.
 
--   func(...): Calls a predefined function. The following functions are available:
-
-    -   **kill**: Kills the focused window.
-    -   **switch_desktop**: Switches to a specified virtual desktop.
-    -   **fullscreen**: Toggles fullscreen mode for the focused window.
-    -   **swap**: Swaps the focused window with its sibling.
-    -   **transfer_node**: Moves the focused window to another virtual desktop.
-    -   **layout**: Toggles the specified layout (master, default, stack).
-    -   **traverse**: (In stack layout only) Moves focus to the window above or below.
-    -   **flip**: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
-    -   **cycle_window**: Moves focus to the window in the specified direction (up, down, left, right).
-    -   **cycle_desktop**: Cycles through the virtual desktops (left, right).
-    -   **resize**: Adjusts the size of the focused window (grow, shrink).
-    -   **reload_config**: Reloads the configuration file without restarting ZWM.
-    -   **shift_window**: Shift the floating window's position to the specified direction by 10px (up, down, left, right).
-    -   **gap_handler**: Increase or decrease window gaps (GROW, SHRINK).
-    -   **change_state**: Set window state (FLOATING, TILED).
-    -   **grow_floating_window**: Grow floating window (horizontally or vertically).
-    -   **shrink_floating_window**: Shrink floating window (horizontally or vertically).
-    -   **cycle_monitors**: Cycle between monitors (left or right, relative to the linked-list order not the physical positioning).
-
--   Default keys
+- Default keys
 
 ```ini
 bind = super + return -> run("alacritty")
@@ -314,18 +316,18 @@ bind = super + up -> func(cycle_window:up)
 bind = super + right -> func(cycle_window:right)
 bind = super + left -> func(cycle_window:left)
 bind = super + down -> func(cycle_window:down)
-bind = shift + up -> func(shift_window:up)
-bind = shift + right -> func(shift_window:right)
-bind = shift + left -> func(shift_window:left)
-bind = shift + down -> func(shift_window:down)
-bind = shift + f -> func(change_state:float)
-bind = shift + t -> func(change_state:tile)
+bind = super|shift + up -> func(shift_window:up)
+bind = super|shift + right -> func(shift_window:right)
+bind = super|shift + left -> func(shift_window:left)
+bind = super|shift + down -> func(shift_window:down)
+bind = super|alt + f -> func(change_state:float)
+bind = super|alt + t -> func(change_state:tile)
 bind = super|shift + t -> func(shrink_floating_window:horizontal)
 bind = super|shift + g -> func(shrink_floating_window:vertical)
 bind = super|shift + y -> func(grow_floating_window:horizontal)
 bind = super|shift + h -> func(grow_floating_window:vertical)
-bind = super|shift + left -> func(cycle_desktop:left)
-bind = super|shift + right -> func(cycle_desktop:right)
+bind = super|alt + left -> func(cycle_desktop:left)
+bind = super|alt + right -> func(cycle_desktop:right)
 bind = super|ctrl + right -> func(cycle_monitors:next)
 bind = super|ctrl + left -> func(cycle_monitors:prev)
 bind = super|shift + 1 -> func(transfer_node:1)
@@ -341,51 +343,83 @@ bind = super|shift + d -> func(layout:default)
 bind = super|shift + k -> func(traverse:up)
 bind = super|shift + j -> func(traverse:down)
 bind = super|shift + f -> func(flip)
+bind = super + m -> func(start_keyboard_drag)
 bind = super|shift + r -> func(reload_config)
 ```
 
 More options will be added in the future as development progresses.
 
 ## Default Keybindings
-
-| Key                      | Description                          |
-| ------------------------ | ------------------------------------ |
-| `super + w`              | kill/close window                    |
-| `super + return`         | launch a terminal (alacritty)        |
-| `super + space`          | launch dmenu                         |
-| `super + p `             | launch rofi                          |
-| `super + [1..N]`         | switch to desktop                    |
-| `super + l`              | resize window (grow/expand)          |
-| `super + h`              | resize window (shrink)               |
-| `super + f`              | toggle fullscreen                    |
-| `super + shift + [1..N]` | transfer window to a diff desktop    |
-| `super + shift + m`      | toggle master layout                 |
-| `super + shift + s`      | toggle stack layout                  |
-| `super + shift + d`      | toggle default layout                |
-| `super + shift + j/k`    | traverse the stack                   |
-| `super + shift + f`      | flip the window/partition            |
-| `super + shift + r`      | hot-reload                           |
-| `super + shift + y`      | grow floating windows horizontally   |
-| `super + shift + h`      | grow floating windows vertically     |
-| `super + shift + t`      | shrink floating windows horizontally |
-| `super + shift + g`      | shrink floating windows vertically   |
-| `super + ctrl + →`       | focus/change monitor right           |
-| `super + ctrl + ←`       | focus/change monitor left            |
-| `super + s`              | swap window's orientation            |
-| `super + ←`              | focus window on the left             |
-| `super + ↑`              | focus window above                   |
-| `super + →`              | focus window on the right            |
-| `super + ↓`              | focus window below                   |
-| `super + shift + →`      | cycle desktop right                  |
-| `super + shift + ←`      | cycle desktop left                   |
-| `shift + ←`              | shift window to the left by 10px     |
-| `shift + ↑`              | shift window up by 10px              |
-| `shift + →`              | shift window to the right by 10px    |
-| `shift + ↓`              | shift window down by 10px            |
-| `super + i`              | increase window gaps by 5px          |
-| `super + d`              | decrease window gaps by 5px          |
-| `super + t`              | tile window                          |
-| `super + f`              | float window                         |
+ 
+| Key                      | Description                                               |
+| ------------------------ | --------------------------------------------------------- |
+| `super + w`              | kill/close window                                         |
+| `super + return`         | launch a terminal (alacritty)                             |
+| `super + space`          | launch dmenu                                              |
+| `super + p `             | launch rofi                                               |
+| `super + [1..N]`         | switch to desktop                                         |
+| `super + l`              | resize window (grow/expand)                               |
+| `super + h`              | resize window (shrink)                                    |
+| `super + f`              | toggle fullscreen                                         |
+| `super + shift + [1..N]` | transfer window to a diff desktop                         |
+| `super + shift + m`      | toggle master layout                                      |
+| `super + shift + s`      | toggle stack layout                                       |
+| `super + shift + d`      | toggle default layout                                     |
+| `super + shift + j/k`    | traverse the stack                                        |
+| `super + shift + f`      | flip the window/partition                                 |
+| `super + shift + r`      | hot-reload                                                |
+| `super + shift + y`      | grow floating windows horizontally                        |
+| `super + shift + h`      | grow floating windows vertically                          |
+| `super + shift + t`      | shrink floating windows horizontally                      |
+| `super + shift + g`      | shrink floating windows vertically                        |
+| `super + button1`        | move window (drag tiled / move floating)                  |
+| `super + button3`        | resize window (drag resize)                               |
+| `super + ctrl + →`       | focus/change monitor right                                |
+| `super + ctrl + ←`       | focus/change monitor left                                 |
+| `super + s`              | swap window's orientation                                 |
+| `super + ←`              | focus window on the left                                  |
+| `super + ↑`              | focus window above                                        |
+| `super + →`              | focus window on the right                                 |
+| `super + ↓`              | focus window below                                        |
+| `super + alt + →`        | cycle desktop right                                       |
+| `super + alt + ←`        | cycle desktop left                                        |
+| `super + shift + ←`      | shift floating window to the left by 10px                 |
+| `super + shift + ↑`      | shift floating window up by 10px                          |
+| `super + shift + →`      | shift floating window to the right by 10px                |
+| `super + shift + ↓`      | shift floating window down by 10px                        |
+| `super + i`              | increase window gaps by 5px                               |
+| `super + d`              | decrease window gaps by 5px                               |
+| `super + alt + t`        | tile window                                               |
+| `super + alt + f`        | float window                                              |
+| `super + m`              | start keyboard-driven window drag                         |
+ 
+## Mouse and Keyboard Control
+ 
+ZWM is designed to be fully keyboard-driven but also offers robust mouse support for convenience.
+ 
+**Feature Statistics:**
+- **Keyboard only operations**: 25
+- **Keyboard OR mouse operations**: 2 (Move/Drag, Resize)
+ 
+### Drag and resize features
+ 
+Detailed below are the operations that can be performed via both mouse and keyboard.
+ 
+#### 1. Move/drag window
+- **Mouse**: `super + button1` (Left Click) while dragging the window.
+  - Works on **Tiled Windows**: Drags the window to a new partition (swaps or moves).
+  - Works on **Floating Windows**: Moves the window freely.
+- **Keyboard**:
+  - **Tiled**: `super + m` initiates keyboard drag mode. Use arrow keys to move the window.
+  - **Floating**: `super + shift + [arrow keys]` shifts the window to the arrow direction by 10px.
+ 
+#### 2. Resize window
+- **Mouse**: `super + button3` (Right Click) while dragging near edges/corners.
+  - Works on **Tiled Windows** (Default Layout only): Resizes the shared edge between windows.
+  - Works on **Floating Windows**: Resizes the window dimensions.
+- **Keyboard**:
+  - **Tiled**: `super + l` (Grow) / `super + h` (Shrink).
+  - **Floating**: `super + shift + y/h` (Grow Horiz/Vert) and `super + shift + t/g` (Shrink Horiz/Vert).
 
 ## ewmh specific settings for polybar
 
@@ -394,13 +428,13 @@ More options will be added in the future as development progresses.
 ```ini
 [module/xwindow]
 type 			= internal/xwindow
-format 			= <label>
+format 		= <label>
 ; Available tokens:
 ;   %title%
 ;   %instance% (first part of the WM_CLASS atom, new in version 3.7.0)
 ;   %class%    (second part of the WM_CLASS atom, new in version 3.7.0)
 ; Default: %title%
-label 		= %title%
+label 		    = %title%
 label-maxlen 	= 50
 label-empty 	= "[null]"
 ```
@@ -410,19 +444,19 @@ label-empty 	= "[null]"
 ```ini
 [module/ewmh]
 type = internal/xworkspaces
-label-active 			= %index%
+label-active 			        = %index%
 label-active-background 	= ${colors.bg}
 label-active-underline		= ${colors.blue}
-label-active-padding		= 1
-label-occupied 			= %index%
+label-active-padding		  = 1
+label-occupied 			      = %index%
 label-occupied-padding 		= 1
-label-urgent 			= %index%!
+label-urgent 			        = %index%!
 label-urgent-background 	= ${colors.red}
-label-urgent-padding 		= 1
-label-empty 			= %index%
+label-urgent-padding 		  = 1
+label-empty 			        = %index%
 label-empty-foreground 		= ${colors.gray}
-label-empty-padding 		= 1
-label-separator 		= " "
+label-empty-padding 		  = 1
+label-separator 		      = " "
 ```
 
 For further customization please refer to polybar's wiki.
