@@ -31,33 +31,11 @@
 
 #include "type.h"
 
-/* drag state - tracks active drag session */
-typedef struct {
-	xcb_window_t window;   /* window being dragged */
-	node_t		*src_node; /* original node */
-	int16_t		 start_x;  /* initial cursor x */
-	int16_t		 start_y;  /* initial cursor y */
-	bool		 active;   /* drag in progress */
-	bool		 kbd_mode; /* keyboard-driven drag */
-
-	/* Live Preview State */
-	int16_t		 cur_x, cur_y;
-	node_t		*last_target;	/* cached target leaf for preview */
-	bool		 preview_active;
-
-	/* Restore Info */
-	desktop_t	*original_desktop;
-	rectangle_t	 original_rect;
-} drag_state_t;
-
 /* clang-format off */
 int drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd);
 int drag_move(int16_t x, int16_t y);
 int drag_end(int16_t x, int16_t y);
 int drag_cancel(void);
-int start_keyboard_drag_wrapper(arg_t *arg);
-
-node_t *find_leaf_at_point(node_t *root, int16_t x, int16_t y);
 /* clang-format on */
 
 #endif /* ZWM_DRAG_H */

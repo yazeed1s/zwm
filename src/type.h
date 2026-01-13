@@ -122,6 +122,20 @@ typedef enum {
 	 * and oreintation */
 } monitor_state_t;
 
+typedef enum {
+	MOUSE_OP_NONE = 0,
+	MOUSE_OP_MOVE_FLOATING,
+	MOUSE_OP_RESIZE_FLOATING,
+	MOUSE_OP_RESIZE_TILED,
+} mouse_op_t;
+
+enum {
+	RESIZE_EDGE_LEFT   = (1 << 0),
+	RESIZE_EDGE_RIGHT  = (1 << 1),
+	RESIZE_EDGE_TOP	   = (1 << 2),
+	RESIZE_EDGE_BOTTOM = (1 << 3),
+};
+
 typedef struct {
 	uint16_t previous_x, previous_y;
 	uint16_t current_x, current_y;
@@ -389,6 +403,36 @@ typedef struct {
 	/* restore previously focused window when switching
 								desktops (if layout != STACK) */
 } config_t;
+
+/* drag state helps tracks active drag session */
+typedef struct {
+	xcb_window_t window;   /* window being dragged */
+	node_t		*src_node; /* original node */
+	int16_t		 start_x;  /* initial cursor x */
+	int16_t		 start_y;  /* initial cursor y */
+	bool		 active;   /* drag in progress */
+	bool		 kbd_mode; /* keyboard-driven drag */
+	int16_t		 cur_x, cur_y;
+	node_t		*last_target; /* cached target leaf for preview */
+	bool		 preview_active;
+	desktop_t	*original_desktop;
+	rectangle_t	 original_rect;
+} drag_state_t;
+
+typedef struct {
+	mouse_op_t	 op;
+	xcb_window_t window;
+	node_t		*node;
+	node_t		*parent;
+	int16_t		 start_x;
+	int16_t		 start_y;
+	rectangle_t	 start_rect;
+	split_type_t split_type;
+	double		 start_ratio;
+	int16_t		 first_size;
+	int16_t		 avail;
+	uint8_t		 edges;
+} mouse_state_t;
 
 /* window rule structure (linked list) */
 typedef struct rule_t rule_t;

@@ -50,40 +50,6 @@ preview_apply(node_t *target);
 static void
 preview_clear(void);
 
-/* find_leaf_at_point - map cursor position to BSP leaf node */
-node_t *
-find_leaf_at_point(node_t *root, int16_t x, int16_t y)
-{
-	if (root == NULL)
-		return NULL;
-
-	/* if external node, check if point is inside */
-	if (IS_EXTERNAL(root)) {
-		rectangle_t r = root->rectangle;
-		if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height) {
-			/* Skip floating clients so they don't become drop targets. */
-			if (root->client && IS_FLOATING(root->client))
-				return NULL;
-			return root;
-		}
-		return NULL;
-	}
-
-	/* internal node - recurse */
-	if (root->first_child) {
-		node_t *f = find_leaf_at_point(root->first_child, x, y);
-		if (f)
-			return f;
-	}
-	if (root->second_child) {
-		node_t *s = find_leaf_at_point(root->second_child, x, y);
-		if (s)
-			return s;
-	}
-
-	return NULL;
-}
-
 static node_t *
 clone_tree(node_t *root, node_t *parent)
 {
@@ -166,13 +132,15 @@ drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd)
 		return -1;
 	}
 
-	/* only drag tiled windows */
+	/* we only drag tiled windows*/
+	/* floating windows are dragged too, but not here
+	 * because the intention of drag is not the same */
 	if (IS_FLOATING(n->client) || IS_FULLSCREEN(n->client)) {
 		_LOG_(WARNING, "cannot drag floating or fullscreen windows");
 		return -1;
 	}
 
-	/* Initialize Drag State */
+	/* initialize drag state */
 	drag_state.window			= win;
 	drag_state.src_node			= n;
 	drag_state.start_x			= x;
@@ -184,11 +152,11 @@ drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd)
 	drag_state.last_target		= NULL;
 	drag_state.preview_active	= false;
 
-	/* Save Restore Info */
+	/* save restore info */
 	drag_state.original_desktop = curr_monitor->desk;
 	drag_state.original_rect	= n->rectangle;
 
-	/* Raise the window so it stays above during drag */
+	/* raise the window so it stays above during drag */
 	const uint32_t val[]		= {XCB_STACK_MODE_ABOVE};
 	xcb_configure_window(
 		wm->connection, win, XCB_CONFIG_WINDOW_STACK_MODE, val);

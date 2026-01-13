@@ -940,6 +940,39 @@ find_client_by_window_id(node_t *root, xcb_window_t win)
 	return NULL;
 }
 
+/* find_leaf_at_point maps cursor position to BSP leaf node */
+node_t *
+find_leaf_at_point(node_t *root, int16_t x, int16_t y)
+{
+	if (root == NULL)
+		return NULL;
+
+	/* if external node, check if point is inside */
+	if (IS_EXTERNAL(root)) {
+		rectangle_t r = root->rectangle;
+		if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height) {
+			/* skip floating clients, we don't want them to be drop targets. */
+			if (root->client && IS_FLOATING(root->client))
+				return NULL;
+			return root;
+		}
+		return NULL;
+	}
+
+	if (root->first_child) {
+		node_t *f = find_leaf_at_point(root->first_child, x, y);
+		if (f)
+			return f;
+	}
+	if (root->second_child) {
+		node_t *s = find_leaf_at_point(root->second_child, x, y);
+		if (s)
+			return s;
+	}
+
+	return NULL;
+}
+
 /* apply_default_layout - applies the default tiling layout to a given tree
  *
  * recursively applies the default tiling layout to a node and its

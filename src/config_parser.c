@@ -26,7 +26,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "config_parser.h"
-#include "drag.h"
 #include "helper.h"
 #include "type.h"
 #include "zwm.h"
@@ -91,7 +90,7 @@ static const conf_mapper_t _cmapper_[] = {
     DEFINE_MAPPING("shrink_floating_window", shrink_floating_window),
     DEFINE_MAPPING("gap_handler",    		 gap_handler),
     DEFINE_MAPPING("change_state",  		 change_state),
-    DEFINE_MAPPING("start_keyboard_drag",	start_keyboard_drag_wrapper),
+    DEFINE_MAPPING("start_keyboard_drag",	 start_keyboard_drag_wrapper),
 };
 
 static key_mapper_t _kmapper_[] = {
