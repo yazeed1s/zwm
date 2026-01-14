@@ -41,9 +41,9 @@
 #define LOG_FILE	 "zwm.log"
 #define MAX_PATH_LEN (2 << 7)
 #ifdef _DEBUG__
-#define MAX_LOG_SIZE (2 << 15) // ~64kb
+#define MAX_LOG_SIZE (2 << 15) /* ~64kb */
 #else
-#define MAX_LOG_SIZE (2 << 12) // ~8kb
+#define MAX_LOG_SIZE (2 << 12) /* ~8kb */
 #endif
 
 void

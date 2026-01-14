@@ -52,6 +52,9 @@ static void stack_layout(node_t *parent);
 static void default_layout(node_t *parent);
 static node_t *find_tree_root(node_t *);
 static bool is_parent_null(const node_t *node);
+static rectangle_t _get_window_rectangle(node_t *node);
+static int _handle_fullscreen_window(xcb_window_t win);
+static int _handle_window_nomap(node_t *node);
 /* clang-format on */
 
 node_t *
@@ -108,8 +111,8 @@ init_root(void)
  * It is being used extensively in this code base.
  * Note: this function assumes rectangles and positions to be pre-calculated.
  */
-int
-render_tree(node_t *node)
+static int
+render_tree_internal(node_t *node, bool do_map)
 {
 	if (!node)
 		return 0;
@@ -124,14 +127,14 @@ render_tree(node_t *node)
 	while (q->front) {
 		node_t *current = dequeue(q);
 		if (!IS_INTERNAL(current) && current->client) {
-			if (!IS_FULLSCREEN(current->client)) {
-				if (tile(current) != 0) {
-					_LOG_(ERROR,
-						  "error tiling window %d",
-						  current->client->window);
-					free_queue(q);
-					return -1;
-				}
+			int result =
+				IS_FULLSCREEN(current->client)
+					? _handle_fullscreen_window(current->client->window)
+					: (do_map ? tile(current) : _handle_window_nomap(current));
+
+			if (result != 0) {
+				free_queue(q);
+				return -1;
 			}
 			continue;
 		}
@@ -140,13 +143,64 @@ render_tree(node_t *node)
 		if (current->second_child)
 			enqueue(q, current->second_child);
 	}
+
 	free_queue(q);
 	return 0;
+}
+
+/* wrapper functions */
+int
+render_tree(node_t *node)
+{
+	return render_tree_internal(node, true);
 }
 
 int
 render_tree_nomap(node_t *node)
 {
+	return render_tree_internal(node, false);
+}
+
+static rectangle_t
+_get_window_rectangle(node_t *node)
+{
+	if (IS_FLOATING(node->client)) {
+		return node->floating_rectangle;
+	}
+	return node->rectangle;
+}
+
+static int
+_handle_fullscreen_window(xcb_window_t win)
+{
+	monitor_t  *m = get_monitor_by_window(win);
+	rectangle_t r = m ? m->rectangle : curr_monitor->rectangle;
+
+	if (resize_window(win, r.width, r.height) != 0 ||
+		move_window(win, r.x, r.y) != 0) {
+		_LOG_(ERROR, "error resizing/moving fullscreen window %d", win);
+		return -1;
+	}
+	return 0;
+}
+
+static int
+_handle_window_nomap(node_t *node)
+{
+	rectangle_t r = _get_window_rectangle(node);
+
+	if (resize_window(node->client->window, r.width, r.height) != 0 ||
+		move_window(node->client->window, r.x, r.y) != 0) {
+		_LOG_(ERROR, "error resizing/moving window %d", node->client->window);
+		return -1;
+	}
+	return 0;
+}
+
+#if 0
+int
+render_tree_internal(node_t *node, bool do_map)
+{
 	if (!node)
 		return 0;
 
@@ -160,28 +214,52 @@ render_tree_nomap(node_t *node)
 	while (q->front) {
 		node_t *current = dequeue(q);
 		if (!IS_INTERNAL(current) && current->client) {
-			if (!IS_FULLSCREEN(current->client)) {
-				const uint16_t width  = IS_FLOATING(current->client)
-											? current->floating_rectangle.width
-											: current->rectangle.width;
-				const uint16_t height = IS_FLOATING(current->client)
-											? current->floating_rectangle.height
-											: current->rectangle.height;
-				const int16_t  x	  = IS_FLOATING(current->client)
-											? current->floating_rectangle.x
-											: current->rectangle.x;
-				const int16_t  y	  = IS_FLOATING(current->client)
-											? current->floating_rectangle.y
-											: current->rectangle.y;
-
-				if (resize_window(current->client->window, width, height) !=
+			if (IS_FULLSCREEN(current->client)) {
+				monitor_t  *m = get_monitor_by_window(current->client->window);
+				rectangle_t r = m ? m->rectangle : curr_monitor->rectangle;
+				if (resize_window(current->client->window, r.width, r.height) !=
 						0 ||
-					move_window(current->client->window, x, y) != 0) {
+					move_window(current->client->window, r.x, r.y) != 0) {
 					_LOG_(ERROR,
-						  "error resizing/moving window %d",
+						  "error resizing/moving fullscreen window %d",
 						  current->client->window);
 					free_queue(q);
 					return -1;
+				}
+			} else {
+				if (do_map) {
+					if (tile(current) != 0) {
+						_LOG_(ERROR,
+							  "error tiling window %d",
+							  current->client->window);
+						free_queue(q);
+						return -1;
+					}
+				} else {
+					const uint16_t width =
+						IS_FLOATING(current->client)
+							? current->floating_rectangle.width
+							: current->rectangle.width;
+					const uint16_t height =
+						IS_FLOATING(current->client)
+							? current->floating_rectangle.height
+							: current->rectangle.height;
+					const int16_t x = IS_FLOATING(current->client)
+										  ? current->floating_rectangle.x
+										  : current->rectangle.x;
+					const int16_t y = IS_FLOATING(current->client)
+										  ? current->floating_rectangle.y
+										  : current->rectangle.y;
+
+					if (resize_window(current->client->window, width, height) !=
+							0 ||
+						move_window(current->client->window, x, y) != 0) {
+						_LOG_(ERROR,
+							  "error resizing/moving window %d",
+							  current->client->window);
+						free_queue(q);
+						return -1;
+					}
 				}
 			}
 			continue;
@@ -194,6 +272,7 @@ render_tree_nomap(node_t *node)
 	free_queue(q);
 	return 0;
 }
+#endif
 
 static int
 get_tree_level(node_t *node)
@@ -394,7 +473,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 			node->rectangle;
 
 	} else if (layout == MASTER) {
-		// todo
+		/* todo */
 		node_t *p = find_tree_root(node);
 		node_t *m = find_master_node(p);
 		master_layout(p, m);
@@ -635,7 +714,7 @@ stack_and_lower(
 			stack[++(*top)] = root;
 		}
 	} else if (root->client && !IS_INTERNAL(root) &&
-			   !IS_FLOATING(root->client)) { // non floating
+			   !IS_FLOATING(root->client)) { /* non floating */
 		if (!is_stacked)
 			lower_window(root->client->window);
 	}
@@ -657,7 +736,7 @@ sort(node_t **s, int n)
 			int32_t area_i = s[i]->rectangle.height * s[i]->rectangle.width;
 			int32_t area_j = s[j]->rectangle.height * s[j]->rectangle.width;
 			if (area_j > area_i) {
-				// swap
+				/* swap */
 				node_t *temp = s[i];
 				s[i]		 = s[j];
 				s[j]		 = temp;
@@ -687,6 +766,21 @@ collect_clients(node_t *n, stack_item_t **out, size_t *cap, size_t *len)
 	collect_clients(n->second_child, out, cap, len);
 }
 
+static void
+collect_clients_global(stack_item_t **out, size_t *cap, size_t *len)
+{
+	monitor_t *m = head_monitor;
+	while (m) {
+		for (int i = 0; i < m->n_of_desktops; i++) {
+			desktop_t *d = m->desktops[i];
+			if (!d || !d->tree)
+				continue;
+			collect_clients(d->tree, out, cap, len);
+		}
+		m = m->next;
+	}
+}
+
 static int
 cmp_stack_item(const void *pa, const void *pb)
 {
@@ -695,86 +789,101 @@ cmp_stack_item(const void *pa, const void *pb)
 		return -1; /* bottom first */
 	if (a->key > b->key)
 		return +1;
+	if (!a->c || !b->c)
+		return 0;
+	if (a->c->window < b->c->window)
+		return -1;
+	if (a->c->window > b->c->window)
+		return +1;
 	return 0;
 }
 
 void
 restack(void)
 {
-	node_t *root = curr_monitor ? curr_monitor->desk->tree : NULL;
-	if (!root)
-		return;
-
 	stack_item_t *v	  = NULL;
 	size_t		  cap = 0, len = 0;
-	collect_clients(root, &v, &cap, &len);
+	collect_clients_global(&v, &cap, &len);
 	if (!v || !len) {
+		xcb_ewmh_set_client_list_stacking(wm->ewmh, wm->screen_nbr, 0, NULL);
 		free(v);
 		return;
 	}
 
 	qsort(v, len, sizeof *v, cmp_stack_item);
-	/* start chain above root */
-	xcb_window_t sib = wm->root_window;
-	for (size_t i = 0; i < len; i++) {
-		client_t *c = v[i].c;
-		if (!c)
-			continue;
-		uint32_t vals[2] = {sib, XCB_STACK_MODE_ABOVE};
-		window_above(c->window, sib);
-		sib = c->window;
+
+	/* enforce global bottom-to-top order for all managed clients */
+	client_t *bottom = v[0].c;
+	if (bottom) {
+		lower_window(bottom->window);
 	}
-	xcb_flush(wm->connection);
+	for (size_t i = 1; i < len; i++) {
+		client_t *c = v[i].c;
+		client_t *p = v[i - 1].c;
+		if (!c || !p)
+			continue;
+		window_above(c->window, p->window);
+	}
 
 	/* publish _NET_CLIENT_LIST_STACKING */
-	/* ewmh_update_client_list_stacking(v, len); */
+	xcb_window_t *stack = calloc(len, sizeof(*stack));
+	if (stack) {
+		for (size_t i = 0; i < len; i++) {
+			stack[i] = v[i].c ? v[i].c->window : XCB_NONE;
+		}
+		xcb_ewmh_set_client_list_stacking(wm->ewmh, wm->screen_nbr, len, stack);
+		free(stack);
+	}
+	xcb_flush(wm->connection);
 
 	free(v);
 }
 
-/* restack - keeps floating windows above everything else. */
-// void
-// restack(void)
-// {
-// 	node_t *root = curr_monitor->desk->tree;
-// 	if (root == NULL)
-// 		return;
+/* deprecated */
+#if 0
+void
+restack(void)
+{
+	node_t *root = curr_monitor->desk->tree;
+	if (root == NULL)
+		return;
 
-// 	int		 stack_size = 5;
-// 	int		 top		= -1;
-// 	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
-// 	if (stack == NULL) {
-// 		_LOG_(ERROR, "cannot allocate stack");
-// 		return;
-// 	}
-// 	stack_and_lower(
-// 		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
-// 	if (top == 0) {
-// 		if (stack[0]->client)
-// 			raise_window(stack[0]->client->window);
-// 	} else if (top > 0) {
-// 		sort(stack, top);
-// 		for (int i = 1; i <= top; i++) {
-// 			if (stack[i]->client && stack[i]->client->window &&
-// 				stack[i - 1]->client && stack[i - 1]->client->window) {
-// 				window_above(stack[i]->client->window,
-// 							 stack[i - 1]->client->window);
-// 			}
-// 		}
+	int		 stack_size = 5;
+	int		 top		= -1;
+	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
+	if (stack == NULL) {
+		_LOG_(ERROR, "cannot allocate stack");
+		return;
+	}
+	stack_and_lower(
+		root, stack, &top, stack_size, curr_monitor->desk->layout == STACK);
+	if (top == 0) {
+		if (stack[0]->client)
+			raise_window(stack[0]->client->window);
+	} else if (top > 0) {
+		sort(stack, top);
+		for (int i = 1; i <= top; i++) {
+			if (stack[i]->client && stack[i]->client->window &&
+				stack[i - 1]->client && stack[i - 1]->client->window) {
+				window_above(stack[i]->client->window,
+							 stack[i - 1]->client->window);
+			}
+		}
 
-// #ifdef _DEBUG__
-// 		char *s	 = win_name(stack[0]->client->window);
-// 		char *ss = win_name(stack[top]->client->window);
-// 		_LOG_(DEBUG,
-// 			  "largest floating window: %s, smallest floating window: %s",
-// 			  s,
-// 			  ss);
-// 		_FREE_(s);
-// 		_FREE_(ss);
-// #endif
-// 	}
-// 	_FREE_(stack);
-// }
+#ifdef _DEBUG__
+		char *s	 = win_name(stack[0]->client->window);
+		char *ss = win_name(stack[top]->client->window);
+		_LOG_(DEBUG,
+			  "largest floating window: %s, smallest floating window: %s",
+			  s,
+			  ss);
+		_FREE_(s);
+		_FREE_(ss);
+#endif
+	}
+	_FREE_(stack);
+}
+#endif
 
 void
 restackv2(node_t *root)
@@ -1170,8 +1279,8 @@ apply_master_layout(node_t *parent)
 		r2.width  = parent->rectangle.width;
 		r2.height = (uint16_t)(parent->rectangle.height - r.height -
 							   conf.window_gap - conf.border_width);
-		// parent->first_child->rectangle	= r;
-		// parent->second_child->rectangle = r2;
+		/* parent->first_child->rectangle	= r;
+		parent->second_child->rectangle = r2; */
 
 		parent->first_child->rectangle =
 			((parent->second_child->client) &&
@@ -2240,7 +2349,7 @@ update_focus(node_t *root, node_t *n)
 			window_grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
-	// store last focused
+	/* store last focused */
 	if (n && n->client) {
 		curr_monitor->desk->last_focused = n->client->window;
 	}
