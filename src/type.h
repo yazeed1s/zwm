@@ -152,6 +152,13 @@ typedef struct {
 	uint16_t height;
 } rectangle_t;
 
+typedef struct {
+	int16_t top;
+	int16_t right;
+	int16_t bottom;
+	int16_t left;
+} padding_t;
+
 typedef enum {
 	TILED,	   /* automatically tiled */
 	FLOATING,  /* freely movable */
@@ -173,6 +180,7 @@ typedef enum {
 	WINDOW_TYPE_SPLASH		 = 5,
 	WINDOW_TYPE_DIALOG		 = 6,
 	WINDOW_TYPE_NOTIFICATION = 7,
+	WINDOW_TYPE_DESKTOP		 = 8,
 	WINDOW_TYPE_UNKNOWN		 = -1
 } ewmh_window_type_t;
 
@@ -314,6 +322,7 @@ struct monitor_t {
 	desktop_t		  *desk;		/* focused desktop */
 	monitor_t		  *next;		/* next monitor in list */
 	rectangle_t		   rectangle;	/* monitor dimensions */
+	padding_t		   padding;		/* EWMH strut padding */
 	xcb_randr_output_t randr_id;	/* randr output id, used with xrnadr */
 	xcb_window_t	   root;		/* the root window on this monitor */
 	uint32_t		   id;			/* monitor identifier, used with xinerama */
@@ -327,19 +336,11 @@ struct monitor_t {
 	bool			   is_primary;	  /* primary monitor */
 };
 
-/* status bar representation */
-typedef struct {
-	rectangle_t	 rectangle; /* bar dimensions */
-	xcb_window_t window;	/* xcb window reference */
-	uint32_t	 id;		/* bar identifier */
-} bar_t;
-
 /* window manager global state */
 typedef struct {
-	xcb_connection_t	  *connection; /* xcb connection */
-	xcb_ewmh_connection_t *ewmh;	   /* ewmh connection */
-	xcb_screen_t		  *screen;	   /* global screen */
-	bar_t				  *bar;		   /* status bar, should be moved (FIXME) */
+	xcb_connection_t	  *connection;	/* xcb connection */
+	xcb_ewmh_connection_t *ewmh;		/* ewmh connection */
+	xcb_screen_t		  *screen;		/* global screen */
 	xcb_window_t		   root_window; /* root window */
 	split_type_t		   split_type;	/* current split type */
 	uint8_t				   screen_nbr;	/* screen number */
@@ -433,6 +434,11 @@ typedef struct {
 	int16_t		 avail;
 	uint8_t		 edges;
 } mouse_state_t;
+
+typedef struct strut_window_node_t {
+	xcb_window_t				win;
+	struct strut_window_node_t *next;
+} strut_win_node_t;
 
 /* window rule structure (linked list) */
 typedef struct rule_t rule_t;

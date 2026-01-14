@@ -206,7 +206,7 @@ render_tree_internal(node_t *node, bool do_map)
 
 	queue_t *q = create_queue();
 	if (!q) {
-		_LOG_(ERROR, "queue creation failed");
+_LOG_(ERROR, "queue creation failed");
 		return -1;
 	}
 
@@ -852,7 +852,7 @@ restack(void)
 	int		 top		= -1;
 	node_t **stack		= (node_t **)malloc(sizeof(node_t *) * stack_size);
 	if (stack == NULL) {
-		_LOG_(ERROR, "cannot allocate stack");
+_LOG_(ERROR, "cannot allocate stack");
 		return;
 	}
 	stack_and_lower(
@@ -1213,22 +1213,13 @@ apply_default_layout(node_t *root)
 static void
 calculate_base_rect(rectangle_t *r, monitor_t *m)
 {
-	uint16_t w = m->rectangle.width;
-	uint16_t h = m->rectangle.height;
-	uint16_t x = m->rectangle.x;
-	uint16_t y = m->rectangle.y;
-	if (wm->bar && m == prim_monitor) {
-		r->x	  = (int16_t)(x + conf.window_gap);
-		r->y	  = (int16_t)(y + wm->bar->rectangle.height + conf.window_gap);
-		r->width  = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r->height = (uint16_t)(h - wm->bar->rectangle.height -
-							   2 * conf.window_gap - 2 * conf.border_width);
-	} else {
-		r->x	  = (int16_t)(x + conf.window_gap);
-		r->y	  = (int16_t)(y + conf.window_gap);
-		r->width  = (uint16_t)(w - 2 * conf.window_gap - 2 * conf.border_width);
-		r->height = (uint16_t)(h - 2 * conf.window_gap - 2 * conf.border_width);
-	}
+	rectangle_t usable = get_usable_area(m);
+	r->x			   = (int16_t)(usable.x + conf.window_gap);
+	r->y			   = (int16_t)(usable.y + conf.window_gap);
+	r->width =
+		(uint16_t)(usable.width - 2 * conf.window_gap - 2 * conf.border_width);
+	r->height =
+		(uint16_t)(usable.height - 2 * conf.window_gap - 2 * conf.border_width);
 }
 
 /* default_layout - applies the default layout to the tree.
@@ -1319,13 +1310,10 @@ static void
 master_layout(node_t *root, node_t *n)
 {
 	const double   ratio		= 0.70;
-	const uint16_t w			= curr_monitor->rectangle.width;
-	const uint16_t h			= curr_monitor->rectangle.height;
-	const uint16_t x			= curr_monitor->rectangle.x;
-	const uint16_t y			= curr_monitor->rectangle.y;
-	const uint16_t master_width = (uint16_t)(w * ratio);
-	const uint16_t r_width		= (uint16_t)(w * (1 - ratio));
-	const uint16_t bar_height = wm->bar == NULL ? 0 : wm->bar->rectangle.height;
+
+	rectangle_t	   usable		= get_usable_area(curr_monitor);
+	const uint16_t master_width = (uint16_t)(usable.width * ratio);
+	const uint16_t r_width		= (uint16_t)(usable.width * (1 - ratio));
 
 	/* find a node to be master if not provided */
 	if (n == NULL) {
@@ -1339,18 +1327,18 @@ master_layout(node_t *root, node_t *n)
 
 	/* master rectangle */
 	const rectangle_t r1 = {
-		.x		= (int16_t)(x + conf.window_gap),
-		.y		= (int16_t)(y + bar_height + conf.window_gap),
+		.x		= (int16_t)(usable.x + conf.window_gap),
+		.y		= (int16_t)(usable.y + conf.window_gap),
 		.width	= (uint16_t)(master_width - 2 * conf.window_gap),
-		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+		.height = (uint16_t)(usable.height - 2 * conf.window_gap),
 	};
 
 	/* stack rectangle */
 	const rectangle_t r2 = {
-		.x		= (int16_t)(x + master_width),
-		.y		= (int16_t)(y + bar_height + conf.window_gap),
+		.x		= (int16_t)(usable.x + master_width),
+		.y		= (int16_t)(usable.y + conf.window_gap),
 		.width	= (uint16_t)(r_width - (1 * conf.window_gap)),
-		.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+		.height = (uint16_t)(usable.height - 2 * conf.window_gap),
 	};
 
 	/* if node is a root, give it full screen rectangle and ignore this
@@ -1360,10 +1348,10 @@ master_layout(node_t *root, node_t *n)
 	if (n->node_type == ROOT_NODE && n->first_child == NULL &&
 		n->second_child == NULL) {
 		n->rectangle = (rectangle_t){
-			.x		= (int16_t)(x + conf.window_gap),
-			.y		= (int16_t)(y + bar_height + conf.window_gap),
-			.width	= (uint16_t)(w - 2 * conf.window_gap),
-			.height = (uint16_t)(h - 2 * conf.window_gap - bar_height),
+			.x		= (int16_t)(usable.x + conf.window_gap),
+			.y		= (int16_t)(usable.y + conf.window_gap),
+			.width	= (uint16_t)(usable.width - 2 * conf.window_gap),
+			.height = (uint16_t)(usable.height - 2 * conf.window_gap),
 		};
 		return;
 	}

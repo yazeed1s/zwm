@@ -40,6 +40,7 @@ extern xcb_window_t 	  focused_win;
 extern monitor_t 		  *head_monitor;
 extern monitor_t		  *prim_monitor;
 extern monitor_t 		  *curr_monitor;
+extern strut_win_node_t  *strut_windows;
 extern bool 			  using_xrandr;
 extern bool 		      using_xinerama;
 extern uint8_t 			  randr_base;
@@ -86,5 +87,12 @@ uint64_t stack_key(const client_t *c);
 ewmh_window_type_t window_type(xcb_window_t win);
 uint32_t get_next_mru_seq(monitor_t *monitor);
 monitor_t *get_monitor_by_window(xcb_window_t win);
+bool ewmh_handle_struts(xcb_window_t win);
+rectangle_t get_usable_area(monitor_t *m);
+void recalculate_all_struts(void);
+void add_strut_window(xcb_window_t win);
+bool remove_strut_window(xcb_window_t win);
+bool is_strut_window(xcb_window_t win);
+void cleanup_strut_windows(void);
 /* clang-format on */
 #endif /* ZWM_ZWM_H */
