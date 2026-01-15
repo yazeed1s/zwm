@@ -44,6 +44,7 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Customizable settings.
 - Customizable window rules.
 - Can be integrated with any status bar.
+- Can handle multiple bars per monitor/display, in different locations (top, bottom, left, right).
 - Config reload on the fly.
 
 ## The underlying data structure:
