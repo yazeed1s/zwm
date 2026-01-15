@@ -825,6 +825,14 @@ restack(void)
 		window_above(c->window, p->window);
 	}
 
+	/* raise fullscreen windows above all*/
+	for (size_t i = 0; i < len; i++) {
+		client_t *c = v[i].c;
+		if (c && IS_FULLSCREEN(c)) {
+			raise_window(c->window);
+		}
+	}
+
 	/* publish _NET_CLIENT_LIST_STACKING */
 	xcb_window_t *stack = calloc(len, sizeof(*stack));
 	if (stack) {

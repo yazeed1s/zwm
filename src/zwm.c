@@ -1172,9 +1172,6 @@ set_fullscreen(node_t *n, bool flag)
 			move_window(n->client->window, r.x, r.y) != 0) {
 			return -1;
 		}
-		/* raise fullscreen window above all windows (including unmanaged
-		 * DOCKs)*/
-		raise_window(n->client->window);
 		xcb_cookie_t c	 = xcb_change_property_checked(wm->connection,
 													   XCB_PROP_MODE_REPLACE,
 													   n->client->window,
