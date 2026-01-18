@@ -1,32 +1,8 @@
 ### zwm
 
-## Table of Contents
-
-- [About ZWM](#about-zwm)
-- [Motivation](#motivation)
-- [Goals](#goals)
-- [Features](#features)
-- [The underlying data structure](#the-underlying-data-structure)
-- [Screenshots](#screenshots)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Default Keybindings](#default-keybindings)
-- [ewmh specific settings for polybar](#ewmh-specific-settings-for-polybar)
-- [Contributing](#contributing)
-
 ## About ZWM
 
 zwm is a minimalistic and opinionated tiling window manager for X11. It uses XCB instead of Xlib to communicate with the X server. The underlying data structure for managing windows is a customized BSP tree.
-
-## Motivation
-
-The motivation behind zwm stems from a desire to create a window manager that is both lightweight and highly efficient, yet tailored to how I like to work. Sure, there are other great tiling window managers that perform well and offer robust features, but zwm was developed primarily as a learning exercise in creating a window manager from scratch.
-
-## Goals
-
-- Minimalism
-- Efficiency
-- Performance
 
 ## Features
 
@@ -38,18 +14,19 @@ The motivation behind zwm stems from a desire to create a window manager that is
 - Low memory footprint, runs within ~2MB of memory
 - Resize, flip, and swap windows or partitions.
 - Layouts apply to individual desktops.
-- Keyboard-Driven, fully controlled via keyboard shortcuts.
-- Mouse for convenience: move/resize for floating/tiled windows and partitions.
+- Keyboard-driven, fully controlled via keyboard shortcuts.
+- Mouse for convenience when move/resize for floating/tiled windows and partitions.
 - Drag-and-drop windows between partitions.
 - Customizable settings.
 - Customizable window rules.
 - Can be integrated with any status bar.
 - Can handle multiple bars per monitor/display, in different locations (top, bottom, left, right).
 - Config reload on the fly.
+- And many more.. look at they keybinds section to see what zwm offers.
 
 ## The underlying data structure:
 
-ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows. This allows for more flexible layouts.
+ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org/wiki/Binary_space_partitioning)) to store and manage windows.
 
 - Each desktop has its own pointer to a bsp-tree.
 - The tree is a partition of a monitor's rectangle into smaller rectangular regions.
@@ -57,7 +34,7 @@ ZWM uses **binary space partitioning tree** ([BSP-tree](https://en.wikipedia.org
 - Each node in a bsp-tree either has zero or two children.
 - Each internal node is responsible for splitting a rectangle in half.
 
-#### The following should illustrate how bsp-tree is used to achieve window management:
+#### The following should explain how bsp-tree is used to achieve window management:
 
 ```
     Window and Partition Structure in a BSP-tree:
@@ -179,7 +156,7 @@ cd zwm && sudo make install
 
 ## Configuration
 
-##### A config file will be generated when you first start `zwm`. The file can be found in the following location:
+When you first start `zwm`, a config file will be generated in the following location with the default config.
 
 - ~/.config/zwm/zwm.conf
 
@@ -351,76 +328,74 @@ bind = super|shift + r -> func(reload_config)
 More options will be added in the future as development progresses.
 
 ## Default Keybindings
- 
-| Key                      | Description                                               |
-| ------------------------ | --------------------------------------------------------- |
-| `super + w`              | kill/close window                                         |
-| `super + return`         | launch a terminal (alacritty)                             |
-| `super + space`          | launch dmenu                                              |
-| `super + p `             | launch rofi                                               |
-| `super + [1..N]`         | switch to desktop                                         |
-| `super + l`              | resize window (grow/expand)                               |
-| `super + h`              | resize window (shrink)                                    |
-| `super + f`              | toggle fullscreen                                         |
-| `super + shift + [1..N]` | transfer window to a diff desktop                         |
-| `super + shift + m`      | toggle master layout                                      |
-| `super + shift + s`      | toggle stack layout                                       |
-| `super + shift + d`      | toggle default layout                                     |
-| `super + shift + j/k`    | traverse the stack                                        |
-| `super + shift + f`      | flip the window/partition                                 |
-| `super + shift + r`      | hot-reload                                                |
-| `super + shift + y`      | grow floating windows horizontally                        |
-| `super + shift + h`      | grow floating windows vertically                          |
-| `super + shift + t`      | shrink floating windows horizontally                      |
-| `super + shift + g`      | shrink floating windows vertically                        |
-| `super + button1`        | move window (drag tiled / move floating)                  |
-| `super + button3`        | resize window (drag resize)                               |
-| `super + ctrl + →`       | focus/change monitor right                                |
-| `super + ctrl + ←`       | focus/change monitor left                                 |
-| `super + s`              | swap window's orientation                                 |
-| `super + ←`              | focus window on the left                                  |
-| `super + ↑`              | focus window above                                        |
-| `super + →`              | focus window on the right                                 |
-| `super + ↓`              | focus window below                                        |
-| `super + alt + →`        | cycle desktop right                                       |
-| `super + alt + ←`        | cycle desktop left                                        |
-| `super + shift + ←`      | shift floating window to the left by 10px                 |
-| `super + shift + ↑`      | shift floating window up by 10px                          |
-| `super + shift + →`      | shift floating window to the right by 10px                |
-| `super + shift + ↓`      | shift floating window down by 10px                        |
-| `super + i`              | increase window gaps by 5px                               |
-| `super + d`              | decrease window gaps by 5px                               |
-| `super + alt + t`        | tile window                                               |
-| `super + alt + f`        | float window                                              |
-| `super + m`              | start keyboard-driven window drag                         |
- 
+
+| Key                      | Description                                |
+| ------------------------ | ------------------------------------------ |
+| `super + w`              | kill/close window                          |
+| `super + return`         | launch a terminal (alacritty)              |
+| `super + space`          | launch dmenu                               |
+| `super + p `             | launch rofi                                |
+| `super + [1..N]`         | switch to desktop                          |
+| `super + l`              | resize window (grow/expand)                |
+| `super + h`              | resize window (shrink)                     |
+| `super + f`              | toggle fullscreen                          |
+| `super + shift + [1..N]` | transfer window to a diff desktop          |
+| `super + shift + m`      | toggle master layout                       |
+| `super + shift + s`      | toggle stack layout                        |
+| `super + shift + d`      | toggle default layout                      |
+| `super + shift + j/k`    | traverse the stack                         |
+| `super + shift + f`      | flip the window/partition                  |
+| `super + shift + r`      | hot-reload                                 |
+| `super + shift + y`      | grow floating windows horizontally         |
+| `super + shift + h`      | grow floating windows vertically           |
+| `super + shift + t`      | shrink floating windows horizontally       |
+| `super + shift + g`      | shrink floating windows vertically         |
+| `super + button1`        | move window (drag tiled / move floating)   |
+| `super + button3`        | resize window (drag resize)                |
+| `super + ctrl + →`       | focus/change monitor right                 |
+| `super + ctrl + ←`       | focus/change monitor left                  |
+| `super + s`              | swap window's orientation                  |
+| `super + ←`              | focus window on the left                   |
+| `super + ↑`              | focus window above                         |
+| `super + →`              | focus window on the right                  |
+| `super + ↓`              | focus window below                         |
+| `super + alt + →`        | cycle desktop right                        |
+| `super + alt + ←`        | cycle desktop left                         |
+| `super + shift + ←`      | shift floating window to the left by 10px  |
+| `super + shift + ↑`      | shift floating window up by 10px           |
+| `super + shift + →`      | shift floating window to the right by 10px |
+| `super + shift + ↓`      | shift floating window down by 10px         |
+| `super + i`              | increase window gaps by 5px                |
+| `super + d`              | decrease window gaps by 5px                |
+| `super + alt + t`        | tile window                                |
+| `super + alt + f`        | float window                               |
+| `super + m`              | start keyboard-driven window drag          |
+
 ## Mouse and Keyboard Control
- 
-ZWM is designed to be fully keyboard-driven but also offers robust mouse support for convenience.
- 
-**Feature Statistics:**
-- **Keyboard only operations**: 25
-- **Keyboard OR mouse operations**: 2 (Move/Drag, Resize)
- 
+
+ZWM is written in a way to be fully keyboard-driven but it also offers mouse support for convenience.
+
 ### Drag and resize features
- 
-Detailed below are the operations that can be performed via both mouse and keyboard.
- 
+
+Explained below are the operations that can be performed via both mouse and keyboard.
+
 #### 1. Move/drag window
+
 - **Mouse**: `super + button1` (Left Click) while dragging the window.
-  - Works on **Tiled Windows**: Drags the window to a new partition (swaps or moves).
-  - Works on **Floating Windows**: Moves the window freely.
+    - Works on **Tiled Windows**: Drags the window to a new partition (swaps or moves).
+    - Works on **Floating Windows**: Moves the window freely.
 - **Keyboard**:
-  - **Tiled**: `super + m` initiates keyboard drag mode. Use arrow keys to move the window.
-  - **Floating**: `super + shift + [arrow keys]` shifts the window to the arrow direction by 10px.
- 
+    - **Tiled**: `super + m` initiates keyboard drag mode. Use arrow keys to move the window.
+    - **Floating**: `super + shift + [arrow keys]` shifts the window to the arrow direction by 10px.
+
 #### 2. Resize window
+
 - **Mouse**: `super + button3` (Right Click) while dragging near edges/corners.
-  - Works on **Tiled Windows** (Default Layout only): Resizes the shared edge between windows.
-  - Works on **Floating Windows**: Resizes the window dimensions.
+    - Works on **Tiled Windows** (Default Layout only): Resizes the shared edge between windows.
+    - Works on **Floating Windows**: Resizes the window dimensions.
 - **Keyboard**:
-  - **Tiled**: `super + l` (Grow) / `super + h` (Shrink).
-  - **Floating**: `super + shift + y/h` (Grow Horiz/Vert) and `super + shift + t/g` (Shrink Horiz/Vert).
+    - **Tiled**: `super + l` (Grow) / `super + h` (Shrink).
+    - **Floating**: `super + shift + y/h` (Grow Horiz/Vert) and `super + shift + t/g` (Shrink Horiz/Vert).
 
 ## ewmh specific settings for polybar
 
@@ -464,4 +439,4 @@ For further customization please refer to polybar's wiki.
 
 ## Contributing
 
-If you would like to add a feature or to fix a bug please feel free to submit a PR.
+If you would like to add a feature or to fix a bug please feel free to submit a PR.. after we discuss in an Issue.
