@@ -801,6 +801,9 @@ cmp_stack_item(const void *pa, const void *pb)
 void
 restack(void)
 {
+	if (curr_monitor->desk->layout == STACK)
+		return;
+
 	stack_item_t *v	  = NULL;
 	size_t		  cap = 0, len = 0;
 	collect_clients_global(&v, &cap, &len);
