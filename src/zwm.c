@@ -323,7 +323,7 @@ set_cursor(int cursor_id)
 	xcb_cursor_t c		  = get_cursor(cursor_id);
 	uint32_t	 values[] = {c};
 	xcb_cookie_t cookie	  = xcb_change_window_attributes_checked(
-		  wm->connection, wm->root_window, XCB_CW_CURSOR, values);
+		wm->connection, wm->root_window, XCB_CW_CURSOR, values);
 	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
 
 	if (err) {
@@ -509,12 +509,12 @@ change_state(arg_t *arg)
 			return 0;
 		xcb_get_geometry_reply_t *g =
 			get_geometry(n->client->window, wm->connection);
-		uint16_t h	= g->height / 2;
-		uint16_t wi = g->width / 2;
-		int16_t	 x	= curr_monitor->rectangle.x +
-					(curr_monitor->rectangle.width / 2) - (wi / 2);
-		int16_t y = curr_monitor->rectangle.y +
-					(curr_monitor->rectangle.height / 2) - (h / 2);
+		uint16_t	h		  = g->height / 2;
+		uint16_t	wi		  = g->width / 2;
+		int16_t		x		  = curr_monitor->rectangle.x +
+								(curr_monitor->rectangle.width / 2) - (wi / 2);
+		int16_t		y		  = curr_monitor->rectangle.y +
+								(curr_monitor->rectangle.height / 2) - (h / 2);
 		rectangle_t rc		  = {.x = x, .y = y, .width = wi, .height = h};
 		n->floating_rectangle = rc;
 		_FREE_(g);
@@ -627,11 +627,10 @@ get_focused_desktop_idx(void)
 static desktop_t *
 get_focused_desktop(void)
 {
-	monitor_t *focused_monitor = get_focused_monitor();
-	for (int i = focused_monitor->n_of_desktops; i--;) {
-		if (focused_monitor->desktops[i] &&
-			focused_monitor->desktops[i]->is_focused) {
-			return focused_monitor->desktops[i];
+	monitor_t *fm = get_focused_monitor();
+	for (int i = fm->n_of_desktops; i--;) {
+		if (fm->desktops[i] && fm->desktops[i]->is_focused) {
+			return fm->desktops[i];
 		}
 	}
 
@@ -641,9 +640,9 @@ get_focused_desktop(void)
 static int
 ewmh_set_number_of_desktops(xcb_ewmh_conn_t *ewmh, int screen_nbr, uint32_t nd)
 {
-	xcb_cookie_t cookie =
+	xcb_cookie_t c =
 		xcb_ewmh_set_number_of_desktops_checked(ewmh, screen_nbr, nd);
-	xcb_error_t *err = xcb_request_check(ewmh->connection, cookie);
+	xcb_error_t *err = xcb_request_check(ewmh->connection, c);
 	if (err) {
 		_LOG_(ERROR, "error setting number of desktops: %d", err->error_code);
 		_FREE_(err);
@@ -745,11 +744,11 @@ remove_property(xcb_connection_t *con,
 
 	{
 		int		  num = 0;
-		const int current_size =
+		const int curr_size =
 			xcb_get_property_value_length(reply) / (reply->format / 8);
-		xcb_atom_t values[current_size];
+		xcb_atom_t values[curr_size];
 		memset(values, 0, sizeof(values));
-		for (int i = 0; i < current_size; i++) {
+		for (int i = 0; i < curr_size; i++) {
 			if (atoms[i] != atom)
 				values[num++] = atoms[i];
 		}
@@ -781,9 +780,9 @@ window_above(xcb_window_t win1, xcb_window_t win2)
 
 	uint16_t mask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
 	uint32_t values[] = {win2, XCB_STACK_MODE_ABOVE};
-	xcb_cookie_t cookie =
+	xcb_cookie_t c =
 		xcb_configure_window_checked(wm->connection, win1, mask, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
@@ -802,9 +801,9 @@ window_below(xcb_window_t win1, xcb_window_t win2)
 	}
 	uint16_t mask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
 	uint32_t values[] = {win2, XCB_STACK_MODE_BELOW};
-	xcb_cookie_t cookie =
+	xcb_cookie_t c =
 		xcb_configure_window_checked(wm->connection, win1, mask, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
@@ -819,9 +818,9 @@ lower_window(xcb_window_t win)
 {
 	uint32_t	 values[] = {XCB_STACK_MODE_BELOW};
 	uint16_t	 mask	  = XCB_CONFIG_WINDOW_STACK_MODE;
-	xcb_cookie_t cookie =
+	xcb_cookie_t c =
 		xcb_configure_window_checked(wm->connection, win, mask, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
@@ -836,9 +835,9 @@ raise_window(xcb_window_t win)
 {
 	uint32_t	 values[] = {XCB_STACK_MODE_ABOVE};
 	uint16_t	 mask	  = XCB_CONFIG_WINDOW_STACK_MODE;
-	xcb_cookie_t cookie =
+	xcb_cookie_t c =
 		xcb_configure_window_checked(wm->connection, win, mask, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in stacking window %d: error code %d",
@@ -1281,11 +1280,11 @@ apply_monitor_layout_changes(monitor_t *m)
 			uint16_t	 r_width	  = (uint16_t)(usable.width * (1 - ratio));
 
 			rectangle_t	 r1			  = {
-						   .x	   = (int16_t)(usable.x + conf.window_gap),
-						   .y	   = (int16_t)(usable.y + conf.window_gap),
-						   .width  = (uint16_t)(master_width - 2 * conf.window_gap),
-						   .height = (uint16_t)(usable.height - 2 * conf.window_gap),
-			   };
+				.x		= (int16_t)(usable.x + conf.window_gap),
+				.y		= (int16_t)(usable.y + conf.window_gap),
+				.width	= (uint16_t)(master_width - 2 * conf.window_gap),
+				.height = (uint16_t)(usable.height - 2 * conf.window_gap),
+			};
 			rectangle_t r2 = {
 				.x		= (int16_t)(usable.x + master_width),
 				.y		= (int16_t)(usable.y + conf.window_gap),
@@ -1357,8 +1356,8 @@ reload_config_wrapper(arg_t *arg)
 	bool color_changed =
 		(prev_normal_border_color != conf.normal_border_color) ||
 		(prev_active_border_color != conf.active_border_color);
-	bool layout_changed = (conf.window_gap != prev_window_gap) ||
-						  (conf.border_width != prev_border_width);
+	bool layout_changed	 = (conf.window_gap != prev_window_gap) ||
+						   (conf.border_width != prev_border_width);
 	bool desktop_changed = (prev_virtual_desktops != conf.virtual_desktops);
 
 	if (color_changed) {
@@ -1394,8 +1393,8 @@ reload_config_wrapper(arg_t *arg)
 			while (current_monitor) {
 				current_monitor->n_of_desktops = conf.virtual_desktops;
 				desktop_t **n				   = (desktop_t **)realloc(
-					 current_monitor->desktops,
-					 sizeof(desktop_t *) * current_monitor->n_of_desktops);
+					current_monitor->desktops,
+					sizeof(desktop_t *) * current_monitor->n_of_desktops);
 				if (n == NULL) {
 					_LOG_(ERROR, "failed to realloc desktops");
 					goto out;
@@ -1438,8 +1437,8 @@ reload_config_wrapper(arg_t *arg)
 				}
 				current_monitor->n_of_desktops = conf.virtual_desktops;
 				desktop_t **n				   = (desktop_t **)realloc(
-					 current_monitor->desktops,
-					 sizeof(desktop_t *) * current_monitor->n_of_desktops);
+					current_monitor->desktops,
+					sizeof(desktop_t *) * current_monitor->n_of_desktops);
 				if (n == NULL) {
 					_LOG_(ERROR, "failed to realloc desktops");
 					goto out;
@@ -3333,7 +3332,7 @@ setup_ewmh(void)
 								wm->ewmh->_NET_WM_WINDOW_TYPE_TOOLBAR};
 
 	xcb_cookie_t c			 = xcb_ewmh_set_supported_checked(
-		  wm->ewmh, wm->screen_nbr, LEN(net_atoms), net_atoms);
+		wm->ewmh, wm->screen_nbr, LEN(net_atoms), net_atoms);
 	xcb_error_t *err = xcb_request_check(wm->ewmh->connection, c);
 	if (err) {
 		_LOG_(ERROR, "error setting supported ewmh masks: %d", err->error_code);
@@ -3474,15 +3473,15 @@ update_net_wm_state_atom(xcb_window_t win, xcb_atom_t atom, bool set)
 		if (flag != EWMH_STATE_NONE && (mask & flag))
 			return 0;
 		xcb_atom_t	 values[] = {atom};
-		xcb_cookie_t c		  = xcb_change_property_checked(wm->connection,
-														XCB_PROP_MODE_APPEND,
-														win,
-														wm->ewmh->_NET_WM_STATE,
-														XCB_ATOM_ATOM,
-														32,
-														1,
-														values);
-		xcb_error_t *err	  = xcb_request_check(wm->connection, c);
+		xcb_cookie_t c	 = xcb_change_property_checked(wm->connection,
+													   XCB_PROP_MODE_APPEND,
+													   win,
+													   wm->ewmh->_NET_WM_STATE,
+													   XCB_ATOM_ATOM,
+													   32,
+													   1,
+													   values);
+		xcb_error_t *err = xcb_request_check(wm->connection, c);
 		if (err) {
 			_LOG_(ERROR,
 				  "cannot append _NET_WM_STATE for %d: error code %d",
@@ -4117,11 +4116,11 @@ grab_super_button(xcb_window_t win, uint8_t button)
 	const uint16_t numlock = (uint16_t)modfield_from_keysym(XK_Num_Lock);
 	const uint16_t caps	   = XCB_MOD_MASK_LOCK;
 	const uint16_t mods[]  = {
-		 SUPER,
-		 (uint16_t)(SUPER | caps),
-		 (uint16_t)(SUPER | numlock),
-		 (uint16_t)(SUPER | numlock | caps),
-	 };
+		SUPER,
+		(uint16_t)(SUPER | caps),
+		(uint16_t)(SUPER | numlock),
+		(uint16_t)(SUPER | numlock | caps),
+	};
 	bool logged = false;
 
 	for (size_t i = 0; i < sizeof(mods) / sizeof(mods[0]); i++) {
@@ -4511,7 +4510,7 @@ send_client_message(xcb_window_t win,
 	e->data.data32[0]			  = value;
 	e->data.data32[1]			  = XCB_CURRENT_TIME;
 	xcb_cookie_t c				  = xcb_send_event_checked(
-		   conn, false, win, XCB_EVENT_MASK_NO_EVENT, (char *)e);
+		conn, false, win, XCB_EVENT_MASK_NO_EVENT, (char *)e);
 
 	xcb_error_t *err = xcb_request_check(conn, c);
 	if (err) {
@@ -4837,7 +4836,7 @@ set_visibility(xcb_window_t win, bool is_visible)
 
 	/* stop zwm from recieving events */
 	c				   = xcb_change_window_attributes_checked(
-		 wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
+		wm->connection, wm->root_window, XCB_CW_EVENT_MASK, _off);
 	err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
@@ -4964,7 +4963,7 @@ show_window(xcb_window_t win)
 	const long		 data[] = {XCB_ICCCM_WM_STATE_NORMAL, XCB_NONE};
 	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
 	c						= xcb_change_property_checked(
-		  wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
+		wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
 	err = xcb_request_check(wm->connection, c);
 
 	if (err) {
@@ -5055,7 +5054,7 @@ hide_window(xcb_window_t win)
 	const long		 data[] = {XCB_ICCCM_WM_STATE_ICONIC, XCB_NONE};
 	const xcb_atom_t wm_s	= get_atom("WM_STATE", wm->connection);
 	c						= xcb_change_property_checked(
-		  wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
+		wm->connection, XCB_PROP_MODE_REPLACE, win, wm_s, wm_s, 32, 2, data);
 	err = xcb_request_check(wm->connection, c);
 
 	if (err) {
@@ -5310,12 +5309,12 @@ fill_root_rectangle(rectangle_t *r)
 static void
 fill_floating_rectangle(xcb_get_geometry_reply_t *geometry, rectangle_t *r)
 {
-	int x = curr_monitor->rectangle.x + (curr_monitor->rectangle.width / 2) -
-			(geometry->width / 2);
-	int y = curr_monitor->rectangle.y + (curr_monitor->rectangle.height / 2) -
-			(geometry->height / 2);
-	(*r).x		= x;
-	(*r).y		= y;
+	int x  = curr_monitor->rectangle.x + (curr_monitor->rectangle.width / 2) -
+			 (geometry->width / 2);
+	int y  = curr_monitor->rectangle.y + (curr_monitor->rectangle.height / 2) -
+			 (geometry->height / 2);
+	(*r).x = x;
+	(*r).y = y;
 	(*r).width	= geometry->width;
 	(*r).height = geometry->height;
 }
@@ -5360,7 +5359,7 @@ set_window_state(xcb_window_t win, xcb_icccm_wm_state_t state)
 	const long	 data[] = {state, XCB_NONE};
 	xcb_atom_t	 t		= get_atom("WM_STATE", wm->connection);
 	xcb_cookie_t c		= xcb_change_property_checked(
-		 wm->connection, XCB_PROP_MODE_REPLACE, win, t, t, 32, 2, data);
+		wm->connection, XCB_PROP_MODE_REPLACE, win, t, t, 32, 2, data);
 	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
@@ -5417,7 +5416,7 @@ apply_floating_hints(xcb_window_t win)
 	xcb_size_hints_t size_hints;
 
 	uint8_t			 r = xcb_icccm_get_wm_normal_hints_reply(
-		 wm->connection, c, &size_hints, NULL);
+		wm->connection, c, &size_hints, NULL);
 	if (1 == r) {
 		/* if min-h == max-h && min-w == max-w, */
 		/* then window should be floated */
@@ -6324,8 +6323,7 @@ handle_key_press(const xcb_event_t *event)
 	xcb_keysym_t		   k = get_keysym(ev->detail, wm->connection);
 
 	/* handle drag cancel with ESC */
-	extern drag_state_t	   drag_state;
-	if (drag_state.active && k == XK_Escape) {
+	if (ds.active && k == XK_Escape) {
 		drag_cancel();
 		return 0;
 	}
@@ -6524,7 +6522,7 @@ handle_net_wm_state(xcb_window_t win_event, uint32_t action, uint32_t state)
 static int
 handle_net_desktop_change(uint32_t nd)
 {
-	if (nd > wm->ewmh->_NET_NUMBER_OF_DESKTOPS - 1) {
+	if (!curr_monitor || nd >= (uint32_t)curr_monitor->n_of_desktops) {
 		return -1;
 	}
 	return switch_desktop(nd);
@@ -6662,7 +6660,14 @@ handle_client_message(const xcb_event_t *event)
 		/* this is a request to move window from one destkop to another */
 		_LOG_CLIENT_MESSAGE_(WM_DESKTOP, win, name);
 		uint32_t index = ev->data.data32[0];
-		result		   = handle_net_wm_desktop(win, index);
+		/* if a rule pins this window to a specific desktop, don't let the
+		 * app override placement via _NET_WM_DESKTOP (e.g. Firefox restoring
+		 * its last-used desktop on launch). */
+		rule_t	*r	   = get_window_rule(win);
+		if (r && r->desktop_id != -1) {
+			break;
+		}
+		result = handle_net_wm_desktop(win, index);
 		break;
 	}
 	case CLIENT_MESSAGE_CLOSE_WINDOW: {
@@ -7049,12 +7054,11 @@ handle_motion_notify(const xcb_event_t *event)
 #endif
 
 	/* handle drag if active */
-	extern drag_state_t drag_state;
 	if (mouse_state.op != MOUSE_OP_NONE) {
 		handle_mouse_motion(ev->root_x, ev->root_y);
 		return 0;
 	}
-	if (drag_state.active) {
+	if (ds.active) {
 		_LOG_(INFO, "MOTION NOTIFY: x=%d, y=%d", ev->root_x, ev->root_y);
 		drag_move(ev->root_x, ev->root_y);
 		return 0;
@@ -7084,12 +7088,11 @@ handle_button_release(const xcb_event_t *event)
 	xcb_button_release_event_t *ev = (xcb_button_release_event_t *)event;
 
 	/* handle drag end if active */
-	extern drag_state_t			drag_state;
 	if (mouse_state.op != MOUSE_OP_NONE) {
 		finish_mouse_action();
 		return 0;
 	}
-	if (drag_state.active) {
+	if (ds.active) {
 		drag_end(ev->root_x, ev->root_y);
 		return 0;
 	}

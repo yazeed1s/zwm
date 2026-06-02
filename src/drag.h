@@ -31,6 +31,8 @@
 
 #include "type.h"
 
+extern drag_state_t ds;
+
 /* clang-format off */
 int drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd);
 int drag_move(int16_t x, int16_t y);

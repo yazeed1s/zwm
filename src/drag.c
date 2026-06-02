@@ -37,7 +37,7 @@
 #include "type.h"
 #include "zwm.h"
 
-drag_state_t drag_state = {0};
+drag_state_t ds = {0};
 /* clang-format off */
 static void apply_preview_layout(node_t *root);
 static void preview_restore_layout(void);
@@ -54,7 +54,7 @@ apply_preview_layout(node_t *root)
 	if (!IS_INTERNAL(root) && root->client) {
 		if (IS_FULLSCREEN(root->client))
 			return;
-		if (root->client->window != drag_state.window) {
+		if (root->client->window != ds.window) {
 			const rectangle_t r = IS_FLOATING(root->client)
 									  ? root->floating_rectangle
 									  : root->rectangle;
@@ -87,25 +87,25 @@ drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd)
 		return -1;
 	}
 
-	drag_state.window			= win;
-	drag_state.src_node			= n;
-	drag_state.start_x			= x;
-	drag_state.start_y			= y;
-	drag_state.cur_x			= x;
-	drag_state.cur_y			= y;
-	drag_state.active			= true;
-	drag_state.kbd_mode			= kbd;
-	drag_state.last_target		= NULL;
-	drag_state.preview_active	= false;
+	ds.window			 = win;
+	ds.src_node			 = n;
+	ds.start_x			 = x;
+	ds.start_y			 = y;
+	ds.cur_x			 = x;
+	ds.cur_y			 = y;
+	ds.active			 = true;
+	ds.kbd_mode			 = kbd;
+	ds.last_target		 = NULL;
+	ds.preview_active	 = false;
 
 	/* save the original state in case we need
 	 * to revert on cancel or error */
-	drag_state.original_desktop = curr_monitor->desk;
-	drag_state.original_rect	= n->rectangle;
+	ds.original_desktop	 = curr_monitor->desk;
+	ds.original_rect	 = n->rectangle;
 
 	/* pop the window to the top layer so it doesn't get covered.
 	 * dragged windows are always on top */
-	const uint32_t val[]		= {XCB_STACK_MODE_ABOVE};
+	const uint32_t val[] = {XCB_STACK_MODE_ABOVE};
 	xcb_configure_window(
 		wm->connection, win, XCB_CONFIG_WINDOW_STACK_MODE, val);
 
@@ -142,31 +142,31 @@ drag_start(xcb_window_t win, int16_t x, int16_t y, bool kbd)
 int
 drag_move(int16_t x, int16_t y)
 {
-	if (!drag_state.active)
+	if (!ds.active)
 		return 0;
 
-	drag_state.cur_x = x;
-	drag_state.cur_y = y;
+	ds.cur_x	   = x;
+	ds.cur_y	   = y;
 
 	/* figure out which partition is under the cursor */
-	node_t *root	 = curr_monitor->desk->tree;
-	node_t *target	 = find_leaf_at_point(root, x, y);
+	node_t *root   = curr_monitor->desk->tree;
+	node_t *target = find_leaf_at_point(root, x, y);
 
-	if (!target || target == drag_state.src_node) {
-		if (drag_state.last_target) {
+	if (!target || target == ds.src_node) {
+		if (ds.last_target) {
 			preview_clear();
-			drag_state.last_target = NULL;
+			ds.last_target = NULL;
 		}
-	} else if (target != drag_state.last_target) {
+	} else if (target != ds.last_target) {
 		preview_clear();
 		preview_apply(target);
-		drag_state.last_target = drag_state.preview_active ? target : NULL;
+		ds.last_target = ds.preview_active ? target : NULL;
 	}
 
 	/* center the window on the cursor */
-	int16_t new_x = x - (drag_state.original_rect.width / 2);
-	int16_t new_y = y - (drag_state.original_rect.height / 2);
-	move_window(drag_state.window, new_x, new_y);
+	int16_t new_x = x - (ds.original_rect.width / 2);
+	int16_t new_y = y - (ds.original_rect.height / 2);
+	move_window(ds.window, new_x, new_y);
 
 	return 0;
 }
@@ -175,28 +175,28 @@ drag_move(int16_t x, int16_t y)
 int
 drag_end(int16_t x, int16_t y)
 {
-	if (!drag_state.active)
+	if (!ds.active)
 		return 0;
 
 	node_t *root   = curr_monitor->desk->tree;
 	node_t *target = find_leaf_at_point(root, x, y);
 
 	preview_clear();
-	drag_state.last_target = NULL;
+	ds.last_target = NULL;
 
-	if (!target || target == drag_state.src_node) {
+	if (!target || target == ds.src_node) {
 		arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
 		render_tree_nomap(curr_monitor->desk->tree);
 		goto cleanup;
 	}
 
-	if (!unlink_node(drag_state.src_node, curr_monitor->desk)) {
+	if (!unlink_node(ds.src_node, curr_monitor->desk)) {
 		arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
 		render_tree_nomap(curr_monitor->desk->tree);
 		goto cleanup;
 	}
 
-	insert_node(target, drag_state.src_node, curr_monitor->desk->layout);
+	insert_node(target, ds.src_node, curr_monitor->desk->layout);
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
 	render_tree(curr_monitor->desk->tree);
 
@@ -206,8 +206,8 @@ cleanup:
 	 * 							 wm->root_window,
 	 * 							 XCB_CW_CURSOR,
 	 * 							 (uint32_t[]){get_cursor(CURSOR_POINTER)});*/
-	drag_state.active		  = false;
-	drag_state.preview_active = false;
+	ds.active		  = false;
+	ds.preview_active = false;
 
 	xcb_flush(wm->connection);
 
@@ -219,13 +219,13 @@ cleanup:
 int
 drag_cancel(void)
 {
-	if (!drag_state.active)
+	if (!ds.active)
 		return 0;
 
 	_LOG_(INFO, "drag cancelled");
 
 	preview_clear();
-	drag_state.last_target = NULL;
+	ds.last_target = NULL;
 
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
 	render_tree_nomap(curr_monitor->desk->tree);
@@ -236,8 +236,8 @@ drag_cancel(void)
 	 * 							 XCB_CW_CURSOR,
 	 * 							 (uint32_t[]){get_cursor(CURSOR_POINTER)});*/
 
-	drag_state.active		  = false;
-	drag_state.preview_active = false;
+	ds.active		  = false;
+	ds.preview_active = false;
 
 	xcb_flush(wm->connection);
 
@@ -298,7 +298,7 @@ preview_apply(node_t *t)
 	desk.tree	   = pr;
 	desk.layout	   = curr_monitor->desk->layout;
 
-	node_t *ps	   = find_node_by_window_id(pr, drag_state.window);
+	node_t *ps	   = find_node_by_window_id(pr, ds.window);
 	node_t *pt	   = find_node_by_window_id(pr, t->client->window);
 	if (!ps || !pt || ps == pt) {
 		free_tree(pr);
@@ -315,15 +315,15 @@ preview_apply(node_t *t)
 	apply_preview_layout(desk.tree);
 	free_tree(desk.tree);
 
-	drag_state.preview_active = true;
+	ds.preview_active = true;
 }
 
 static void
 preview_clear(void)
 {
-	if (!drag_state.preview_active)
+	if (!ds.preview_active)
 		return;
 
 	preview_restore_layout();
-	drag_state.preview_active = false;
+	ds.preview_active = false;
 }
