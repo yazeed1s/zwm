@@ -61,11 +61,23 @@
 		}                                                                      \
 	} while (0)
 
+/*
 #define _LOG_(level, format, ...)                                              \
 	do {                                                                       \
 		log_message(level,                                                     \
 					KPNK "[%s" KNRM ":" KGRN "%s()" KNRM ":" KYEL "%d]" KNRM   \
 						 " " format,                                           \
+					__FILE__,                                                  \
+					__func__,                                                  \
+					__LINE__,                                                  \
+					##__VA_ARGS__);                                            \
+	} while (0)
+
+*/
+#define _LOG_(level, format, ...)                                              \
+	do {                                                                       \
+		log_message(level,                                                     \
+					"[%s:%s():%d] " format,                                    \
 					__FILE__,                                                  \
 					__func__,                                                  \
 					__LINE__,                                                  \
