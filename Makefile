@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized \
          -Wno-unused-variable -Wno-unused-function
 LDFLAGS = -Wl,--as-needed -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm \
-          -lxcb-randr -lxcb-xinerama 
+          -lxcb-randr -lxcb-xinerama
 
 TARGET = zwm
 SRC_DIR = ./src
@@ -27,10 +27,9 @@ TEST_FLAGS = -D__LTEST__=1
 
 .DEFAULT_GOAL := release
 
-release: CFLAGS += -Oz -DNDEBUG -flto=auto -ffunction-sections -fdata-sections \
-                   -fno-asynchronous-unwind-tables -fno-unwind-tables
+release: CFLAGS += -O2 -DNDEBUG -flto=auto -ffunction-sections -fdata-sections -fno-ident
 release: LDFLAGS += -flto=auto -Wl,--gc-sections -s
-release: $(TARGET)
+release: clean $(TARGET)
 
 debug: CFLAGS += $(DEBUG_FLAGS) -O0 -Wno-unused-variable -Wno-unused-function
 debug: clean $(TARGET)
