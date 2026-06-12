@@ -39,13 +39,13 @@
 #include "ewmh.h"
 #include "focus.h"
 #include "helper.h"
-#include "layout.h"
 #include "monitor.h"
 #include "mouse.h"
 #include "stacking.h"
 #include "state.h"
 #include "tree.h"
 #include "type.h"
+#include "view.h"
 #include "xcb_util.h"
 #include <X11/keysym.h>
 #include <stdbool.h>
@@ -313,7 +313,7 @@ out:
 		set_focus(f, true);
 		set_active_window_name(f->client->window);
 		focused_win = f->client->window;
-		update_focus(curr_monitor->desk->tree, f);
+		update_focus(curr_monitor->desk, f);
 	}
 	set_window_state(win,
 					 is_visible ? XCB_ICCCM_WM_STATE_NORMAL
@@ -330,16 +330,13 @@ handle_enter_notify(const xcb_event_t *event)
 	xcb_enter_notify_event_t *ev  = (xcb_enter_notify_event_t *)event;
 	xcb_window_t			  win = ev->event;
 	uint64_t				  now = get_time_millis();
-	/* hacky fix for ignoring current window under cursor when swetching
-	 * desktops */
-	if (conf.restore_last_focus && curr_monitor && curr_monitor->desk &&
-		curr_monitor->desk->layout != STACK) {
-		if (now - last_desk_switch_time < 250) {
-			_LOG_(
-				DEBUG,
-				"ignoring enter notify: cooldown in effect (non-STACK layout)");
-			return 0;
-		}
+	/* suppress enter-notify events caused by window mapping floods */
+	if (now < suppress_enter_until_time || now - last_desk_switch_time < 250) {
+#ifdef _DEBUG__
+		_LOG_(DEBUG,
+			  "ignoring enter notify: map-flood cooldown in effect");
+#endif
+		return 0;
 	}
 
 	monitor_t *mm = get_focused_monitor();
@@ -404,16 +401,21 @@ handle_enter_notify(const xcb_event_t *event)
 	}
 
 	layout_t lay = curr_monitor->desk->layout;
+
+	/* DECK master hover, do X input focus only,
+	  never reshuffles deck-stack order
+	 */
 	if (lay == DECK && n->is_master && IS_TILED(n->client)) {
 		if (win_focus(n->client->window, true) != 0) {
-			_LOG_(ERROR, "cannot focus deck master %d (enter)", n->client->window);
+			_LOG_(ERROR,
+				  "cannot focus deck master %d (enter)",
+				  n->client->window);
 			return -1;
 		}
 		focused_win = n->client->window;
 		set_active_window_name(win);
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-		restack();
-		xcb_flush(wm->connection);
+		view_commit(curr_monitor->desk);
 		return 0;
 	}
 
@@ -422,47 +424,40 @@ handle_enter_notify(const xcb_event_t *event)
 		return 0;
 	}
 
-	if (IS_FLOATING(n->client)) {
-		if (win_focus(n->client->window, true) != 0) {
-			_LOG_(ERROR, "cannot focus window %d (enter)", n->client->window);
-			return -1;
-		}
-		n->is_focused = true;
-	} else if (IS_FULLSCREEN(n->client)) {
+	if (IS_FULLSCREEN(n->client)) {
 		if (fullscreen_focus(n->client->window)) {
 			_LOG_(ERROR, "cannot update win attributes");
 			return -1;
 		}
-	} else {
-		if (lay == STACK || lay == MONOCLE || lay == DECK) {
-			if (win_focus(n->client->window, true) != 0) {
-				_LOG_(
-					ERROR, "cannot focus window %d (enter)", n->client->window);
-				return -1;
-			}
-			n->is_focused = true;
-		} else {
-			if (set_focus(n, true) != 0) {
-				_LOG_(ERROR, "cannot focus node (enter)");
-				return -1;
-			}
+		focused_win		   = n->client->window;
+		n->client->mru_seq = get_next_mru_seq(curr_monitor);
+		view_commit(curr_monitor->desk);
+		return 0;
+	}
+
+	if (IS_FLOATING(n->client)) {
+		/* floating X focus only, logical focus stays on the tiled node so
+		 * MONOCLE/DECK keep showing the correct tiled window */
+		if (focused_win != XCB_NONE)
+			win_focus(focused_win, false);
+		if (view_apply_input_focus(curr_monitor->desk, n) != 0) {
+			_LOG_(ERROR, "cannot focus window %d (enter)", n->client->window);
+			return -1;
 		}
+		n->is_focused = true;
+	} else {
+		/* iff tiled, set logical focus + rerender
+		   so MONOCLE/DECK show this window
+		 */
+		view_set_logical_focus(curr_monitor->desk, n);
+		view_render_desktop(curr_monitor->desk);
+		view_apply_input_focus(curr_monitor->desk, n);
 	}
 
 	focused_win = n->client->window;
-	update_focus(root, n);
-	/*curr_monitor->desk->node = n;*/
-	if (n && n->client) {
+	if (n && n->client)
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-		restack();
-	}
-
-	if (lay == MONOCLE)
-		render_monocle(curr_monitor->desk->tree);
-	else if (lay == DECK)
-		render_deck(curr_monitor->desk->tree);
-
-	xcb_flush(wm->connection);
+	view_commit(curr_monitor->desk);
 	return 0;
 }
 
@@ -804,8 +799,7 @@ handle_unmap_notify(const xcb_event_t *event)
 					  client_exist_in_desktops(win);
 	if (!is_managed) {
 		if (!ignore_ewmh_struts && remove_strut_window(win)) {
-			/* strut window unmapped, recalculate padding*/
-			recalculate_all_struts();
+			reapply_tracked_struts();
 		}
 #ifdef _DEBUG__
 		char *name = win_name(win);
@@ -945,8 +939,7 @@ handle_destroy_notify(const xcb_event_t *event)
 					  client_exist_in_desktops(win);
 	if (!is_managed) {
 		if (!ignore_ewmh_struts && remove_strut_window(win)) {
-			/* strut window destroyed - recalculate padding */
-			recalculate_all_struts();
+			reapply_tracked_struts();
 		}
 #ifdef _DEBUG__
 		char *name = win_name(win);
@@ -1163,7 +1156,7 @@ normal_handling:
 	}
 
 	focused_win = n->client->window;
-	update_focus(root, n);
+	update_focus(curr_monitor->desk, n);
 
 	if (has_floating_window(root)) {
 		restack();

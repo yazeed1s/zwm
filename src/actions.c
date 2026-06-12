@@ -70,6 +70,7 @@
 #include "stacking.h"
 #include "state.h"
 #include "tree.h"
+#include "view.h"
 #include "xcb_util.h"
 #include <assert.h>
 #include <stdio.h>
@@ -118,8 +119,7 @@ next_deck_stack_node(node_t *root, direction_t d, xcb_window_t cursor_win)
 
 	for (int i = 0; i < n; i++) {
 		if (leaves[i] == current) {
-			return (d == UP) ? leaves[(i + 1) % n]
-							 : leaves[(i + n - 1) % n];
+			return (d == UP) ? leaves[(i + 1) % n] : leaves[(i + n - 1) % n];
 		}
 	}
 
@@ -134,17 +134,16 @@ layout_handler(arg_t *arg)
 		d->n_count < 2)
 		return 0;
 
+	suppress_enter_until_time = get_time_millis() + 250;
 	apply_layout(d, arg->t);
 
-	int ret;
-	if (arg->t == MONOCLE)
-		ret = render_monocle(d->tree);
-	else if (arg->t == DECK)
-		ret = render_deck(d->tree);
-	else
-		ret = render_tree(d->tree);
-
-	restack();
+	node_t *focus = view_pick_fallback_focus(d);
+	if (focus)
+		view_set_logical_focus(d, focus);
+	int ret = view_render_desktop(d);
+	if (ret == 0 && focus)
+		ret = view_apply_input_focus(d, focus);
+	view_commit(d);
 	return ret;
 }
 
@@ -242,8 +241,8 @@ change_state(arg_t *arg)
 		}
 	}
 
-	int ret = render_tree(curr_monitor->desk->tree);
-	restack();
+	int ret = view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
 	return ret;
 }
 
@@ -255,6 +254,10 @@ swap_node_wrapper(arg_t *arg)
 		_LOG_(ERROR, "failed to swap node, current monitor is NULL");
 		return -1;
 	}
+
+	layout_t lay = curr_monitor->desk->layout;
+	if (lay != DEFAULT && lay != MASTER && lay != GRID && lay != THREE_COL)
+		return 0;
 
 	xcb_window_t w = get_window_under_cursor(wm->connection, wm->root_window);
 	if (w == wm->root_window) {
@@ -268,7 +271,9 @@ swap_node_wrapper(arg_t *arg)
 	if (swap_node(n) != 0)
 		return -1;
 
-	return render_tree(curr_monitor->desk->tree);
+	int ret = view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
+	return ret;
 }
 
 int
@@ -291,7 +296,8 @@ dynamic_resize_wrapper(arg_t *arg)
 						  * enter_notify events (which focuses the window
 						  * being under cursor as the resize happens); */
 	dynamic_resize(n, arg->r);
-	render_desktop(curr_monitor->desk);
+	view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
 	ungrab_pointer();
 	return 0;
 }
@@ -319,12 +325,21 @@ set_fullscreen_wrapper(arg_t *arg)
 int
 set_fullscreen(node_t *n, bool flag)
 {
-	if (n == NULL)
+	if (n == NULL || n->client == NULL)
 		return -1;
 
-	rectangle_t r = {0};
+	desktop_t *d	  = curr_monitor->desk;
+	node_t	  *f	  = NULL;
+	bool	   exists = false;
+	find_window_in_desktops(&d, &f, n->client->window, &exists);
+	if (!exists)
+		d = curr_monitor->desk;
+
+	monitor_t  *m			 = get_monitor_by_window(n->client->window);
+	bool		_active		 = (m && m->desk == d);
+	bool		should_focus = IS_TILED(n->client) || !flag;
+	rectangle_t r			 = {0};
 	if (flag) {
-		monitor_t *m = get_monitor_by_window(n->client->window);
 		if (!m) {
 			m = curr_monitor;
 		}
@@ -341,8 +356,7 @@ set_fullscreen(node_t *n, bool flag)
 							   false) != 0) {
 			return -1;
 		}
-		if (resize_window(n->client->window, r.width, r.height) != 0 ||
-			move_window(n->client->window, r.x, r.y) != 0) {
+		if (apply_window_geometry(n->client->window, r, 0) != 0) {
 			return -1;
 		}
 		xcb_cookie_t c	 = xcb_change_property_checked(wm->connection,
@@ -365,8 +379,7 @@ set_fullscreen(node_t *n, bool flag)
 
 	r				 = n->rectangle;
 	n->client->state = TILED;
-	if (resize_window(n->client->window, r.width, r.height) != 0 ||
-		move_window(n->client->window, r.x, r.y) != 0) {
+	if (apply_window_geometry(n->client->window, r, conf.border_width) != 0) {
 		return -1;
 	}
 	remove_property(wm->connection,
@@ -382,8 +395,29 @@ set_fullscreen(node_t *n, bool flag)
 		return -1;
 	}
 out:
-	restack();
-	xcb_flush(wm->connection);
+	if (!_active) {
+		if (set_desktop_visibility(n->client->window, false) != 0)
+			return -1;
+		restack();
+		xcb_flush(wm->connection);
+		return 0;
+	}
+
+	if (should_focus)
+		view_set_logical_focus(d, n);
+	if (view_render_desktop(d) != 0)
+		return -1;
+
+	if (IS_FULLSCREEN(n->client)) {
+		if (fullscreen_focus(n->client->window) != 0)
+			return -1;
+	} else if (view_apply_input_focus(d, n) != 0) {
+		return -1;
+	}
+	focused_win		   = n->client->window;
+	n->client->mru_seq = get_next_mru_seq(m ? m : curr_monitor);
+	set_active_window_name(focused_win);
+	view_commit(d);
 	return 0;
 }
 
@@ -567,8 +601,8 @@ reload_config_wrapper(arg_t *arg)
 	}
 
 out:
-	render_desktop(curr_monitor->desk);
-	xcb_flush(wm->connection);
+	view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
 	return 0;
 }
 
@@ -589,9 +623,8 @@ gap_handler(arg_t *arg)
 		current_monitor = current_monitor->next;
 	}
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
-	render_desktop(curr_monitor->desk);
-	/* restack(); */
-	xcb_flush(wm->connection);
+	view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
 	return 0;
 }
 
@@ -599,14 +632,18 @@ int
 flip_node_wrapper(arg_t *arg)
 {
 	(void)arg;
+	layout_t lay = curr_monitor->desk->layout;
+	if (lay != DEFAULT && lay != MASTER && lay != GRID && lay != THREE_COL)
+		return 0;
+
 	node_t *tree = curr_monitor->desk->tree;
 	node_t *node = NULL;
 	if (!(node = get_focused_node(tree)))
 		return -1;
 
 	flip_node(node);
-	int ret = render_tree(tree);
-	/* restack(); */
+	int ret = view_render_desktop(curr_monitor->desk);
+	view_commit(curr_monitor->desk);
 	return ret;
 }
 
@@ -630,13 +667,14 @@ cycle_win_wrapper(arg_t *arg)
 	_LOG_(DEBUG, "found node %d name %s", next->client->window, s);
 	_FREE_(s);
 #endif
-	set_focus(next, true);
+	view_set_logical_focus(curr_monitor->desk, next);
 	set_active_window_name(next->client->window);
-	update_focus(curr_monitor->desk->tree, next);
-	/*curr_monitor->desk->node = next;*/
 	next->client->mru_seq = get_next_mru_seq(curr_monitor);
-	/* restack(); */
-	return 0;
+	int ret				  = view_render_desktop(curr_monitor->desk);
+	if (ret == 0)
+		ret = view_apply_input_focus(curr_monitor->desk, next);
+	view_commit(curr_monitor->desk);
+	return ret;
 }
 
 void
@@ -730,43 +768,27 @@ traverse_stack_wrapper(arg_t *arg)
 	if (w == wm->root_window)
 		return 0;
 
-	layout_t lay = curr_monitor->desk->layout;
+	layout_t lay  = curr_monitor->desk->layout;
 	node_t	*node = get_focused_node(curr_monitor->desk->tree);
 	if (!node && lay != DECK)
 		return -1;
 
-	node_t	*n	= (lay == DECK) ? next_deck_stack_node(curr_monitor->desk->tree,
-														d,
-														w)
-							  : (d == UP ? next_node(node) : prev_node(node));
+	node_t *n = (lay == DECK)
+					? next_deck_stack_node(curr_monitor->desk->tree, d, w)
+					: (d == UP ? next_node(node) : prev_node(node));
 
 	if (n == NULL) {
 		return -1;
 	}
 
-	if (lay == MONOCLE || lay == DECK) {
-		n->is_focused = true;
-		update_focus(curr_monitor->desk->tree, n);
-
-		if (lay == MONOCLE)
-			render_monocle(curr_monitor->desk->tree);
-		else
-			render_deck(curr_monitor->desk->tree);
-
-		if (set_focus(n, true) != 0)
-			return -1;
-	} else {
-		if (set_focus(n, true) != 0)
-			return -1;
-		update_focus(curr_monitor->desk->tree, n);
-	}
-
-	if (n->client) {
+	view_set_logical_focus(curr_monitor->desk, n);
+	if (n->client)
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-		restack();
-	}
-
-	xcb_flush(wm->connection);
+	if (view_render_desktop(curr_monitor->desk) != 0)
+		return -1;
+	if (view_apply_input_focus(curr_monitor->desk, n) != 0)
+		return -1;
+	view_commit(curr_monitor->desk);
 	return 0;
 }
 
@@ -843,7 +865,7 @@ transfer_node_wrapper(arg_t *arg)
 	_LOG_(INFO, "old desktop %d nodes--------------", od->id + 1);
 	log_tree_nodes(od->tree);
 #endif
-	if (set_visibility(node->client->window, false) != 0) {
+	if (set_desktop_visibility(node->client->window, false) != 0) {
 		_LOG_(ERROR, "cannot hide window %d", node->client->window);
 		return -1;
 	}
@@ -867,7 +889,9 @@ transfer_node_wrapper(arg_t *arg)
 	if (!is_tree_empty(od->tree)) {
 		arrange_tree(od->tree, od->layout);
 	}
-	return render_tree(od->tree);
+	int ret = view_render_desktop(od);
+	view_commit(od);
+	return ret;
 }
 
 int
@@ -880,9 +904,7 @@ switch_desktop_wrapper(arg_t *arg)
 		return -1;
 	}
 	last_desk_switch_time = get_time_millis();
-	int ret = render_desktop(curr_monitor->desk);
-	restack();
-	return ret;
+	return 0;
 }
 
 int
@@ -899,9 +921,7 @@ cycle_desktop_wrapper(arg_t *arg)
 
 	switch_desktop(next);
 	last_desk_switch_time = get_time_millis();
-	int ret = render_desktop(curr_monitor->desktops[next]);
-	restack();
-	return ret;
+	return 0;
 }
 
 int
@@ -932,12 +952,8 @@ grow_floating_window(arg_t *arg)
 	*pos -= step;
 
 	grab_pointer(wm->root_window, false);
-	if (resize_window(n->client->window,
-					  n->floating_rectangle.width,
-					  n->floating_rectangle.height) != 0 ||
-		move_window(n->client->window,
-					n->floating_rectangle.x,
-					n->floating_rectangle.y) != 0) {
+	if (apply_window_geometry(
+			n->client->window, n->floating_rectangle, conf.border_width) != 0) {
 		return -1;
 	}
 	ungrab_pointer();
@@ -967,12 +983,8 @@ shrink_floating_window(arg_t *arg)
 	*dim -= (step * 2);
 	*pos += step;
 	grab_pointer(wm->root_window, false);
-	if (resize_window(n->client->window,
-					  n->floating_rectangle.width,
-					  n->floating_rectangle.height) != 0 ||
-		move_window(n->client->window,
-					n->floating_rectangle.x,
-					n->floating_rectangle.y) != 0) {
+	if (apply_window_geometry(
+			n->client->window, n->floating_rectangle, conf.border_width) != 0) {
 		return -1;
 	}
 	ungrab_pointer();
@@ -1006,9 +1018,8 @@ resize_floating_window(arg_t *arg)
 		*pos_to_adjust += delta / 2;
 	}
 	grab_pointer(wm->root_window, false);
-	if (resize_window(n->client->window,
-					  n->floating_rectangle.width,
-					  n->floating_rectangle.height) != 0) {
+	if (apply_window_geometry(
+			n->client->window, n->floating_rectangle, conf.border_width) != 0) {
 		return -1;
 	}
 	ungrab_pointer();
@@ -1056,7 +1067,8 @@ shift_floating_window(arg_t *arg)
 	}
 
 	grab_pointer(wm->root_window, false);
-	if (move_window(n->client->window, rect->x, rect->y) != 0) {
+	if (apply_window_geometry(n->client->window, *rect, conf.border_width) !=
+		0) {
 		return -1;
 	}
 

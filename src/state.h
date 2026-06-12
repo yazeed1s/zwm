@@ -54,6 +54,7 @@ extern config_t              conf;
 extern volatile sig_atomic_t should_shutdown;
 extern uint8_t               randr_base;
 extern uint64_t              last_desk_switch_time;
+extern uint64_t              suppress_enter_until_time;
 extern xcb_cursor_t          cursors[CURSOR_MAX];
 extern mouse_state_t         mouse_state;
 /* clang-format on */

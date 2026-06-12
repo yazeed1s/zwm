@@ -41,6 +41,8 @@ int configure_window(xcb_conn_t *conn, xcb_window_t win, uint16_t attr, const vo
 int set_input_focus(xcb_conn_t *conn, uint8_t revert_to, xcb_window_t win, xcb_timestamp_t time);
 int resize_window(xcb_window_t win, uint16_t width, uint16_t height);
 int move_window(xcb_window_t win, int16_t x, int16_t y);
+int apply_window_geometry(xcb_window_t win, rectangle_t r, uint16_t bw);
+int send_configure_notify(xcb_window_t win, rectangle_t r, uint16_t bw);
 void raise_window(xcb_window_t win);
 void lower_window(xcb_window_t win);
 void window_above(xcb_window_t win1, xcb_window_t win2);

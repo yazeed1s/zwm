@@ -34,11 +34,11 @@
 #include "ewmh.h"
 #include "focus.h"
 #include "helper.h"
-#include "layout.h"
 #include "monitor.h"
 #include "stacking.h"
 #include "state.h"
 #include "tree.h"
+#include "view.h"
 #include "xcb_util.h"
 #include <assert.h>
 #include <stdio.h>
@@ -47,7 +47,8 @@
 
 static void
 update_focused_desktop(int id);
-static node_t *find_deck_stack_focus(node_t *root);
+static node_t *
+find_deck_stack_focus(node_t *root);
 
 static void
 remember_desktop_focus(desktop_t *d)
@@ -60,7 +61,7 @@ remember_desktop_focus(desktop_t *d)
 		d->last_focused = n->client->window;
 }
 
-static node_t *
+node_t *
 pick_desktop_focus(desktop_t *d)
 {
 	if (!d || !d->tree)
@@ -70,8 +71,8 @@ pick_desktop_focus(desktop_t *d)
 	if (n && n->client && IS_TILED(n->client))
 		return n;
 
-	if (d->last_focused != XCB_NONE && window_exists(wm->connection,
-													 d->last_focused)) {
+	if (d->last_focused != XCB_NONE &&
+		window_exists(wm->connection, d->last_focused)) {
 		n = find_node_by_window_id(d->tree, d->last_focused);
 		if (n && n->client && IS_TILED(n->client))
 			return n;
@@ -80,14 +81,14 @@ pick_desktop_focus(desktop_t *d)
 	return find_any_leaf(d->tree);
 }
 
-static node_t *
+node_t *
 pick_deck_focus(desktop_t *d)
 {
 	if (!d || !d->tree)
 		return NULL;
 
-	if (d->last_focused != XCB_NONE && window_exists(wm->connection,
-													 d->last_focused)) {
+	if (d->last_focused != XCB_NONE &&
+		window_exists(wm->connection, d->last_focused)) {
 		node_t *n = find_node_by_window_id(d->tree, d->last_focused);
 		if (n && n->client && IS_TILED(n->client) && !n->is_master)
 			return n;
@@ -121,14 +122,7 @@ render_desktop(desktop_t *d)
 	if (d == NULL || is_tree_empty(d->tree))
 		return 0;
 
-	switch (d->layout) {
-	case MONOCLE:
-		return render_monocle(d->tree);
-	case DECK:
-		return render_deck(d->tree);
-	default:
-		return render_tree(d->tree);
-	}
+	return view_render_desktop(d);
 }
 
 void
@@ -198,11 +192,12 @@ init_desktop(void)
 	desktop_t *d = (desktop_t *)malloc(sizeof(desktop_t));
 	if (d == 0x00)
 		return NULL;
-	d->id			= 0;
-	d->is_focused	= false;
-	d->n_count		= 0;
-	d->tree			= NULL;
-	d->last_focused = XCB_NONE;
+	d->id			 = 0;
+	d->is_focused	 = false;
+	d->n_count		 = 0;
+	d->tree			 = NULL;
+	d->last_focused	 = XCB_NONE;
+	d->logical_focus = NULL;
 	/*d->node	  = NULL;*/
 	return d;
 }
@@ -310,69 +305,58 @@ switch_desktop(const int nd)
 		return -1;
 	}
 
-#ifdef _DEBUG__
-	_LOG_(
-		DEBUG, "[SWITCH_DESKTOP] calling show_windows for desktop %d tree", nd);
-#endif
-	if (target_desktop->layout != MONOCLE && target_desktop->layout != DECK &&
-		show_windows(tree_to_show) != 0) {
-#ifdef _DEBUG__
-		_LOG_(ERROR, "[SWITCH_DESKTOP] show_windows failed for desktop %d", nd);
-#endif
-		return -1;
-	}
 	set_active_window_name(XCB_NONE);
 	win_focus(focused_win, false);
 	focused_win = XCB_NONE;
-	/* restore focus only if layout is not STACK */
-	if (conf.restore_last_focus) {
-		if (curr_monitor->desk->layout != STACK) {
-			xcb_window_t win = curr_monitor->desk->last_focused;
-			/* xcb_window_t win = focused_win; */
+
+	if (!is_tree_empty(tree_to_show)) {
+		/* pick logical focus for the target desktop, and honours
+		 * restore_last_focus for all layouts except STACK, which never restores
+		 * by position */
+		node_t *focus = NULL;
+		if (conf.restore_last_focus && target_desktop->layout != STACK) {
+			xcb_window_t win = target_desktop->last_focused;
 			if (win != XCB_NONE && window_exists(wm->connection, win)) {
 				node_t *n = find_node_by_window_id(tree_to_show, win);
-				if (n) {
-					n->is_focused = true;
-					focused_win = win;
-					update_focus(tree_to_show, n);
-					set_active_window_name(win);
-					n->client->mru_seq = get_next_mru_seq(curr_monitor);
-					if (target_desktop->layout != MONOCLE &&
-						target_desktop->layout != DECK)
-						set_focus(n, true);
-#ifdef _DEBUG__
-					_LOG_(DEBUG,
-						  "restored focus to window %d on desktop %d",
-						  win,
-						  curr_monitor->desk->id);
-#endif
-				}
+				/* only restore tiled nodes as logical focus */
+				if (n && n->client && IS_TILED(n->client))
+					focus = n;
 			}
 		}
-	}
+		if (!focus)
+			focus = view_pick_fallback_focus(target_desktop);
 
-	if (target_desktop->layout == MONOCLE || target_desktop->layout == DECK) {
-		node_t *n = target_desktop->layout == DECK
-						? pick_deck_focus(target_desktop)
-						: pick_desktop_focus(target_desktop);
-		if (n) {
-			n->is_focused = true;
-			update_focus(tree_to_show, n);
-			focused_win = n->client->window;
-			set_active_window_name(focused_win);
-			n->client->mru_seq = get_next_mru_seq(curr_monitor);
+		if (focus) {
+			view_set_logical_focus(target_desktop, focus);
+			focus->client->mru_seq = get_next_mru_seq(curr_monitor);
+#ifdef _DEBUG__
+			_LOG_(DEBUG,
+				  "[SWITCH_DESKTOP] logical focus -> win=%d on desktop %d",
+				  focus->client->window,
+				  nd);
+#endif
 		}
-		if (render_desktop(target_desktop) != 0)
+
+		/* render, maps/unmaps windows according to layout policy */
+		if (view_render_desktop(target_desktop) != 0)
 			return -1;
-		if (n && n->client)
-			set_focus(n, true);
+
+		/* apply X input focus after windows are mapped only */
+		if (focus && focus->client) {
+			if (view_apply_input_focus(target_desktop, focus) != 0)
+				return -1;
+			focused_win = focus->client->window;
+			set_active_window_name(focused_win);
+		}
+
+		/* restack + flush x server */
+		view_commit(target_desktop);
 	}
 
 #ifdef _DEBUG__
 	_LOG_(INFO, "new desktop %d nodes--------------", nd + 1);
 	log_tree_nodes(tree_to_show);
-	_LOG_(
-		INFO, "old desktop %d nodes--------------", curr_monitor->desk->id + 1);
+	_LOG_(INFO, "old desktop %d nodes--------------", old_desktop->id + 1);
 	log_tree_nodes(tree_to_hide);
 #endif
 
@@ -382,9 +366,6 @@ switch_desktop(const int nd)
 #endif
 		return -1;
 	}
-
-	/* restack(); */
-	xcb_flush(wm->connection);
 
 #ifdef _DEBUG__
 	_LOG_(DEBUG,

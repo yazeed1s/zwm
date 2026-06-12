@@ -97,6 +97,14 @@ typedef xcb_void_cookie_t	  xcb_cookie_t;
 typedef xcb_ewmh_connection_t xcb_ewmh_conn_t;
 typedef xcb_generic_event_t	  xcb_event_t;
 
+/* Visibility type returned by view_leaf_visibility() in view.h. */
+typedef enum {
+	LEAF_VISIBLE_TILED,	   /* map + apply geometry */
+	LEAF_HIDDEN_TILED,	   /* unmap */
+	LEAF_VISIBLE_FLOATING, /* map + apply floating geometry */
+	LEAF_IGNORED,		   /* internal node, skip this */
+} leaf_visibility_t;
+
 typedef enum {
 	HORIZONTAL_TYPE,
 	VERTICAL_TYPE,
@@ -344,7 +352,11 @@ typedef struct {
 	node_t		*tree; /* the tree in this desktop */
 	/* node_t	*node;		 focused node */
 	xcb_window_t last_focused;
-	uint16_t	 id;		 /* the number of this desktop */
+	node_t		*logical_focus; /* the tiled node this layout remembers as
+								 * selected; separate from X input focus so
+								 * focusing a floating window does not erase
+								 * the MONOCLE/DECK tiled selection */
+	uint16_t	 id;			/* the number of this desktop */
 	uint16_t	 n_count;	 /* the number of active windows/external nodes */
 	layout_t	 layout;	 /* the layout (master, default, stack) */
 	bool		 is_focused; /* whether this is focused, only focused desktops
@@ -501,7 +513,7 @@ struct queue_node_t {
 typedef struct {
 	queue_node_t *front; /* front of queue */
 	queue_node_t *rear;	 /* rear of queue */
-	size_t		 size;	 /* number of items in queue */
+	size_t		  size;	 /* number of items in queue */
 } queue_t;
 
 /* event handler registration structure */

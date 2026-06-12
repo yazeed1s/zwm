@@ -51,6 +51,7 @@ void cleanup_strut_windows(void);
 bool ewmh_handle_struts(xcb_window_t win);
 rectangle_t get_usable_area(monitor_t *m);
 void recalculate_all_struts(void);
+void reapply_tracked_struts(void);
 rectangle_t calculate_monitor_area(const monitor_t *m);
 void apply_monitor_layout_changes(monitor_t *m);
 void arrange_trees(void);

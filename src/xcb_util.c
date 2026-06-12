@@ -288,6 +288,64 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 }
 
 int
+send_configure_notify(xcb_window_t win, rectangle_t r, uint16_t bw)
+{
+	if (win == 0 || win == XCB_NONE)
+		return 0;
+
+	xcb_configure_notify_event_t ev;
+	memset(&ev, 0, sizeof(ev));
+	ev.response_type	  = XCB_CONFIGURE_NOTIFY;
+	ev.event			  = win;
+	ev.window			  = win;
+	ev.above_sibling	  = XCB_NONE;
+	ev.x				  = r.x;
+	ev.y				  = r.y;
+	ev.width			  = r.width;
+	ev.height			  = r.height;
+	ev.border_width	  = bw;
+	ev.override_redirect = false;
+
+	xcb_cookie_t c = xcb_send_event_checked(wm->connection,
+											false,
+											win,
+											XCB_EVENT_MASK_STRUCTURE_NOTIFY,
+											(const char *)&ev);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
+	if (err) {
+		_LOG_(ERROR,
+			  "error sending configure notify for window %d: error code %d",
+			  win,
+			  err->error_code);
+		_FREE_(err);
+		return -1;
+	}
+	return 0;
+}
+
+int
+apply_window_geometry(xcb_window_t win, rectangle_t r, uint16_t bw)
+{
+	if (win == 0 || win == XCB_NONE)
+		return 0;
+
+	const uint32_t values[] = {r.x, r.y, r.width, r.height};
+	xcb_cookie_t   cookie	= xcb_configure_window_checked(
+		  wm->connection, win, MOVE | RESIZE, values);
+	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	if (err) {
+		_LOG_(ERROR,
+			  "error configuring window (ID %u): %d",
+			  win,
+			  err->error_code);
+		_FREE_(err);
+		return -1;
+	}
+
+	return send_configure_notify(win, r, bw);
+}
+
+int
 change_border_attr(xcb_conn_t  *conn,
 				   xcb_window_t win,
 				   uint32_t		bcolor,

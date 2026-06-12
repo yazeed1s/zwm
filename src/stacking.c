@@ -61,6 +61,14 @@ compute_layer(const client_t *c)
 	return LAYER_NORMAL;
 }
 
+static bool
+client_is_hidden(const client_t *c)
+{
+	if (ewmh_has(c->ewmh_state, EWMH_STATE_HIDDEN))
+		return true;
+	return !check_window_map_state(c->window, WIN_MAP_STATE_VIEWABLE);
+}
+
 static uint8_t
 transient_depth(const client_t *c)
 {
@@ -83,7 +91,7 @@ stack_key(const client_t *c)
 	layer_t		   layer   = compute_layer(c);
 	const uint8_t  depth   = transient_depth(c);
 	const uint32_t mru	   = c->mru_seq;
-	const uint8_t  visible = ewmh_has(c->ewmh_state, EWMH_STATE_HIDDEN) ? 0 : 1;
+	const uint8_t visible = client_is_hidden(c) ? 0 : 1;
 
 	/* transients are at least at their parent's layer */
 	if (c->transient_for) {
@@ -238,9 +246,6 @@ cmp_stack_item(const void *pa, const void *pb)
 void
 restack(void)
 {
-	if (curr_monitor->desk->layout == STACK)
-		return;
-
 	stack_item_t *v	  = NULL;
 	size_t		  cap = 0, len = 0;
 	collect_clients_global(&v, &cap, &len);
@@ -252,23 +257,24 @@ restack(void)
 
 	qsort(v, len, sizeof *v, cmp_stack_item);
 
-	/* enforce global bottom-to-top order for all managed clients */
-	client_t *bottom = v[0].c;
-	if (bottom) {
-		lower_window(bottom->window);
-	}
-	for (size_t i = 1; i < len; i++) {
-		client_t *c = v[i].c;
-		client_t *p = v[i - 1].c;
-		if (!c || !p)
-			continue;
-		window_above(c->window, p->window);
-	}
-
-	/* raise fullscreen windows above all*/
+	/* enforce global bottom-to-top order for visible clients only */
+	client_t *prev = NULL;
 	for (size_t i = 0; i < len; i++) {
 		client_t *c = v[i].c;
-		if (c && IS_FULLSCREEN(c)) {
+		if (!c || client_is_hidden(c))
+			continue;
+		if (!prev) {
+			lower_window(c->window);
+		} else {
+			window_above(c->window, prev->window);
+		}
+		prev = c;
+	}
+
+	/* raise visible fullscreen windows above all */
+	for (size_t i = 0; i < len; i++) {
+		client_t *c = v[i].c;
+		if (c && !client_is_hidden(c) && IS_FULLSCREEN(c)) {
 			raise_window(c->window);
 		}
 	}

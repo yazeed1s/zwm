@@ -65,8 +65,6 @@ fullscreen_focus(xcb_window_t win)
 		return -1;
 	}
 
-	raise_window(win);
-
 	xcb_flush(wm->connection);
 	return 0;
 }
@@ -146,9 +144,6 @@ set_focus(node_t *n, bool flag)
 		_LOG_(ERROR, "cannot set focus");
 		return -1;
 	}
-
-	if (flag)
-		raise_window(n->client->window);
 
 	return 0;
 }

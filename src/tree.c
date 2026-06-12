@@ -55,7 +55,7 @@
 static node_t *find_tree_root(node_t *);
 static bool is_parent_null(const node_t *node);
 static rectangle_t _get_window_rectangle(node_t *node);
-static int _handle_fullscreen_window(xcb_window_t win);
+int _handle_fullscreen_window(xcb_window_t win);
 static int _handle_window_nomap(node_t *node);
 /* clang-format on */
 
@@ -172,14 +172,24 @@ _get_window_rectangle(node_t *node)
 	return node->rectangle;
 }
 
-static int
+int
 _handle_fullscreen_window(xcb_window_t win)
 {
 	monitor_t  *m = get_monitor_by_window(win);
 	rectangle_t r = m ? m->rectangle : curr_monitor->rectangle;
 
-	if (resize_window(win, r.width, r.height) != 0 ||
-		move_window(win, r.x, r.y) != 0) {
+	/* Force a real geometry change so compositing clients (e.g. Electron)
+	 * repaint after being unmapped/remapped during a desktop switch.
+	 * Without this, the X server may no-op a configure to the same
+	 * geometry, and Electron shows stale framebuffer contents. */
+	rectangle_t nudge = r;
+	nudge.width -= 1;
+	xcb_configure_window(wm->connection, win,
+		XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+		(uint32_t[]){nudge.x, nudge.y, nudge.width, nudge.height});
+
+	if (apply_window_geometry(win, r, 0) != 0) {
 		_LOG_(ERROR, "error resizing/moving fullscreen window %d", win);
 		return -1;
 	}
@@ -191,8 +201,10 @@ _handle_window_nomap(node_t *node)
 {
 	rectangle_t r = _get_window_rectangle(node);
 
-	if (resize_window(node->client->window, r.width, r.height) != 0 ||
-		move_window(node->client->window, r.x, r.y) != 0) {
+	if (apply_window_geometry(
+			node->client->window,
+			r,
+			IS_FULLSCREEN(node->client) ? 0 : conf.border_width) != 0) {
 		_LOG_(ERROR, "error resizing/moving window %d", node->client->window);
 		return -1;
 	}
@@ -294,8 +306,11 @@ tile(node_t *node)
 	const int16_t  y = IS_FLOATING(node->client) ? node->floating_rectangle.y
 												 : node->rectangle.y;
 
-	if (resize_window(node->client->window, width, height) != 0 ||
-		move_window(node->client->window, x, y) != 0) {
+	rectangle_t r = {.x = x, .y = y, .width = width, .height = height};
+	if (apply_window_geometry(
+			node->client->window,
+			r,
+			IS_FULLSCREEN(node->client) ? 0 : conf.border_width) != 0) {
 		return -1;
 	}
 
@@ -1128,7 +1143,7 @@ hide_windows(node_t *cn)
 		return 0;
 
 	if (!IS_INTERNAL(cn) && cn->client) {
-		if (set_visibility(cn->client->window, false) != 0) {
+		if (set_desktop_visibility(cn->client->window, false) != 0) {
 			return -1;
 		}
 
@@ -1154,7 +1169,7 @@ show_windows(node_t *cn)
 		return 0;
 
 	if (!IS_INTERNAL(cn) && cn->client) {
-		if (set_visibility(cn->client->window, true) != 0) {
+		if (set_desktop_visibility(cn->client->window, true) != 0) {
 			return -1;
 		}
 	}
@@ -1488,8 +1503,8 @@ prev_node(node_t *n)
 	return l;
 }
 
-void
-update_focus(node_t *root, node_t *n)
+static void
+update_focus_walk(node_t *root, node_t *n)
 {
 	if (root == NULL)
 		return;
@@ -1501,12 +1516,21 @@ update_focus(node_t *root, node_t *n)
 			window_grab_buttons(root->client->window);
 		root->is_focused = false;
 	}
-	/* store last focused */
+	update_focus_walk(root->first_child, n);
+	update_focus_walk(root->second_child, n);
+}
+
+void
+update_focus(desktop_t *d, node_t *n)
+{
+	if (!d)
+		return;
+	/* store last focused on the desktop that owns this tree */
 	if (n && n->client) {
-		curr_monitor->desk->last_focused = n->client->window;
+		d->last_focused  = n->client->window;
+		d->logical_focus = n;
 	}
-	update_focus(root->first_child, n);
-	update_focus(root->second_child, n);
+	update_focus_walk(d->tree, n);
 }
 
 void

@@ -35,11 +35,12 @@
 #include "ewmh.h"
 #include "focus.h"
 #include "helper.h"
+#include "layout.h"
 #include "mouse.h"
 #include "stacking.h"
 #include "state.h"
 #include "tree.h"
-#include "layout.h"
+#include "view.h"
 #include "xcb_util.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -49,9 +50,9 @@
 #include <xcb/xcb_icccm.h>
 
 static int
-show_window(xcb_window_t win);
+show_window(xcb_window_t win, bool update_hidden_state);
 static int
-hide_window(xcb_window_t win);
+hide_window(xcb_window_t win, bool update_hidden_state);
 
 static void
 fill_floating_rectangle(xcb_get_geometry_reply_t *geometry, rectangle_t *r);
@@ -174,12 +175,7 @@ supports_protocol(xcb_window_t win, xcb_atom_t atom, xcb_conn_t *conn)
 int
 display_client(rectangle_t r, xcb_window_t win)
 {
-	uint16_t width	= r.width;
-	uint16_t height = r.height;
-	int16_t	 x		= r.x;
-	int16_t	 y		= r.y;
-
-	if (resize_window(win, width, height) != 0 || move_window(win, x, y) != 0) {
+	if (apply_window_geometry(win, r, conf.border_width) != 0) {
 		return -1;
 	}
 
@@ -280,8 +276,7 @@ map_floating(xcb_window_t x)
 	rc.y	  = g->y;
 
 	_FREE_(g);
-	resize_window(x, rc.width, rc.height);
-	move_window(x, rc.x, rc.y);
+	apply_window_geometry(x, rc, conf.border_width);
 	xcb_map_window(wm->connection, x);
 }
 
@@ -415,18 +410,36 @@ kill_window(xcb_window_t win)
 	ewmh_update_client_list();
 
 	if (is_tree_empty(d->tree)) {
-		set_active_window_name(XCB_NONE);
-		focused_win		= XCB_NONE;
-		d->last_focused = XCB_NONE;
+		d->logical_focus = NULL;
+		d->last_focused	 = XCB_NONE;
+		if (!another_desktop) {
+			set_active_window_name(XCB_NONE);
+			focused_win = XCB_NONE;
+		}
+	} else {
+		/* pick fallback before rendering so MONOCLE/DECK never flicker to a
+		 * hidden window between delete and the next render */
+		node_t *nn = view_pick_fallback_focus(d);
+		if (nn) {
+			view_set_logical_focus(d, nn);
+			if (!another_desktop)
+				nn->client->mru_seq = get_next_mru_seq(curr_monitor);
+		}
 	}
 
 	if (!another_desktop) {
-		if (render_desktop(d) != 0) {
+		if (view_render_desktop(d) != 0) {
 			_LOG_(ERROR, "cannot render tree");
 			return -1;
 		}
+		if (!is_tree_empty(d->tree) && d->logical_focus &&
+			d->logical_focus->client) {
+			view_apply_input_focus(d, d->logical_focus);
+			focused_win = d->logical_focus->client->window;
+			set_active_window_name(focused_win);
+		}
+		view_commit(d);
 	}
-	restack();
 
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "[KILL_WINDOW] kill_window complete for win=%d", win);
@@ -628,29 +641,18 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
-	if (d->layout == MONOCLE || d->layout == DECK) {
-		new_node->is_focused = true;
-		update_focus(d->tree, new_node);
-	} else if (d->layout == STACK) {
-		set_focus(new_node, true);
-	}
 	update_net_wm_desktop(client->window, d->id);
 	/*curr_monitor->desk->node = new_node;*/
 	ewmh_update_client_list();
 	client->mru_seq = get_next_mru_seq(curr_monitor);
 
-	int ret;
-	if (d->layout == MONOCLE)
-		ret = render_monocle(d->tree);
-	else if (d->layout == DECK)
-		ret = render_deck(d->tree);
-	else
-		ret = render_tree(d->tree);
+	/* set logical focus before rendering so MONOCLE/DECK show the new window */
+	view_set_logical_focus(d, new_node);
 
-	if ((d->layout == MONOCLE || d->layout == DECK) && ret == 0)
-		ret = set_focus(new_node, true);
-
-	restack();
+	int ret = view_render_desktop(d);
+	if (ret == 0)
+		ret = view_apply_input_focus(d, new_node);
+	view_commit(d);
 	return ret;
 }
 
@@ -734,16 +736,16 @@ handle_floating_window(client_t *client, desktop_t *d)
 		d->n_count += 1;
 		update_net_wm_desktop(client->window, d->id);
 		ewmh_update_client_list();
-		if (d->layout != MONOCLE && d->layout != DECK) {
-			new_node->is_focused = true;
-			update_focus(d->tree, new_node);
-		}
 		client->mru_seq = get_next_mru_seq(curr_monitor);
-		int ret			= render_desktop(d);
+		/* iff floating spawn do NOT touch logical focus for MONOCLE/DECK so the
+		 * tiled selection survives this mess. Visible layouts treat floating as
+		 * logical focus since there is no hidden window rule to protect */
+		if (d->layout != MONOCLE && d->layout != DECK)
+			view_set_logical_focus(d, new_node);
+		int ret = view_render_desktop(d);
 		if (ret == 0)
-			ret = set_focus(new_node, true);
-		restack();
-		raise_window(client->window);
+			ret = view_apply_input_focus(d, new_node);
+		view_commit(d);
 		return ret;
 	}
 }
@@ -767,12 +769,8 @@ insert_into_desktop(int idx, xcb_window_t win, bool is_tiled)
 	if (!conf.focus_follow_pointer) {
 		window_grab_buttons(client->window);
 	}
-	/* Keep unmapped clients marked hidden for EWMH consumers. */
 	update_net_wm_desktop(client->window, d->id);
 	set_window_state(client->window, XCB_ICCCM_WM_STATE_ICONIC);
-	update_net_wm_state_atom(
-		client->window, wm->ewmh->_NET_WM_STATE_HIDDEN, true);
-	update_client_ewmh_state(client, EWMH_STATE_HIDDEN, true);
 	if (client->state == FLOATING) {
 		xcb_get_geometry_reply_t *g = NULL;
 		if (is_tree_empty(d->tree)) {
@@ -934,7 +932,7 @@ handle_net_wm_desktop(xcb_window_t win, uint32_t index)
 		_LOG_(ERROR, "desktop or node is null");
 		return -1;
 	}
-	if (set_visibility(n->client->window, false) != 0) {
+	if (set_desktop_visibility(n->client->window, false) != 0) {
 		_LOG_(ERROR, "cannot hide window %d", n->client->window);
 		return -1;
 	}
@@ -960,7 +958,7 @@ handle_net_wm_desktop(xcb_window_t win, uint32_t index)
 	}
 
 	bool render = curr_monitor->desk == d;
-	return render ? render_tree(d->tree) : 0;
+	return render ? view_render_desktop(d) : 0;
 }
 
 #if 0
@@ -1016,7 +1014,7 @@ _LOG_(ERROR, "show_window: node has no client for win=%d", win);
 #endif
 
 static int
-show_window(xcb_window_t win)
+show_window(xcb_window_t win, bool update_hidden_state)
 {
 #ifdef _DEBUG__
 	char *name = win_name(win);
@@ -1047,10 +1045,12 @@ show_window(xcb_window_t win)
 		return -1;
 	}
 
-	update_net_wm_state_atom(win, wm->ewmh->_NET_WM_STATE_HIDDEN, false);
-	node_t *n = find_node_global(win);
-	if (n && n->client) {
-		update_client_ewmh_state(n->client, EWMH_STATE_HIDDEN, false);
+	if (update_hidden_state) {
+		update_net_wm_state_atom(win, wm->ewmh->_NET_WM_STATE_HIDDEN, false);
+		node_t *n = find_node_global(win);
+		if (n && n->client) {
+			update_client_ewmh_state(n->client, EWMH_STATE_HIDDEN, false);
+		}
 	}
 
 	c	= xcb_map_window_checked(wm->connection, win);
@@ -1103,7 +1103,7 @@ _LOG_(DEBUG, "hiding window %d at (%d, %d)", win, offscreen, offscreen);
 #endif
 
 static int
-hide_window(xcb_window_t win)
+hide_window(xcb_window_t win, bool update_hidden_state)
 {
 #ifdef _DEBUG__
 	char *name = win_name(win);
@@ -1138,10 +1138,12 @@ hide_window(xcb_window_t win)
 		return -1;
 	}
 
-	update_net_wm_state_atom(win, wm->ewmh->_NET_WM_STATE_HIDDEN, true);
-	node_t *n = find_node_global(win);
-	if (n && n->client) {
-		update_client_ewmh_state(n->client, EWMH_STATE_HIDDEN, true);
+	if (update_hidden_state) {
+		update_net_wm_state_atom(win, wm->ewmh->_NET_WM_STATE_HIDDEN, true);
+		node_t *n = find_node_global(win);
+		if (n && n->client) {
+			update_client_ewmh_state(n->client, EWMH_STATE_HIDDEN, true);
+		}
 	}
 
 	c	= xcb_unmap_window_checked(wm->connection, win);
@@ -1160,8 +1162,8 @@ hide_window(xcb_window_t win)
 	return 0;
 }
 
-int
-set_visibility(xcb_window_t win, bool is_visible)
+static int
+set_visibility_mode(xcb_window_t win, bool is_visible, bool update_hidden_state)
 {
 #ifdef _DEBUG__
 	char *name = win_name(win);
@@ -1208,7 +1210,8 @@ set_visibility(xcb_window_t win, bool is_visible)
 		  is_visible ? "show_window" : "hide_window",
 		  win);
 #endif
-	ret = is_visible ? show_window(win) : hide_window(win);
+	ret = is_visible ? show_window(win, update_hidden_state)
+					 : hide_window(win, update_hidden_state);
 	if (ret == -1) {
 		_LOG_(
 			ERROR, "cannot set visibilty to %s", is_visible ? "true" : "false");
@@ -1239,4 +1242,16 @@ set_visibility(xcb_window_t win, bool is_visible)
 		  win);
 #endif
 	return 0;
+}
+
+int
+set_visibility(xcb_window_t win, bool is_visible)
+{
+	return set_visibility_mode(win, is_visible, true);
+}
+
+int
+set_desktop_visibility(xcb_window_t win, bool is_visible)
+{
+	return set_visibility_mode(win, is_visible, false);
 }

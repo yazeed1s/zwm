@@ -28,10 +28,10 @@
 
 #include "mouse.h"
 #include "cursor.h"
-#include "desktop.h"
 #include "helper.h"
 #include "state.h"
 #include "tree.h"
+#include "view.h"
 #include "xcb_util.h"
 #include "layout.h"
 #include <stdbool.h>
@@ -409,7 +409,7 @@ handle_mouse_motion(int16_t x, int16_t y)
 		r.x			   = (int16_t)(r.x + dx);
 		r.y			   = (int16_t)(r.y + dy);
 		mouse_state.node->floating_rectangle = r;
-		move_window(mouse_state.window, r.x, r.y);
+		apply_window_geometry(mouse_state.window, r, conf.border_width);
 		return;
 	}
 
@@ -459,8 +459,7 @@ handle_mouse_motion(int16_t x, int16_t y)
 			.height = (uint16_t)nh,
 		};
 		mouse_state.node->floating_rectangle = r;
-		resize_window(mouse_state.window, r.width, r.height);
-		move_window(mouse_state.window, r.x, r.y);
+		apply_window_geometry(mouse_state.window, r, conf.border_width);
 		return;
 	}
 
@@ -493,7 +492,7 @@ handle_mouse_motion(int16_t x, int16_t y)
 			curr_monitor->desk->layout == THREE_COL) {
 			mouse_state.parent->split_ratio = clamp_ratio(ratio);
 			arrange_tree(mouse_state.parent, curr_monitor->desk->layout);
-			render_desktop(curr_monitor->desk);
+			view_render_desktop(curr_monitor->desk);
 			return;
 		}
 		mouse_state.parent->split_type	= mouse_state.split_type;
@@ -519,12 +518,8 @@ cancel_mouse_action(void)
 		mouse_state.op == MOUSE_OP_RESIZE_FLOATING) {
 		if (mouse_state.node && mouse_state.node->client) {
 			mouse_state.node->floating_rectangle = mouse_state.start_rect;
-			resize_window(mouse_state.window,
-						  mouse_state.start_rect.width,
-						  mouse_state.start_rect.height);
-			move_window(mouse_state.window,
-						mouse_state.start_rect.x,
-						mouse_state.start_rect.y);
+			apply_window_geometry(
+				mouse_state.window, mouse_state.start_rect, conf.border_width);
 		}
 	} else if (mouse_state.op == MOUSE_OP_RESIZE_TILED) {
 		if (mouse_state.parent) {
@@ -533,7 +528,7 @@ cancel_mouse_action(void)
 			if (curr_monitor->desk->layout == DECK ||
 				curr_monitor->desk->layout == THREE_COL) {
 				arrange_tree(mouse_state.parent, curr_monitor->desk->layout);
-				render_desktop(curr_monitor->desk);
+				view_render_desktop(curr_monitor->desk);
 			} else {
 				resize_subtree(mouse_state.parent);
 				render_tree_nomap(mouse_state.parent);

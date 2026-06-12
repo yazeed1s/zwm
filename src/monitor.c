@@ -232,33 +232,43 @@ ewmh_handle_struts(xcb_window_t win)
 		int32_t mx2 = m->rectangle.x + m->rectangle.width;
 		int32_t my2 = m->rectangle.y + m->rectangle.height;
 
-		if (strut.left > 0 && ranges_overlap((int32_t)strut.left_start_y,
-											 (int32_t)strut.left_end_y,
-											 my1,
-											 my2)) {
+		/* strut.left is the screen absolute right edge of the reserved
+		 * area.  Only apply to the monitor whose X range contains that edge,
+		 * whcih should prevent a secondary-monitor bar from
+		 * crushing a primary monitor. */
+		if (strut.left > 0 && (int32_t)strut.left > mx1 &&
+			(int32_t)strut.left <= mx2 &&
+			ranges_overlap((int32_t)strut.left_start_y,
+						   (int32_t)strut.left_end_y,
+						   my1,
+						   my2)) {
 			int32_t dx = (int32_t)strut.left - mx1;
-			if (dx > 0) {
-				if (dx > INT16_MAX)
-					dx = INT16_MAX;
-				int16_t prev	= m->padding.left;
-				m->padding.left = MAX((int16_t)dx, m->padding.left);
-				if (m->padding.left != prev)
-					changed = true;
-			}
+			if (dx > INT16_MAX)
+				dx = INT16_MAX;
+			int16_t prev	= m->padding.left;
+			m->padding.left = MAX((int16_t)dx, m->padding.left);
+			if (m->padding.left != prev)
+				changed = true;
 		}
 
-		if (strut.right > 0 && ranges_overlap((int32_t)strut.right_start_y,
-											  (int32_t)strut.right_end_y,
-											  my1,
-											  my2)) {
-			int32_t dx = mx2 - (screen_w - (int32_t)strut.right);
-			if (dx > 0) {
-				if (dx > INT16_MAX)
-					dx = INT16_MAX;
-				int16_t prev	 = m->padding.right;
-				m->padding.right = MAX((int16_t)dx, m->padding.right);
-				if (m->padding.right != prev)
-					changed = true;
+		/* bar left edge = screen_w - strut.right.  Only apply to the
+		 * monitor whose X range contains that edge. */
+		if (strut.right > 0) {
+			int32_t bar_left = screen_w - (int32_t)strut.right;
+			if (bar_left >= mx1 && bar_left < mx2 &&
+				ranges_overlap((int32_t)strut.right_start_y,
+							   (int32_t)strut.right_end_y,
+							   my1,
+							   my2)) {
+				int32_t dx = mx2 - bar_left;
+				if (dx > 0) {
+					if (dx > INT16_MAX)
+						dx = INT16_MAX;
+					int16_t prev	 = m->padding.right;
+					m->padding.right = MAX((int16_t)dx, m->padding.right);
+					if (m->padding.right != prev)
+						changed = true;
+				}
 			}
 		}
 
@@ -321,6 +331,25 @@ get_usable_area(monitor_t *m)
 	r.height = (uint16_t)h;
 
 	return r;
+}
+
+void
+reapply_tracked_struts(void)
+{
+	/* reapply struts only from the known tracked list.  Called on unmap/destroy
+	 * so the 'just removed' window (still in the X child list with its property
+	 * intact) is not re scanned and does not reinject dead padding. */
+	if (!wm || !wm->connection || !wm->ewmh)
+		return;
+
+	for (monitor_t *m = head_monitor; m; m = m->next)
+		m->padding = (padding_t){0};
+
+	for (strut_win_node_t *s = strut_windows; s; s = s->next)
+		ewmh_handle_struts(s->win);
+
+	arrange_trees();
+	render_trees();
 }
 
 void

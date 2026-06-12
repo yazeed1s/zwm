@@ -58,6 +58,7 @@ void map_floating(xcb_window_t x);
 int display_client(rectangle_t r, xcb_window_t win);
 int handle_net_wm_desktop(xcb_window_t win, uint32_t index);
 int set_visibility(xcb_window_t win, bool is_visible);
+int set_desktop_visibility(xcb_window_t win, bool is_visible);
 /* clang-format on */
 
 #endif /* ZWM_CLIENT_H */

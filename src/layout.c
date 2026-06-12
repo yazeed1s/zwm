@@ -111,7 +111,7 @@ show_all_tiled(node_t *root)
 	if (!root)
 		return;
 	if (IS_EXTERNAL(root) && root->client && IS_TILED(root->client))
-		set_visibility(root->client->window, true);
+		set_desktop_visibility(root->client->window, true);
 	show_all_tiled(root->first_child);
 	show_all_tiled(root->second_child);
 }
@@ -119,9 +119,10 @@ show_all_tiled(node_t *root)
 void
 apply_layout(desktop_t *d, layout_t t)
 {
-	if (d->layout == MONOCLE || d->layout == DECK)
+	layout_t ol = d->layout;
+	d->layout	= t;
+	if (ol == MONOCLE || ol == DECK)
 		show_all_tiled(d->tree);
-	d->layout	 = t;
 	node_t *root = d->tree;
 	master_clean_up(root);
 	switch (t) {
@@ -726,6 +727,7 @@ collect_tiled_leaves(node_t *root, node_t **buf, int *n, int cap)
 	collect_tiled_leaves(root->second_child, buf, n, cap);
 }
 
+#if 0
 static void
 render_floating(node_t *root)
 {
@@ -751,6 +753,7 @@ raise_floating(node_t *root)
 	raise_floating(root->first_child);
 	raise_floating(root->second_child);
 }
+#endif
 
 /*  monocle  */
 
@@ -781,6 +784,8 @@ monocle_layout(node_t *root)
 	apply_monocle_layout(root, r);
 }
 
+/* deprecated */
+#if 0
 int
 render_monocle(node_t *root)
 {
@@ -790,10 +795,10 @@ render_monocle(node_t *root)
 		if (IS_FLOATING(root->client)) {
 			tile(root);
 		} else if (root->is_focused) {
-			set_visibility(root->client->window, true);
+			set_desktop_visibility(root->client->window, true);
 			tile(root);
 		} else {
-			set_visibility(root->client->window, false);
+			set_desktop_visibility(root->client->window, false);
 		}
 		return 0;
 	}
@@ -802,6 +807,7 @@ render_monocle(node_t *root)
 	raise_floating(root);
 	return 0;
 }
+#endif
 
 /*  three-column  */
 
@@ -946,6 +952,9 @@ deck_layout(node_t *r)
 	}
 }
 
+/* deprecated */
+#if 0
+
 int
 render_deck(node_t *r)
 {
@@ -958,7 +967,7 @@ render_deck(node_t *r)
 	node_t *m = find_layout_master(r);
 
 	if (m) {
-		set_visibility(m->client->window, true);
+		set_desktop_visibility(m->client->window, true);
 		tile(m);
 	}
 
@@ -983,10 +992,10 @@ render_deck(node_t *r)
 			if (l[i] == m)
 				continue;
 			if (l[i] == v) {
-				set_visibility(l[i]->client->window, true);
+				set_desktop_visibility(l[i]->client->window, true);
 				tile(l[i]);
 			} else {
-				set_visibility(l[i]->client->window, false);
+				set_desktop_visibility(l[i]->client->window, false);
 			}
 		}
 	}
@@ -995,6 +1004,7 @@ render_deck(node_t *r)
 	raise_floating(r);
 	return 0;
 }
+#endif
 
 static void
 update_split_ratio(node_t *parent, split_type_t s)

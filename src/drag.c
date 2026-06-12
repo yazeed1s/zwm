@@ -38,6 +38,7 @@
 #include "tree.h"
 #include "layout.h"
 #include "type.h"
+#include "view.h"
 #include "xcb_util.h"
 
 drag_state_t ds = {0};
@@ -61,8 +62,8 @@ apply_preview_layout(node_t *root)
 			const rectangle_t r = IS_FLOATING(root->client)
 									  ? root->floating_rectangle
 									  : root->rectangle;
-			resize_window(root->client->window, r.width, r.height);
-			move_window(root->client->window, r.x, r.y);
+			apply_window_geometry(
+				root->client->window, r, conf.border_width);
 		}
 		return;
 	}
@@ -169,7 +170,10 @@ drag_move(int16_t x, int16_t y)
 	/* center the window on the cursor */
 	int16_t new_x = x - (ds.original_rect.width / 2);
 	int16_t new_y = y - (ds.original_rect.height / 2);
-	move_window(ds.window, new_x, new_y);
+	rectangle_t r = ds.original_rect;
+	r.x			  = new_x;
+	r.y			  = new_y;
+	apply_window_geometry(ds.window, r, conf.border_width);
 
 	return 0;
 }
@@ -201,7 +205,7 @@ drag_end(int16_t x, int16_t y)
 
 	insert_node(target, ds.src_node, curr_monitor->desk->layout);
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
-	render_tree(curr_monitor->desk->tree);
+	view_render_desktop(curr_monitor->desk);
 
 cleanup:
 	ungrab_pointer();

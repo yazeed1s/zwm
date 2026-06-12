@@ -36,6 +36,8 @@
 /* clang-format off */
 desktop_t *init_desktop(void);
 bool setup_desktops(void);
+node_t *pick_desktop_focus(desktop_t *d);
+node_t *pick_deck_focus(desktop_t *d);
 int get_focused_desktop_idx(void);
 desktop_t *get_focused_desktop(void);
 int switch_desktop(int nd);
