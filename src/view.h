@@ -36,25 +36,7 @@
 #include <stdbool.h>
 
 /*
- * view.h keeps the desktop view work in one place.
- *
- * Focus, showing/hiding windows, and stacking used to be spread in many files.
- * That made layouts like MONOCLE and DECK easy to break when fixing another
- * layout. The rule now is simple: callers update the state they want, render
- * the desktop from here, then commit the final stack order also here.
- *
- * This should eleminate a whole class of hacks zwm used to have as a result of
- * this mess.
- *
- * Usual order for one view change:
- *   1. update the logical layout focus       (view_set_logical_focus)
- *   2. arrange the layout                    (done by view_render_desktop)
- *   3. map/unmap/configure windows           (view_render_desktop)
- *   4. set X input focus and borders         (view_apply_input_focus)
- *   5. update MRU / active window data       (caller still does this)
- *   6. restack and flush                     (view_commit)
- *
- * Layout visibility:
+ * layout policy:
  *   DEFAULT, MASTER, STACK, GRID, and THREE_COL are normal visible layouts.
  *   In these layouts every tiled window should stay mapped.  logical_focus is
  *   still remembered, but it is used for the selected window / border / MRU,
@@ -69,22 +51,12 @@
  * Z order.
  */
 
-leaf_visibility_t
-view_leaf_visibility(desktop_t *d, node_t *leaf);
-
-void
-view_set_logical_focus(desktop_t *d, node_t *n);
-
-int
-view_apply_input_focus(desktop_t *d, node_t *n);
-
-node_t *
-view_pick_fallback_focus(desktop_t *d);
-
-int
-view_render_desktop(desktop_t *d);
-
-void
-view_commit(desktop_t *d);
-
+/* clang-format off */
+leaf_visibility_t view_leaf_visibility(desktop_t *d, node_t *leaf);
+void view_set_logical_focus(desktop_t *d, node_t *n);
+int view_apply_input_focus(desktop_t *d, node_t *n);
+node_t *view_pick_fallback_focus(desktop_t *d);
+int view_render_desktop(desktop_t *d);
+void view_commit(desktop_t *d);
+/* clang-format on */
 #endif /* ZWM_VIEW_H */

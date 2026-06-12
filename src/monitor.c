@@ -114,13 +114,12 @@ add_strut_window(xcb_window_t win)
 	if (is_strut_window(win))
 		return;
 
-	strut_win_node_t *node =
-		(strut_win_node_t *)malloc(sizeof(strut_win_node_t));
-	if (node == NULL)
+	strut_win_node_t *n = (strut_win_node_t *)malloc(sizeof(strut_win_node_t));
+	if (n == NULL)
 		return;
-	node->win	  = win;
-	node->next	  = strut_windows;
-	strut_windows = node;
+	n->win		  = win;
+	n->next		  = strut_windows;
+	strut_windows = n;
 }
 
 bool
@@ -445,12 +444,12 @@ log_monitors(void)
 static monitor_t *
 get_monitor_by_randr_id(xcb_randr_output_t id)
 {
-	monitor_t *current = head_monitor;
-	while (current) {
-		if (current->randr_id == id) {
-			return current;
+	monitor_t *curr = head_monitor;
+	while (curr) {
+		if (curr->randr_id == id) {
+			return curr;
 		}
-		current = current->next;
+		curr = curr->next;
 	}
 	return NULL;
 }
@@ -458,12 +457,12 @@ get_monitor_by_randr_id(xcb_randr_output_t id)
 static monitor_t *
 get_monitor_by_root_id(xcb_window_t id)
 {
-	monitor_t *current = head_monitor;
-	while (current) {
-		if (current->root == id) {
-			return current;
+	monitor_t *curr = head_monitor;
+	while (curr) {
+		if (curr->root == id) {
+			return curr;
 		}
-		current = current->next;
+		curr = curr->next;
 	}
 	return NULL;
 }
@@ -471,32 +470,32 @@ get_monitor_by_root_id(xcb_window_t id)
 monitor_t *
 get_focused_monitor(void)
 {
-	xcb_query_pointer_cookie_t pointer_cookie =
+	xcb_query_pointer_cookie_t pc =
 		xcb_query_pointer(wm->connection, wm->root_window);
-	xcb_query_pointer_reply_t *pointer_reply =
-		xcb_query_pointer_reply(wm->connection, pointer_cookie, NULL);
+	xcb_query_pointer_reply_t *pr =
+		xcb_query_pointer_reply(wm->connection, pc, NULL);
 
-	if (pointer_reply == NULL) {
+	if (pr == NULL) {
 		_LOG_(ERROR, "failed to query pointer");
 		return NULL;
 	}
 
-	int		   pointer_x = pointer_reply->root_x;
-	int		   pointer_y = pointer_reply->root_y;
+	int		   px	= pr->root_x;
+	int		   py	= pr->root_y;
 
-	monitor_t *current	 = head_monitor;
-	while (current) {
-		if (pointer_x >= current->rectangle.x &&
-			pointer_x < (current->rectangle.x + current->rectangle.width) &&
-			pointer_y >= current->rectangle.y &&
-			pointer_y < (current->rectangle.y + current->rectangle.height)) {
-			_FREE_(pointer_reply);
-			return current;
+	monitor_t *curr = head_monitor;
+	while (curr) {
+		if (px >= curr->rectangle.x &&
+			px < (curr->rectangle.x + curr->rectangle.width) &&
+			py >= curr->rectangle.y &&
+			py < (curr->rectangle.y + curr->rectangle.height)) {
+			_FREE_(pr);
+			return curr;
 		}
-		current = current->next;
+		curr = curr->next;
 	}
 
-	_FREE_(pointer_reply);
+	_FREE_(pr);
 	return NULL;
 }
 
@@ -692,21 +691,21 @@ setup_monitors_via_xinerama(void)
 void
 free_monitors(void)
 {
-	monitor_t *current = head_monitor;
-	while (current) {
-		monitor_t *next = current->next;
-		for (int j = 0; j < current->n_of_desktops; j++) {
-			if (current->desktops[j]) {
-				if (current->desktops[j]->tree) {
-					free_tree(current->desktops[j]->tree);
-					current->desktops[j]->tree = NULL;
+	monitor_t *curr = head_monitor;
+	while (curr) {
+		monitor_t *next = curr->next;
+		for (int j = 0; j < curr->n_of_desktops; j++) {
+			if (curr->desktops[j]) {
+				if (curr->desktops[j]->tree) {
+					free_tree(curr->desktops[j]->tree);
+					curr->desktops[j]->tree = NULL;
 				}
-				_FREE_(current->desktops[j]);
+				_FREE_(curr->desktops[j]);
 			}
 		}
-		_FREE_(current->desktops);
-		_FREE_(current);
-		current = next;
+		_FREE_(curr->desktops);
+		_FREE_(curr);
+		curr = next;
 	}
 	head_monitor = NULL;
 }
@@ -1200,42 +1199,40 @@ apply_monitor_layout_changes(monitor_t *m)
 		if (!m->desktops[d] || is_tree_empty(m->desktops[d]->tree))
 			continue;
 
-		layout_t layout = m->desktops[d]->layout;
-		node_t	*tree	= m->desktops[d]->tree;
+		layout_t l	  = m->desktops[d]->layout;
+		node_t	*tree = m->desktops[d]->tree;
 
-		if (layout == DEFAULT || layout == STACK || layout == GRID) {
+		if (l == DEFAULT || l == STACK || l == GRID) {
 			tree->rectangle = calculate_monitor_area(m);
 
-			if (layout == DEFAULT)
+			if (l == DEFAULT)
 				apply_default_layout(tree);
-			else if (layout == STACK)
+			else if (l == STACK)
 				apply_stack_layout(tree);
-			else if (layout == GRID)
+			else if (l == GRID)
 				apply_grid_layout(tree);
 
-		} else if (layout == MASTER) {
+		} else if (l == MASTER) {
 			node_t *ms = find_master_node(tree);
 			if (!ms && !(ms = find_any_leaf(tree)))
 				return;
 
 			ms->is_master			  = true;
-			const double ratio		  = MASTER_RATIO;
-
-			rectangle_t	 usable		  = get_usable_area(m);
-			uint16_t	 master_width = (uint16_t)(usable.width * ratio);
-			uint16_t	 r_width	  = (uint16_t)(usable.width * (1 - ratio));
-
+			const double r			  = MASTER_RATIO;
+			rectangle_t	 u			  = get_usable_area(m);
+			uint16_t	 master_width = (uint16_t)(u.width * r);
+			uint16_t	 r_width	  = (uint16_t)(u.width * (1 - r));
 			rectangle_t	 r1			  = {
-				.x		= (int16_t)(usable.x + conf.window_gap),
-				.y		= (int16_t)(usable.y + conf.window_gap),
+				.x		= (int16_t)(u.x + conf.window_gap),
+				.y		= (int16_t)(u.y + conf.window_gap),
 				.width	= (uint16_t)(master_width - 2 * conf.window_gap),
-				.height = (uint16_t)(usable.height - 2 * conf.window_gap),
+				.height = (uint16_t)(u.height - 2 * conf.window_gap),
 			};
 			rectangle_t r2 = {
-				.x		= (int16_t)(usable.x + master_width),
-				.y		= (int16_t)(usable.y + conf.window_gap),
+				.x		= (int16_t)(u.x + master_width),
+				.y		= (int16_t)(u.y + conf.window_gap),
 				.width	= (uint16_t)(r_width - conf.window_gap),
-				.height = (uint16_t)(usable.height - 2 * conf.window_gap),
+				.height = (uint16_t)(u.height - 2 * conf.window_gap),
 			};
 			ms->rectangle	= r1;
 			tree->rectangle = r2;

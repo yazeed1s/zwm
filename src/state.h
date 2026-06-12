@@ -56,7 +56,7 @@ extern uint8_t               randr_base;
 extern uint64_t              last_desk_switch_time;
 extern uint64_t              suppress_enter_until_time;
 extern xcb_cursor_t          cursors[CURSOR_MAX];
-extern mouse_state_t         mouse_state;
+extern mouse_state_t         ms;
 /* clang-format on */
 
 #endif /* ZWM_STATE_H */

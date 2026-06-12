@@ -45,10 +45,10 @@ bool				  multi_monitors = false;
 bool				  using_xinerama = false;
 bool ignore_ewmh_struts = false; /* this is hardcoded for now, plan on making it
 									configurable via IPC or config file */
-config_t			  conf					= {0};
-volatile sig_atomic_t should_shutdown		= 0;
-uint8_t				  randr_base			= 0;
-uint64_t			  last_desk_switch_time = 0;
+config_t			  conf						= {0};
+volatile sig_atomic_t should_shutdown			= 0;
+uint8_t				  randr_base				= 0;
+uint64_t			  last_desk_switch_time		= 0;
 uint64_t			  suppress_enter_until_time = 0;
 xcb_cursor_t		  cursors[CURSOR_MAX];
-mouse_state_t		  mouse_state = {0};
+mouse_state_t		  ms = {0};

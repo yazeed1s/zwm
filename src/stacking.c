@@ -88,34 +88,34 @@ transient_depth(const client_t *c)
 uint64_t
 stack_key(const client_t *c)
 {
-	layer_t		   layer   = compute_layer(c);
-	const uint8_t  depth   = transient_depth(c);
-	const uint32_t mru	   = c->mru_seq;
-	const uint8_t visible = client_is_hidden(c) ? 0 : 1;
+	layer_t		   l   = compute_layer(c);
+	const uint8_t  d   = transient_depth(c);
+	const uint32_t mru = c->mru_seq;
+	const uint8_t  v   = client_is_hidden(c) ? 0 : 1;
 
 	/* transients are at least at their parent's layer */
 	if (c->transient_for) {
 		node_t *p = find_node_global(c->transient_for);
 		if (p && p->client) {
-			layer_t parent_layer = compute_layer(p->client);
-			if (parent_layer > layer) {
-				layer = parent_layer;
+			layer_t pl = compute_layer(p->client);
+			if (pl > l) {
+				l = pl;
 			}
 		}
 	}
 
 	/* [1 bit visible][7 bits layer][8 bits transient depth][40 bits MRU] */
-	return ((uint64_t)visible << 63) | ((uint64_t)layer << 56) |
-		   ((uint64_t)depth << 40) | ((uint64_t)mru);
+	return ((uint64_t)v << 63) | ((uint64_t)l << 56) | ((uint64_t)d << 40) |
+		   ((uint64_t)mru);
 }
 
 uint32_t
-get_next_mru_seq(monitor_t *monitor)
+get_next_mru_seq(monitor_t *m)
 {
-	if (!monitor) {
+	if (!m) {
 		return 1;
 	}
-	return ++monitor->mru_counter;
+	return ++m->mru_counter;
 }
 
 static void

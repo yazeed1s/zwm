@@ -29,11 +29,11 @@
 #include "mouse.h"
 #include "cursor.h"
 #include "helper.h"
+#include "layout.h"
 #include "state.h"
 #include "tree.h"
 #include "view.h"
 #include "xcb_util.h"
-#include "layout.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <xcb/xcb.h>
@@ -44,8 +44,7 @@ mouse_tree_root(node_t *n)
 {
 	if (!n)
 		return NULL;
-	while (n->parent)
-		n = n->parent;
+	while (n->parent) n = n->parent;
 	return n;
 }
 
@@ -74,10 +73,10 @@ window_grab_buttons(xcb_window_t win)
 void
 window_ungrab_buttons(xcb_window_t win)
 {
-	xcb_cookie_t cookie = xcb_ungrab_button_checked(
+	xcb_cookie_t c = xcb_ungrab_button_checked(
 		wm->connection, XCB_BUTTON_INDEX_ANY, win, XCB_MOD_MASK_ANY);
 
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "in ungrab buttons for window %d: error code %d",
@@ -110,8 +109,8 @@ ungrab_buttons_for_all(node_t *n)
 bool
 grab_pointer_for_mouse(cursor_t cursor_id)
 {
-	xcb_grab_pointer_reply_t *reply;
-	xcb_grab_pointer_cookie_t cookie = xcb_grab_pointer(
+	xcb_grab_pointer_reply_t *r;
+	xcb_grab_pointer_cookie_t c = xcb_grab_pointer(
 		wm->connection,
 		false,			 /* owner_events */
 		wm->root_window, /* grab_window */
@@ -122,32 +121,32 @@ grab_pointer_for_mouse(cursor_t cursor_id)
 		get_cursor(cursor_id),
 		XCB_CURRENT_TIME);
 
-	reply = xcb_grab_pointer_reply(wm->connection, cookie, NULL);
-	if (!reply) {
+	r = xcb_grab_pointer_reply(wm->connection, c, NULL);
+	if (!r) {
 		return false;
 	}
-	bool ok = (reply->status == XCB_GRAB_STATUS_SUCCESS);
-	_FREE_(reply);
+	bool ok = (r->status == XCB_GRAB_STATUS_SUCCESS);
+	_FREE_(r);
 	return ok;
 }
 
 void
 clear_mouse_state(void)
 {
-	mouse_state = (mouse_state_t){0};
+	ms = (mouse_state_t){0};
 }
 
 double
-clamp_ratio(double ratio)
+clamp_ratio(double r)
 {
-	const double min = 0.05;
-	if (ratio < min) {
-		return min;
+	const double m = 0.05;
+	if (r < m) {
+		return m;
 	}
-	if (ratio > (1.0 - min)) {
-		return 1.0 - min;
+	if (r > (1.0 - m)) {
+		return 1.0 - m;
 	}
-	return ratio;
+	return r;
 }
 
 uint8_t
@@ -186,34 +185,35 @@ detect_resize_edges(rectangle_t r, int16_t x, int16_t y)
 }
 
 bool
-is_resize_band_hit(node_t	   *parent,
-				   split_type_t split_type,
-				   int16_t		x,
-				   int16_t		y)
+is_resize_band_hit(node_t *p, split_type_t split_type, int16_t x, int16_t y)
 {
-	if (!parent || !parent->first_child || !parent->second_child) {
+	if (!p || !p->first_child || !p->second_child) {
 		return false;
 	}
 
 	const int16_t edge = 8;
 	if (split_type == HORIZONTAL_TYPE) {
-		rectangle_t a	   = parent->first_child->rectangle;
-		rectangle_t b	   = parent->second_child->rectangle;
+		rectangle_t a	   = p->first_child->rectangle;
+		rectangle_t b	   = p->second_child->rectangle;
 		bool		a_left = (a.x <= b.x);
-		int16_t left_edge = (int16_t)((a_left ? a.x + a.width : b.x + b.width));
-		int16_t right_edge = (int16_t)(a_left ? b.x : a.x);
-		int16_t min_x	   = (left_edge < right_edge) ? left_edge : right_edge;
-		int16_t max_x	   = (left_edge > right_edge) ? left_edge : right_edge;
+		/* left edge */
+		int16_t		le	  = (int16_t)((a_left ? a.x + a.width : b.x + b.width));
+		/* rigt edge */
+		int16_t		re	  = (int16_t)(a_left ? b.x : a.x);
+		int16_t		min_x = (le < re) ? le : re;
+		int16_t		max_x = (le > re) ? le : re;
 		return (x >= (min_x - edge) && x <= (max_x + edge));
 	}
 	if (split_type == VERTICAL_TYPE) {
-		rectangle_t a	  = parent->first_child->rectangle;
-		rectangle_t b	  = parent->second_child->rectangle;
+		rectangle_t a	  = p->first_child->rectangle;
+		rectangle_t b	  = p->second_child->rectangle;
 		bool		a_top = (a.y <= b.y);
-		int16_t top_edge = (int16_t)((a_top ? a.y + a.height : b.y + b.height));
-		int16_t bottom_edge = (int16_t)(a_top ? b.y : a.y);
-		int16_t min_y		= (top_edge < bottom_edge) ? top_edge : bottom_edge;
-		int16_t max_y		= (top_edge > bottom_edge) ? top_edge : bottom_edge;
+		/* top edge */
+		int16_t		te = (int16_t)((a_top ? a.y + a.height : b.y + b.height));
+		/* bottom edge */
+		int16_t		be = (int16_t)(a_top ? b.y : a.y);
+		int16_t		min_y = (te < be) ? te : be;
+		int16_t		max_y = (te > be) ? te : be;
 		return (y >= (min_y - edge) && y <= (max_y + edge));
 	}
 
@@ -228,15 +228,15 @@ start_floating_move(node_t *n, int16_t x, int16_t y)
 		return false;
 	}
 
-	mouse_state.op		   = MOUSE_OP_MOVE_FLOATING;
-	mouse_state.node	   = n;
-	mouse_state.window	   = n->client->window;
-	mouse_state.start_x	   = x;
-	mouse_state.start_y	   = y;
-	mouse_state.start_rect = n->floating_rectangle;
-	mouse_state.edges	   = 0;
+	ms.op				 = MOUSE_OP_MOVE_FLOATING;
+	ms.node				 = n;
+	ms.window			 = n->client->window;
+	ms.start_x			 = x;
+	ms.start_y			 = y;
+	ms.start_rect		 = n->floating_rectangle;
+	ms.edges			 = 0;
 
-	const uint32_t val[]   = {XCB_STACK_MODE_ABOVE};
+	const uint32_t val[] = {XCB_STACK_MODE_ABOVE};
 	xcb_configure_window(
 		wm->connection, n->client->window, XCB_CONFIG_WINDOW_STACK_MODE, val);
 
@@ -261,15 +261,15 @@ start_floating_resize(node_t *n, int16_t x, int16_t y)
 		return false;
 	}
 
-	mouse_state.op		   = MOUSE_OP_RESIZE_FLOATING;
-	mouse_state.node	   = n;
-	mouse_state.window	   = n->client->window;
-	mouse_state.start_x	   = x;
-	mouse_state.start_y	   = y;
-	mouse_state.start_rect = n->floating_rectangle;
-	mouse_state.edges	   = edges;
+	ms.op				 = MOUSE_OP_RESIZE_FLOATING;
+	ms.node				 = n;
+	ms.window			 = n->client->window;
+	ms.start_x			 = x;
+	ms.start_y			 = y;
+	ms.start_rect		 = n->floating_rectangle;
+	ms.edges			 = edges;
 
-	const uint32_t val[]   = {XCB_STACK_MODE_ABOVE};
+	const uint32_t val[] = {XCB_STACK_MODE_ABOVE};
 	xcb_configure_window(
 		wm->connection, n->client->window, XCB_CONFIG_WINDOW_STACK_MODE, val);
 
@@ -294,51 +294,51 @@ start_tiled_resize(node_t *n, int16_t x, int16_t y)
 		if (!root)
 			return false;
 
-		const int16_t edge  = 10;
-		const int16_t gap	= (int16_t)conf.window_gap;
-		const int16_t bw	= (int16_t)conf.border_width;
-		const double  ratio = (root->split_ratio <= 0.0 ||
-							   root->split_ratio >= 1.0)
-								  ? 0.5
-								  : clamp_ratio(root->split_ratio);
-		const int16_t mw	= (int16_t)(root->rectangle.width * ratio -
-									 gap - 2 * bw);
-		uint8_t		  hit	= RESIZE_EDGE_RIGHT;
+		const int16_t edge = 10;
+		const int16_t gap  = (int16_t)conf.window_gap;
+		const int16_t bw   = (int16_t)conf.border_width;
+		const double  r = (root->split_ratio <= 0.0 || root->split_ratio >= 1.0)
+							  ? 0.5
+							  : clamp_ratio(root->split_ratio);
+		const int16_t mw  = (int16_t)(root->rectangle.width * r - gap - 2 * bw);
+		uint8_t		  hit = RESIZE_EDGE_RIGHT;
 
 		if (curr_monitor->desk->layout == THREE_COL) {
 			const int16_t cw = mw;
 			const int16_t side_total =
 				(int16_t)(root->rectangle.width - cw - 2 * (gap + bw));
 			const int16_t sw = (int16_t)(side_total / 2);
-			const int16_t left_edge = (int16_t)(root->rectangle.x + sw);
-			const int16_t right_edge =
-				(int16_t)(left_edge + gap + bw + cw);
-			if (x >= left_edge - edge && x <= left_edge + edge) {
+			/* left edge */
+			const int16_t le = (int16_t)(root->rectangle.x + sw);
+			/* right edge */
+			const int16_t re = (int16_t)(le + gap + bw + cw);
+			if (x >= le - edge && x <= le + edge) {
 				hit = RESIZE_EDGE_LEFT;
-			} else if (x >= right_edge - edge && x <= right_edge + edge) {
+			} else if (x >= re - edge && x <= re + edge) {
 				hit = RESIZE_EDGE_RIGHT;
 			} else {
 				return false;
 			}
 		} else {
-			const int16_t master_edge = (int16_t)(root->rectangle.x + mw);
-			const int16_t deck_edge =
-				(int16_t)(root->rectangle.x + mw + gap + bw);
-			if (!((x >= master_edge - edge && x <= master_edge + edge) ||
-				  (x >= deck_edge - edge && x <= deck_edge + edge)))
+			/* master edge */
+			const int16_t me = (int16_t)(root->rectangle.x + mw);
+			/* deck edge */
+			const int16_t de = (int16_t)(root->rectangle.x + mw + gap + bw);
+			if (!((x >= me - edge && x <= me + edge) ||
+				  (x >= de - edge && x <= de + edge)))
 				return false;
 		}
 
-		mouse_state.op			 = MOUSE_OP_RESIZE_TILED;
-		mouse_state.node		 = n;
-		mouse_state.parent		 = root;
-		mouse_state.start_x		 = x;
-		mouse_state.start_y		 = y;
-		mouse_state.split_type	 = HORIZONTAL_TYPE;
-		mouse_state.start_ratio	 = ratio;
-		mouse_state.first_size	 = (int16_t)(root->rectangle.width * ratio);
-		mouse_state.avail		 = root->rectangle.width;
-		mouse_state.edges		 = hit;
+		ms.op		   = MOUSE_OP_RESIZE_TILED;
+		ms.node		   = n;
+		ms.parent	   = root;
+		ms.start_x	   = x;
+		ms.start_y	   = y;
+		ms.split_type  = HORIZONTAL_TYPE;
+		ms.start_ratio = r;
+		ms.first_size  = (int16_t)(root->rectangle.width * r);
+		ms.avail	   = root->rectangle.width;
+		ms.edges	   = hit;
 
 		if (!grab_pointer_for_mouse(CURSOR_MOVE)) {
 			clear_mouse_state();
@@ -375,21 +375,21 @@ start_tiled_resize(node_t *n, int16_t x, int16_t y)
 		return false;
 	}
 
-	const int16_t first_size = (st == HORIZONTAL_TYPE)
-								   ? p->first_child->rectangle.width
-								   : p->first_child->rectangle.height;
-	const double  ratio		 = (double)first_size / (double)avail;
+	const int16_t fz = (st == HORIZONTAL_TYPE)
+						   ? p->first_child->rectangle.width
+						   : p->first_child->rectangle.height;
+	const double  r	 = (double)fz / (double)avail;
 
-	mouse_state.op			 = MOUSE_OP_RESIZE_TILED;
-	mouse_state.node		 = n;
-	mouse_state.parent		 = p;
-	mouse_state.start_x		 = x;
-	mouse_state.start_y		 = y;
-	mouse_state.split_type	 = st;
-	mouse_state.start_ratio	 = clamp_ratio(ratio);
-	mouse_state.first_size	 = first_size;
-	mouse_state.avail		 = avail;
-	mouse_state.edges		 = 0;
+	ms.op			 = MOUSE_OP_RESIZE_TILED;
+	ms.node			 = n;
+	ms.parent		 = p;
+	ms.start_x		 = x;
+	ms.start_y		 = y;
+	ms.split_type	 = st;
+	ms.start_ratio	 = clamp_ratio(r);
+	ms.first_size	 = fz;
+	ms.avail		 = avail;
+	ms.edges		 = 0;
 
 	if (!grab_pointer_for_mouse(CURSOR_MOVE)) {
 		clear_mouse_state();
@@ -402,52 +402,50 @@ start_tiled_resize(node_t *n, int16_t x, int16_t y)
 void
 handle_mouse_motion(int16_t x, int16_t y)
 {
-	if (mouse_state.op == MOUSE_OP_MOVE_FLOATING) {
-		int16_t		dx = (int16_t)(x - mouse_state.start_x);
-		int16_t		dy = (int16_t)(y - mouse_state.start_y);
-		rectangle_t r  = mouse_state.start_rect;
-		r.x			   = (int16_t)(r.x + dx);
-		r.y			   = (int16_t)(r.y + dy);
-		mouse_state.node->floating_rectangle = r;
-		apply_window_geometry(mouse_state.window, r, conf.border_width);
+	if (ms.op == MOUSE_OP_MOVE_FLOATING) {
+		int16_t		dx				= (int16_t)(x - ms.start_x);
+		int16_t		dy				= (int16_t)(y - ms.start_y);
+		rectangle_t r				= ms.start_rect;
+		r.x							= (int16_t)(r.x + dx);
+		r.y							= (int16_t)(r.y + dy);
+		ms.node->floating_rectangle = r;
+		apply_window_geometry(ms.window, r, conf.border_width);
 		return;
 	}
 
-	if (mouse_state.op == MOUSE_OP_RESIZE_FLOATING) {
+	if (ms.op == MOUSE_OP_RESIZE_FLOATING) {
 		const int32_t min_dim = 40;
-		int32_t		  dx	  = (int32_t)(x - mouse_state.start_x);
-		int32_t		  dy	  = (int32_t)(y - mouse_state.start_y);
-		int32_t		  nx	  = mouse_state.start_rect.x;
-		int32_t		  ny	  = mouse_state.start_rect.y;
-		int32_t		  nw	  = mouse_state.start_rect.width;
-		int32_t		  nh	  = mouse_state.start_rect.height;
+		int32_t		  dx	  = (int32_t)(x - ms.start_x);
+		int32_t		  dy	  = (int32_t)(y - ms.start_y);
+		int32_t		  nx	  = ms.start_rect.x;
+		int32_t		  ny	  = ms.start_rect.y;
+		int32_t		  nw	  = ms.start_rect.width;
+		int32_t		  nh	  = ms.start_rect.height;
 
-		if (mouse_state.edges & RESIZE_EDGE_LEFT) {
+		if (ms.edges & RESIZE_EDGE_LEFT) {
 			nx += dx;
 			nw -= dx;
 		}
-		if (mouse_state.edges & RESIZE_EDGE_RIGHT) {
+		if (ms.edges & RESIZE_EDGE_RIGHT) {
 			nw += dx;
 		}
-		if (mouse_state.edges & RESIZE_EDGE_TOP) {
+		if (ms.edges & RESIZE_EDGE_TOP) {
 			ny += dy;
 			nh -= dy;
 		}
-		if (mouse_state.edges & RESIZE_EDGE_BOTTOM) {
+		if (ms.edges & RESIZE_EDGE_BOTTOM) {
 			nh += dy;
 		}
 
 		if (nw < min_dim) {
-			if (mouse_state.edges & RESIZE_EDGE_LEFT) {
-				nx = mouse_state.start_rect.x +
-					 (mouse_state.start_rect.width - min_dim);
+			if (ms.edges & RESIZE_EDGE_LEFT) {
+				nx = ms.start_rect.x + (ms.start_rect.width - min_dim);
 			}
 			nw = min_dim;
 		}
 		if (nh < min_dim) {
-			if (mouse_state.edges & RESIZE_EDGE_TOP) {
-				ny = mouse_state.start_rect.y +
-					 (mouse_state.start_rect.height - min_dim);
+			if (ms.edges & RESIZE_EDGE_TOP) {
+				ny = ms.start_rect.y + (ms.start_rect.height - min_dim);
 			}
 			nh = min_dim;
 		}
@@ -458,47 +456,46 @@ handle_mouse_motion(int16_t x, int16_t y)
 			.width	= (uint16_t)nw,
 			.height = (uint16_t)nh,
 		};
-		mouse_state.node->floating_rectangle = r;
-		apply_window_geometry(mouse_state.window, r, conf.border_width);
+		ms.node->floating_rectangle = r;
+		apply_window_geometry(ms.window, r, conf.border_width);
 		return;
 	}
 
-	if (mouse_state.op == MOUSE_OP_RESIZE_TILED) {
-		int32_t delta	  = (mouse_state.split_type == HORIZONTAL_TYPE)
-								? (int32_t)(x - mouse_state.start_x)
-								: (int32_t)(y - mouse_state.start_y);
+	if (ms.op == MOUSE_OP_RESIZE_TILED) {
+		int32_t delta = (ms.split_type == HORIZONTAL_TYPE)
+							? (int32_t)(x - ms.start_x)
+							: (int32_t)(y - ms.start_y);
 		if (curr_monitor->desk->layout == THREE_COL &&
-			(mouse_state.edges & RESIZE_EDGE_LEFT)) {
+			(ms.edges & RESIZE_EDGE_LEFT)) {
 			delta = -delta;
 		}
-		int32_t new_first = mouse_state.first_size + delta;
-		int32_t min_size  = 40;
-		if (mouse_state.avail < min_size * 2) {
-			min_size = mouse_state.avail / 2;
+		int32_t nf		 = ms.first_size + delta;
+		int32_t min_size = 40;
+		if (ms.avail < min_size * 2) {
+			min_size = ms.avail / 2;
 		}
 		if (min_size < 1) {
 			min_size = 1;
 		}
-
-		if (new_first < min_size) {
-			new_first = min_size;
+		if (nf < min_size) {
+			nf = min_size;
 		}
-		if (new_first > (mouse_state.avail - min_size)) {
-			new_first = mouse_state.avail - min_size;
+		if (nf > (ms.avail - min_size)) {
+			nf = ms.avail - min_size;
 		}
 
-		double ratio = (double)new_first / (double)mouse_state.avail;
+		double ratio = (double)nf / (double)ms.avail;
 		if (curr_monitor->desk->layout == DECK ||
 			curr_monitor->desk->layout == THREE_COL) {
-			mouse_state.parent->split_ratio = clamp_ratio(ratio);
-			arrange_tree(mouse_state.parent, curr_monitor->desk->layout);
+			ms.parent->split_ratio = clamp_ratio(ratio);
+			arrange_tree(ms.parent, curr_monitor->desk->layout);
 			view_render_desktop(curr_monitor->desk);
 			return;
 		}
-		mouse_state.parent->split_type	= mouse_state.split_type;
-		mouse_state.parent->split_ratio = clamp_ratio(ratio);
-		resize_subtree(mouse_state.parent);
-		render_tree_nomap(mouse_state.parent);
+		ms.parent->split_type  = ms.split_type;
+		ms.parent->split_ratio = clamp_ratio(ratio);
+		resize_subtree(ms.parent);
+		render_tree_nomap(ms.parent);
 		return;
 	}
 }
@@ -514,24 +511,22 @@ finish_mouse_action(void)
 void
 cancel_mouse_action(void)
 {
-	if (mouse_state.op == MOUSE_OP_MOVE_FLOATING ||
-		mouse_state.op == MOUSE_OP_RESIZE_FLOATING) {
-		if (mouse_state.node && mouse_state.node->client) {
-			mouse_state.node->floating_rectangle = mouse_state.start_rect;
-			apply_window_geometry(
-				mouse_state.window, mouse_state.start_rect, conf.border_width);
+	if (ms.op == MOUSE_OP_MOVE_FLOATING || ms.op == MOUSE_OP_RESIZE_FLOATING) {
+		if (ms.node && ms.node->client) {
+			ms.node->floating_rectangle = ms.start_rect;
+			apply_window_geometry(ms.window, ms.start_rect, conf.border_width);
 		}
-	} else if (mouse_state.op == MOUSE_OP_RESIZE_TILED) {
-		if (mouse_state.parent) {
-			mouse_state.parent->split_type	= mouse_state.split_type;
-			mouse_state.parent->split_ratio = mouse_state.start_ratio;
+	} else if (ms.op == MOUSE_OP_RESIZE_TILED) {
+		if (ms.parent) {
+			ms.parent->split_type  = ms.split_type;
+			ms.parent->split_ratio = ms.start_ratio;
 			if (curr_monitor->desk->layout == DECK ||
 				curr_monitor->desk->layout == THREE_COL) {
-				arrange_tree(mouse_state.parent, curr_monitor->desk->layout);
+				arrange_tree(ms.parent, curr_monitor->desk->layout);
 				view_render_desktop(curr_monitor->desk);
 			} else {
-				resize_subtree(mouse_state.parent);
-				render_tree_nomap(mouse_state.parent);
+				resize_subtree(ms.parent);
+				render_tree_nomap(ms.parent);
 			}
 		}
 	}
