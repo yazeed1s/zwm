@@ -49,11 +49,16 @@ void
 stack_layout(node_t *parent);
 void
 grid_layout(node_t *root);
-static double clamp_layout_ratio(double ratio);
-static node_t *find_tree_root_local(node_t *n);
-static node_t *find_layout_master(node_t *root);
-static void set_master_node(node_t *root, node_t *n);
-static void set_master_under_cursor(node_t *root);
+static double
+clamp_layout_ratio(double ratio);
+static node_t *
+find_tree_root_local(node_t *n);
+static node_t *
+find_layout_master(node_t *root);
+static void
+set_master_node(node_t *root, node_t *n);
+static void
+set_master_under_cursor(node_t *root);
 
 void
 arrange_tree(node_t *tree, layout_t l)
@@ -196,8 +201,7 @@ find_tree_root_local(node_t *n)
 {
 	if (!n)
 		return NULL;
-	while (n->parent)
-		n = n->parent;
+	while (n->parent) n = n->parent;
 	return n;
 }
 
@@ -624,7 +628,7 @@ _apply_grid_cells(node_t	 *r,
 			int last_n = n - (rows - 1) * cols;
 
 			if (row == rows - 1 && last_n < cols) {
-				/* last row has fewer windows: widen them to fill the row */
+				/* iff last row has fewer windows, widen them to fill the row */
 				uint16_t last_w = base_rect.width / last_n;
 				int		 lcol	= (*i) - (rows - 1) * cols;
 				r->rectangle.x	= base_rect.x + lcol * last_w + conf.window_gap;
@@ -672,9 +676,8 @@ apply_grid_layout(node_t *root)
 	if (n == 0)
 		return;
 
-	int			rows   = 1;
-	while ((rows + 1) * (rows + 1) <= n)
-		rows++;
+	int rows = 1;
+	while ((rows + 1) * (rows + 1) <= n) rows++;
 	int			cols   = (n + rows - 1) / rows;
 
 	rectangle_t usable = root->rectangle;
@@ -696,8 +699,6 @@ grid_layout(node_t *root)
 	root->rectangle = r;
 	apply_grid_layout(root);
 }
-
-/*  shared helpers  */
 
 static void
 fix_floating_rects(node_t *root)
@@ -801,17 +802,17 @@ three_col_layout(node_t *root)
 	root->rectangle = base;
 	fix_floating_rects(root);
 
-	node_t *leaves[64];
+	node_t *l[64];
 	int		n = 0;
-	collect_tiled_leaves(root, leaves, &n, 64);
+	collect_tiled_leaves(root, l, &n, 64);
 	if (n == 0)
 		return;
 
-	node_t *master = find_layout_master(root);
-	if (!master)
+	node_t *m = find_layout_master(root);
+	if (!m)
 		return;
-	if (!master->is_master)
-		set_master_node(root, master);
+	if (!m->is_master)
+		set_master_node(root, m);
 
 	const int16_t  gap = (int16_t)conf.window_gap;
 	const int16_t  bw  = (int16_t)conf.border_width;
@@ -819,41 +820,41 @@ three_col_layout(node_t *root)
 	const uint16_t H   = base.height;
 	const int16_t  bx  = base.x;
 	const int16_t  by  = base.y;
-	const double   ratio = clamp_layout_ratio(normalize_split_ratio(root->split_ratio));
+	const double   ratio =
+		clamp_layout_ratio(normalize_split_ratio(root->split_ratio));
 
 	if (n == 1) {
-		master->rectangle = base;
+		m->rectangle = base;
 		return;
 	}
 	if (n == 2) {
-		uint16_t hw			 = (uint16_t)((W - gap - 2 * bw) / 2);
-		master->rectangle	 = (rectangle_t){bx, by, hw, H};
+		uint16_t hw	 = (uint16_t)((W - gap - 2 * bw) / 2);
+		m->rectangle = (rectangle_t){bx, by, hw, H};
 		for (int i = 0; i < n; i++) {
-			if (leaves[i] != master) {
-				leaves[i]->rectangle =
-					(rectangle_t){(int16_t)(bx + hw + gap + bw),
-								  by,
-								  (uint16_t)(W - hw - gap - bw),
-								  H};
+			if (l[i] != m) {
+				l[i]->rectangle = (rectangle_t){(int16_t)(bx + hw + gap + bw),
+												by,
+												(uint16_t)(W - hw - gap - bw),
+												H};
 				break;
 			}
 		}
 		return;
 	}
 
-	uint16_t cw			 = (uint16_t)(W * ratio - gap - 2 * bw);
-	uint16_t side_total	 = (uint16_t)(W - cw - 2 * (gap + bw));
-	uint16_t sw			 = (uint16_t)(side_total / 2);
-	int16_t	 lx			 = bx;
-	int16_t	 cx			 = (int16_t)(bx + sw + gap + bw);
-	int16_t	 rx			 = (int16_t)(cx + cw + gap + bw);
+	uint16_t cw			= (uint16_t)(W * ratio - gap - 2 * bw);
+	uint16_t side_total = (uint16_t)(W - cw - 2 * (gap + bw));
+	uint16_t sw			= (uint16_t)(side_total / 2);
+	int16_t	 lx			= bx;
+	int16_t	 cx			= (int16_t)(bx + sw + gap + bw);
+	int16_t	 rx			= (int16_t)(cx + cw + gap + bw);
 
-	master->rectangle = (rectangle_t){cx, by, cw, H};
+	m->rectangle		= (rectangle_t){cx, by, cw, H};
 
 	int nr = 0, nl = 0;
 	int stack_idx = 0;
 	for (int i = 0; i < n; i++) {
-		if (leaves[i] == master)
+		if (l[i] == m)
 			continue;
 		if (stack_idx % 2 == 0)
 			nr++;
@@ -865,19 +866,19 @@ three_col_layout(node_t *root)
 	int ri = 0, li = 0;
 	stack_idx = 0;
 	for (int i = 0; i < n; i++) {
-		if (leaves[i] == master)
+		if (l[i] == m)
 			continue;
 		if (stack_idx % 2 == 0) {
 			uint16_t ch =
 				(uint16_t)((H - (uint16_t)(nr - 1) * (gap + bw)) / nr);
-			int16_t cy			 = (int16_t)(by + ri * (ch + gap + bw));
-			leaves[i]->rectangle = (rectangle_t){rx, cy, sw, ch};
+			int16_t cy		= (int16_t)(by + ri * (ch + gap + bw));
+			l[i]->rectangle = (rectangle_t){rx, cy, sw, ch};
 			ri++;
 		} else {
 			uint16_t ch =
 				(uint16_t)((H - (uint16_t)(nl - 1) * (gap + bw)) / nl);
-			int16_t cy			 = (int16_t)(by + li * (ch + gap + bw));
-			leaves[i]->rectangle = (rectangle_t){lx, cy, sw, ch};
+			int16_t cy		= (int16_t)(by + li * (ch + gap + bw));
+			l[i]->rectangle = (rectangle_t){lx, cy, sw, ch};
 			li++;
 		}
 		stack_idx++;
@@ -887,95 +888,96 @@ three_col_layout(node_t *root)
 /* deck */
 
 void
-deck_layout(node_t *root)
+deck_layout(node_t *r)
 {
-	if (!root)
+	if (!r)
 		return;
 
 	rectangle_t base = {0};
 	calculate_base_rect(&base, curr_monitor);
-	root->rectangle = base;
-	fix_floating_rects(root);
+	r->rectangle = base;
+	fix_floating_rects(r);
 
-	node_t *leaves[64];
+	node_t *l[64];
 	int		n = 0;
-	collect_tiled_leaves(root, leaves, &n, 64);
+	collect_tiled_leaves(r, l, &n, 64);
 	if (n == 0)
 		return;
 
-	node_t *master = find_layout_master(root);
-	if (!master)
+	node_t *m = find_layout_master(r);
+	if (!m)
 		return;
-	if (!master->is_master)
-		set_master_node(root, master);
+	if (!m->is_master)
+		set_master_node(r, m);
 
 	if (n == 1) {
-		master->rectangle = base;
+		m->rectangle = base;
 		return;
 	}
 
-	const int16_t  gap	  = (int16_t)conf.window_gap;
-	const int16_t  bw	  = (int16_t)conf.border_width;
-	const double   ratio  = clamp_layout_ratio(normalize_split_ratio(root->split_ratio));
+	const int16_t gap = (int16_t)conf.window_gap;
+	const int16_t bw  = (int16_t)conf.border_width;
+	const double  ratio =
+		clamp_layout_ratio(normalize_split_ratio(r->split_ratio));
 	const uint16_t mw	  = (uint16_t)(base.width * ratio - gap - 2 * bw);
 	const uint16_t sw	  = (uint16_t)(base.width - mw - gap - 2 * bw);
 	const int16_t  sx	  = (int16_t)(base.x + mw + gap + bw);
 
-	master->rectangle	  = (rectangle_t){base.x, base.y, mw, base.height};
+	m->rectangle		  = (rectangle_t){base.x, base.y, mw, base.height};
 
 	rectangle_t deck_rect = {sx, base.y, sw, base.height};
 	for (int i = 0; i < n; i++) {
-		if (leaves[i] != master)
-			leaves[i]->rectangle = deck_rect;
+		if (l[i] != m)
+			l[i]->rectangle = deck_rect;
 	}
 }
 
 int
-render_deck(node_t *root)
+render_deck(node_t *r)
 {
-	if (!root)
+	if (!r)
 		return 0;
 
-	node_t *leaves[64];
+	node_t *l[64];
 	int		n = 0;
-	collect_tiled_leaves(root, leaves, &n, 64);
-	node_t *master = find_layout_master(root);
+	collect_tiled_leaves(r, l, &n, 64);
+	node_t *m = find_layout_master(r);
 
-	if (master) {
-		set_visibility(master->client->window, true);
-		tile(master);
+	if (m) {
+		set_visibility(m->client->window, true);
+		tile(m);
 	}
 
 	if (n >= 2) {
-		node_t *visible = NULL;
+		node_t *v = NULL;
 		for (int i = 0; i < n; i++) {
-			if (leaves[i] != master && leaves[i]->is_focused) {
-				visible = leaves[i];
+			if (l[i] != m && l[i]->is_focused) {
+				v = l[i];
 				break;
 			}
 		}
-		if (!visible) {
+		if (!v) {
 			for (int i = 0; i < n; i++) {
-				if (leaves[i] != master) {
-					visible = leaves[i];
+				if (l[i] != m) {
+					v = l[i];
 					break;
 				}
 			}
 		}
 
 		for (int i = 0; i < n; i++) {
-			if (leaves[i] == master)
+			if (l[i] == m)
 				continue;
-			if (leaves[i] == visible) {
-				set_visibility(leaves[i]->client->window, true);
-				tile(leaves[i]);
+			if (l[i] == v) {
+				set_visibility(l[i]->client->window, true);
+				tile(l[i]);
 			} else {
-				set_visibility(leaves[i]->client->window, false);
+				set_visibility(l[i]->client->window, false);
 			}
 		}
 	}
 
-	render_floating(root);
+	render_floating(r);
 	return 0;
 }
 
