@@ -28,7 +28,6 @@
 
 #include "cursor.h"
 #include "helper.h"
-#include "logger.h"
 #include "state.h"
 #include <assert.h>
 #include <xcb/xcb.h>
