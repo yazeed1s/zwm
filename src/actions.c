@@ -103,22 +103,22 @@ next_deck_stack_node(node_t *root, direction_t d, xcb_window_t cursor_win)
 	if (n == 0)
 		return NULL;
 
-	node_t *current = NULL;
+	node_t *curr = NULL;
 	if (cursor_win != XCB_NONE && cursor_win != wm->root_window) {
 		node_t *under_cursor = find_node_by_window_id(root, cursor_win);
 		if (under_cursor && under_cursor->client && !under_cursor->is_master)
-			current = under_cursor;
+			curr = under_cursor;
 	}
-	if (!current) {
+	if (!curr) {
 		node_t *focused = get_focused_node(root);
 		if (focused && !focused->is_master)
-			current = focused;
+			curr = focused;
 	}
-	if (!current)
+	if (!curr)
 		return (d == UP) ? leaves[0] : leaves[n - 1];
 
 	for (int i = 0; i < n; i++) {
-		if (leaves[i] == current) {
+		if (leaves[i] == curr) {
 			return (d == UP) ? leaves[(i + 1) % n] : leaves[(i + n - 1) % n];
 		}
 	}
@@ -137,12 +137,12 @@ layout_handler(arg_t *arg)
 	suppress_enter_until_time = get_time_millis() + 250;
 	apply_layout(d, arg->t);
 
-	node_t *focus = view_pick_fallback_focus(d);
-	if (focus)
-		view_set_logical_focus(d, focus);
+	node_t *f = view_pick_fallback_focus(d);
+	if (f)
+		view_set_logical_focus(d, f);
 	int ret = view_render_desktop(d);
-	if (ret == 0 && focus)
-		ret = view_apply_input_focus(d, focus);
+	if (ret == 0 && f)
+		ret = view_apply_input_focus(d, f);
 	view_commit(d);
 	return ret;
 }
@@ -161,55 +161,50 @@ change_state(arg_t *arg)
 	if (IS_ROOT(n))
 		return 0;
 
-	state_t state  = arg->s;
-	node_t *parent = n->parent;
+	state_t state = arg->s;
+	node_t *p	  = n->parent;
 	if (state == TILED) {
 		if (IS_TILED(n->client))
 			return 0;
 		n->client->state = TILED;
 		if (n->rectangle.width >= n->rectangle.height) {
-			parent->first_child->rectangle.x = parent->rectangle.x;
-			parent->first_child->rectangle.y = parent->rectangle.y;
-			parent->first_child->rectangle.width =
-				(parent->rectangle.width -
-				 (conf.window_gap - conf.border_width)) /
+			p->first_child->rectangle.x = p->rectangle.x;
+			p->first_child->rectangle.y = p->rectangle.y;
+			p->first_child->rectangle.width =
+				(p->rectangle.width - (conf.window_gap - conf.border_width)) /
 				2;
-			parent->first_child->rectangle.height = parent->rectangle.height;
+			p->first_child->rectangle.height = p->rectangle.height;
 
-			parent->second_child->rectangle.x =
-				(int16_t)(parent->rectangle.x +
-						  parent->first_child->rectangle.width +
+			p->second_child->rectangle.x =
+				(int16_t)(p->rectangle.x + p->first_child->rectangle.width +
 						  conf.window_gap + conf.border_width);
-			parent->second_child->rectangle.y = parent->rectangle.y;
-			parent->second_child->rectangle.width =
-				parent->rectangle.width - parent->first_child->rectangle.width -
+			p->second_child->rectangle.y = p->rectangle.y;
+			p->second_child->rectangle.width =
+				p->rectangle.width - p->first_child->rectangle.width -
 				conf.window_gap - conf.border_width;
-			parent->second_child->rectangle.height = parent->rectangle.height;
+			p->second_child->rectangle.height = p->rectangle.height;
 		} else {
-			parent->first_child->rectangle.x	 = parent->rectangle.x;
-			parent->first_child->rectangle.y	 = parent->rectangle.y;
-			parent->first_child->rectangle.width = parent->rectangle.width;
-			parent->first_child->rectangle.height =
-				(parent->rectangle.height -
-				 (conf.window_gap - conf.border_width)) /
+			p->first_child->rectangle.x		= p->rectangle.x;
+			p->first_child->rectangle.y		= p->rectangle.y;
+			p->first_child->rectangle.width = p->rectangle.width;
+			p->first_child->rectangle.height =
+				(p->rectangle.height - (conf.window_gap - conf.border_width)) /
 				2;
 
-			parent->second_child->rectangle.x = parent->rectangle.x;
-			parent->second_child->rectangle.y =
-				(int16_t)(parent->rectangle.y +
-						  parent->first_child->rectangle.height +
+			p->second_child->rectangle.x = p->rectangle.x;
+			p->second_child->rectangle.y =
+				(int16_t)(p->rectangle.y + p->first_child->rectangle.height +
 						  conf.window_gap + conf.border_width);
-			parent->second_child->rectangle.width = parent->rectangle.width;
-			parent->second_child->rectangle.height =
-				parent->rectangle.height -
-				parent->first_child->rectangle.height - conf.window_gap -
-				conf.border_width;
+			p->second_child->rectangle.width = p->rectangle.width;
+			p->second_child->rectangle.height =
+				p->rectangle.height - p->first_child->rectangle.height -
+				conf.window_gap - conf.border_width;
 		}
-		if (IS_INTERNAL(parent->second_child)) {
-			resize_subtree(parent->second_child);
+		if (IS_INTERNAL(p->second_child)) {
+			resize_subtree(p->second_child);
 		}
-		if (IS_INTERNAL(parent->first_child)) {
-			resize_subtree(parent->first_child);
+		if (IS_INTERNAL(p->first_child)) {
+			resize_subtree(p->first_child);
 		}
 	} else if (state == FLOATING) {
 		if (IS_FLOATING(n->client))
@@ -226,16 +221,16 @@ change_state(arg_t *arg)
 		n->floating_rectangle = rc;
 		_FREE_(g);
 		n->client->state = FLOATING;
-		if (parent) {
-			if (parent->first_child == n) {
-				parent->second_child->rectangle = parent->rectangle;
-				if (IS_INTERNAL(parent->second_child)) {
-					resize_subtree(parent->second_child);
+		if (p) {
+			if (p->first_child == n) {
+				p->second_child->rectangle = p->rectangle;
+				if (IS_INTERNAL(p->second_child)) {
+					resize_subtree(p->second_child);
 				}
 			} else {
-				parent->first_child->rectangle = parent->rectangle;
-				if (IS_INTERNAL(parent->first_child)) {
-					resize_subtree(parent->first_child);
+				p->first_child->rectangle = p->rectangle;
+				if (IS_INTERNAL(p->first_child)) {
+					resize_subtree(p->first_child);
 				}
 			}
 		}

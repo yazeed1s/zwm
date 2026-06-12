@@ -249,11 +249,11 @@ resize_window(xcb_window_t win, uint16_t width, uint16_t height)
 	if (win == 0 || win == XCB_NONE)
 		return 0;
 
-	const uint32_t values[] = {width, height};
-	xcb_cookie_t   cookie =
-		xcb_configure_window_checked(wm->connection, win, RESIZE, values);
+	const uint32_t v[] = {width, height};
+	xcb_cookie_t   c =
+		xcb_configure_window_checked(wm->connection, win, RESIZE, v);
 
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "error resizing window (ID %u): %s",
@@ -273,10 +273,9 @@ move_window(xcb_window_t win, int16_t x, int16_t y)
 		return 0;
 	}
 
-	const uint32_t values[] = {x, y};
-	xcb_cookie_t   cookie =
-		xcb_configure_window_checked(wm->connection, win, MOVE, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	const uint32_t v[] = {x, y};
+	xcb_cookie_t c = xcb_configure_window_checked(wm->connection, win, MOVE, v);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 
 	if (err) {
 		_LOG_(ERROR, "error moving window (ID %u): %d", win, err->error_code);
@@ -295,22 +294,22 @@ send_configure_notify(xcb_window_t win, rectangle_t r, uint16_t bw)
 
 	xcb_configure_notify_event_t ev;
 	memset(&ev, 0, sizeof(ev));
-	ev.response_type	  = XCB_CONFIGURE_NOTIFY;
-	ev.event			  = win;
-	ev.window			  = win;
-	ev.above_sibling	  = XCB_NONE;
-	ev.x				  = r.x;
-	ev.y				  = r.y;
-	ev.width			  = r.width;
-	ev.height			  = r.height;
-	ev.border_width	  = bw;
+	ev.response_type	 = XCB_CONFIGURE_NOTIFY;
+	ev.event			 = win;
+	ev.window			 = win;
+	ev.above_sibling	 = XCB_NONE;
+	ev.x				 = r.x;
+	ev.y				 = r.y;
+	ev.width			 = r.width;
+	ev.height			 = r.height;
+	ev.border_width		 = bw;
 	ev.override_redirect = false;
 
-	xcb_cookie_t c = xcb_send_event_checked(wm->connection,
-											false,
-											win,
-											XCB_EVENT_MASK_STRUCTURE_NOTIFY,
-											(const char *)&ev);
+	xcb_cookie_t c	 = xcb_send_event_checked(wm->connection,
+											  false,
+											  win,
+											  XCB_EVENT_MASK_STRUCTURE_NOTIFY,
+											  (const char *)&ev);
 	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
@@ -329,10 +328,10 @@ apply_window_geometry(xcb_window_t win, rectangle_t r, uint16_t bw)
 	if (win == 0 || win == XCB_NONE)
 		return 0;
 
-	const uint32_t values[] = {r.x, r.y, r.width, r.height};
-	xcb_cookie_t   cookie	= xcb_configure_window_checked(
-		  wm->connection, win, MOVE | RESIZE, values);
-	xcb_error_t *err = xcb_request_check(wm->connection, cookie);
+	const uint32_t v[] = {r.x, r.y, r.width, r.height};
+	xcb_cookie_t   c =
+		xcb_configure_window_checked(wm->connection, win, MOVE | RESIZE, v);
+	xcb_error_t *err = xcb_request_check(wm->connection, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "error configuring window (ID %u): %d",
@@ -401,11 +400,13 @@ change_window_attr(xcb_conn_t  *conn,
 }
 
 int
-configure_window(xcb_conn_t *conn, xcb_window_t win, uint16_t attr, const void *val)
+configure_window(xcb_conn_t	 *conn,
+				 xcb_window_t win,
+				 uint16_t	  attr,
+				 const void	 *val)
 {
-	xcb_cookie_t config_cookie =
-		xcb_configure_window_checked(conn, win, attr, val);
-	xcb_error_t *err = xcb_request_check(conn, config_cookie);
+	xcb_cookie_t c	 = xcb_configure_window_checked(conn, win, attr, val);
+	xcb_error_t *err = xcb_request_check(conn, c);
 	if (err) {
 		_LOG_(ERROR,
 			  "failed to configure window : error code %d",
@@ -417,9 +418,9 @@ configure_window(xcb_conn_t *conn, xcb_window_t win, uint16_t attr, const void *
 }
 
 int
-set_input_focus(xcb_conn_t	  *conn,
-				uint8_t		   revert_to,
-				xcb_window_t   win,
+set_input_focus(xcb_conn_t	   *conn,
+				uint8_t			revert_to,
+				xcb_window_t	win,
 				xcb_timestamp_t time)
 {
 	/* if window is viewable before attempting to set focus */
@@ -427,9 +428,8 @@ set_input_focus(xcb_conn_t	  *conn,
 		return -1;
 	}
 
-	xcb_cookie_t focus_cookie =
-		xcb_set_input_focus_checked(conn, revert_to, win, time);
-	xcb_error_t *err = xcb_request_check(conn, focus_cookie);
+	xcb_cookie_t c	 = xcb_set_input_focus_checked(conn, revert_to, win, time);
+	xcb_error_t *err = xcb_request_check(conn, c);
 	if (err) {
 		char *n = win_name(win);
 		_LOG_(ERROR,
@@ -467,21 +467,21 @@ get_window_under_cursor(xcb_conn_t *conn, xcb_window_t win)
 void
 grab_pointer(xcb_window_t win, bool wants_events)
 {
-	xcb_grab_pointer_reply_t *reply;
-	xcb_grab_pointer_cookie_t cookie = xcb_grab_pointer(wm->connection,
-														wants_events,
-														win,
-														XCB_NONE,
-														XCB_GRAB_MODE_SYNC,
-														XCB_GRAB_MODE_ASYNC,
-														XCB_NONE,
-														XCB_NONE,
-														XCB_CURRENT_TIME);
-	if ((reply = xcb_grab_pointer_reply(wm->connection, cookie, NULL))) {
-		if (reply->status != XCB_GRAB_STATUS_SUCCESS)
+	xcb_grab_pointer_reply_t *r;
+	xcb_grab_pointer_cookie_t c = xcb_grab_pointer(wm->connection,
+												   wants_events,
+												   win,
+												   XCB_NONE,
+												   XCB_GRAB_MODE_SYNC,
+												   XCB_GRAB_MODE_ASYNC,
+												   XCB_NONE,
+												   XCB_NONE,
+												   XCB_CURRENT_TIME);
+	if ((r = xcb_grab_pointer_reply(wm->connection, c, NULL))) {
+		if (r->status != XCB_GRAB_STATUS_SUCCESS)
 			_LOG_(WARNING, "cannot grab the pointer");
 	}
-	_FREE_(reply);
+	_FREE_(r);
 }
 
 void

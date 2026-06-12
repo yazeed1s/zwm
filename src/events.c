@@ -333,8 +333,7 @@ handle_enter_notify(const xcb_event_t *event)
 	/* suppress enter-notify events caused by window mapping floods */
 	if (now < suppress_enter_until_time || now - last_desk_switch_time < 250) {
 #ifdef _DEBUG__
-		_LOG_(DEBUG,
-			  "ignoring enter notify: map-flood cooldown in effect");
+		_LOG_(DEBUG, "ignoring enter notify: map-flood cooldown in effect");
 #endif
 		return 0;
 	}
@@ -758,15 +757,15 @@ handle_client_message(const xcb_event_t *event)
 	case CLIENT_MESSAGE_WINDOW_DESKTOP: {
 		/* this is a request to move window from one destkop to another */
 		_LOG_CLIENT_MESSAGE_(WM_DESKTOP, win, name);
-		uint32_t index = ev->data.data32[0];
+		uint32_t i = ev->data.data32[0];
 		/* if a rule pins this window to a specific desktop, don't let the
-		 * app override placement via _NET_WM_DESKTOP (e.g. Firefox restoring
+		 * app override placement via _NET_WM_DESKTOP (like Firefox restoring
 		 * its last-used desktop on launch). */
-		rule_t	*r	   = get_window_rule(win);
+		rule_t	*r = get_window_rule(win);
 		if (r && r->desktop_id != -1) {
 			break;
 		}
-		result = handle_net_wm_desktop(win, index);
+		result = handle_net_wm_desktop(win, i);
 		break;
 	}
 	case CLIENT_MESSAGE_CLOSE_WINDOW: {
@@ -969,7 +968,7 @@ handle_key_press(const xcb_event_t *event)
 		drag_cancel();
 		return 0;
 	}
-	if (mouse_state.op != MOUSE_OP_NONE && k == XK_Escape) {
+	if (ms.op != MOUSE_OP_NONE && k == XK_Escape) {
 		cancel_mouse_action();
 		return 0;
 	}
@@ -1180,7 +1179,7 @@ handle_motion_notify(const xcb_event_t *event)
 		  ev->event_y);
 #endif
 
-	if (mouse_state.op != MOUSE_OP_NONE) {
+	if (ms.op != MOUSE_OP_NONE) {
 		handle_mouse_motion(ev->root_x, ev->root_y);
 		return 0;
 	}
@@ -1210,7 +1209,7 @@ handle_button_release(const xcb_event_t *event)
 {
 	xcb_button_release_event_t *ev = (xcb_button_release_event_t *)event;
 
-	if (mouse_state.op != MOUSE_OP_NONE) {
+	if (ms.op != MOUSE_OP_NONE) {
 		finish_mouse_action();
 		return 0;
 	}
