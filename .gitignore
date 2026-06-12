@@ -51,5 +51,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-docs/focus_stacking_cleanup_plan.md
-docs/ideas.md
+docs/*.md

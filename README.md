@@ -285,7 +285,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 ```ini
 bind = super + return -> run("alacritty")
 bind = super + space -> run("dmenu_run")
-bind = super + p -> run(["rofi","-show", "drun"])
+bind = super + p -> run(["rofi", "-show", "drun"])
 bind = super + w -> func(kill)
 bind = super + 1 -> func(switch_desktop:1)
 bind = super + 2 -> func(switch_desktop:2)
@@ -329,19 +329,14 @@ bind = super|shift + m -> func(layout:master)
 bind = super|shift + s -> func(layout:stack)
 bind = super|shift + d -> func(layout:default)
 bind = super|shift + c -> func(layout:grid)
+bind = super|shift + o -> func(layout:monocle)
+bind = super|shift + x -> func(layout:three_col)
+bind = super|shift + v -> func(layout:deck)
 bind = super|shift + k -> func(traverse:up)
 bind = super|shift + j -> func(traverse:down)
 bind = super|shift + f -> func(flip)
 bind = super + m -> func(start_keyboard_drag)
 bind = super|shift + r -> func(reload_config)
-```
-
-Additional layouts can be bound in the config:
-
-```ini
-bind = super|shift + o -> func(layout:monocle)
-bind = super|shift + x -> func(layout:three_col)
-bind = super|shift + v -> func(layout:deck)
 ```
 
 More options will be added in the future as development progresses.
@@ -363,6 +358,9 @@ More options will be added in the future as development progresses.
 | `super + shift + s`      | toggle stack layout                        |
 | `super + shift + d`      | toggle default layout                      |
 | `super + shift + c`      | toggle grid layout                         |
+| `super + shift + o`      | toggle monocle layout                      |
+| `super + shift + x`      | toggle three-column layout                 |
+| `super + shift + v`      | toggle deck layout                         |
 | `super + shift + j/k`    | traverse the stack                         |
 | `super + shift + f`      | flip the window/partition                  |
 | `super + shift + r`      | hot-reload                                 |
