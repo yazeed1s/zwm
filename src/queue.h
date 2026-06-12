@@ -34,8 +34,14 @@
 /* clang-format off */
 queue_t *create_queue(void);
 void enqueue(queue_t *q, node_t *n);
+void enqueue_front(queue_t *q, node_t *n);
 node_t *dequeue(queue_t *q);
+node_t *dequeue_rear(queue_t *q);
+node_t *peek_front(queue_t *q);
+node_t *peek_rear(queue_t *q);
+bool remove_node(queue_t *q, node_t *n);
 bool is_queue_empty(queue_t *q);
+size_t get_queue_size(queue_t *q);
 void free_queue(queue_t *q);
 /* clang-format on */
 
