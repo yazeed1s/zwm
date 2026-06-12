@@ -421,7 +421,7 @@ kill_window(xcb_window_t win)
 	}
 
 	if (!another_desktop) {
-		if (render_tree(d->tree) != 0) {
+		if (render_desktop(d) != 0) {
 			_LOG_(ERROR, "cannot render tree");
 			return -1;
 		}
@@ -628,7 +628,10 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 
 	insert_node(n, new_node, d->layout);
 	d->n_count += 1;
-	if (d->layout == STACK || d->layout == MONOCLE || d->layout == DECK) {
+	if (d->layout == MONOCLE || d->layout == DECK) {
+		new_node->is_focused = true;
+		update_focus(d->tree, new_node);
+	} else if (d->layout == STACK) {
 		set_focus(new_node, true);
 	}
 	update_net_wm_desktop(client->window, d->id);
@@ -643,6 +646,9 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 		ret = render_deck(d->tree);
 	else
 		ret = render_tree(d->tree);
+
+	if ((d->layout == MONOCLE || d->layout == DECK) && ret == 0)
+		ret = set_focus(new_node, true);
 
 	restack();
 	return ret;
@@ -728,9 +734,16 @@ handle_floating_window(client_t *client, desktop_t *d)
 		d->n_count += 1;
 		update_net_wm_desktop(client->window, d->id);
 		ewmh_update_client_list();
+		if (d->layout != MONOCLE && d->layout != DECK) {
+			new_node->is_focused = true;
+			update_focus(d->tree, new_node);
+		}
 		client->mru_seq = get_next_mru_seq(curr_monitor);
-		int ret			= render_tree(d->tree);
+		int ret			= render_desktop(d);
+		if (ret == 0)
+			ret = set_focus(new_node, true);
 		restack();
+		raise_window(client->window);
 		return ret;
 	}
 }

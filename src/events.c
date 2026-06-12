@@ -403,6 +403,20 @@ handle_enter_notify(const xcb_event_t *event)
 		return 0;
 	}
 
+	layout_t lay = curr_monitor->desk->layout;
+	if (lay == DECK && n->is_master && IS_TILED(n->client)) {
+		if (win_focus(n->client->window, true) != 0) {
+			_LOG_(ERROR, "cannot focus deck master %d (enter)", n->client->window);
+			return -1;
+		}
+		focused_win = n->client->window;
+		set_active_window_name(win);
+		n->client->mru_seq = get_next_mru_seq(curr_monitor);
+		restack();
+		xcb_flush(wm->connection);
+		return 0;
+	}
+
 	const int r = set_active_window_name(win);
 	if (r != 0) {
 		return 0;
@@ -420,7 +434,6 @@ handle_enter_notify(const xcb_event_t *event)
 			return -1;
 		}
 	} else {
-		layout_t lay = curr_monitor->desk->layout;
 		if (lay == STACK || lay == MONOCLE || lay == DECK) {
 			if (win_focus(n->client->window, true) != 0) {
 				_LOG_(
@@ -444,7 +457,6 @@ handle_enter_notify(const xcb_event_t *event)
 		restack();
 	}
 
-	layout_t lay = curr_monitor->desk->layout;
 	if (lay == MONOCLE)
 		render_monocle(curr_monitor->desk->tree);
 	else if (lay == DECK)

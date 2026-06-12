@@ -47,6 +47,18 @@
 
 static void
 update_focused_desktop(int id);
+static node_t *find_deck_stack_focus(node_t *root);
+
+static void
+remember_desktop_focus(desktop_t *d)
+{
+	if (!d || !d->tree)
+		return;
+
+	node_t *n = get_focused_node(d->tree);
+	if (n && n->client)
+		d->last_focused = n->client->window;
+}
 
 static node_t *
 pick_desktop_focus(desktop_t *d)
@@ -55,17 +67,37 @@ pick_desktop_focus(desktop_t *d)
 		return NULL;
 
 	node_t *n = get_focused_node(d->tree);
-	if (n)
+	if (n && n->client && IS_TILED(n->client))
 		return n;
 
 	if (d->last_focused != XCB_NONE && window_exists(wm->connection,
 													 d->last_focused)) {
 		n = find_node_by_window_id(d->tree, d->last_focused);
-		if (n)
+		if (n && n->client && IS_TILED(n->client))
 			return n;
 	}
 
 	return find_any_leaf(d->tree);
+}
+
+static node_t *
+pick_deck_focus(desktop_t *d)
+{
+	if (!d || !d->tree)
+		return NULL;
+
+	if (d->last_focused != XCB_NONE && window_exists(wm->connection,
+													 d->last_focused)) {
+		node_t *n = find_node_by_window_id(d->tree, d->last_focused);
+		if (n && n->client && IS_TILED(n->client) && !n->is_master)
+			return n;
+	}
+
+	node_t *n = get_focused_node(d->tree);
+	if (n && n->client && IS_TILED(n->client) && !n->is_master)
+		return n;
+
+	return find_deck_stack_focus(d->tree);
 }
 
 static node_t *
@@ -248,7 +280,8 @@ switch_desktop(const int nd)
 		return 0;
 	}
 
-	node_t	  *tree_to_hide	  = curr_monitor->desk->tree;
+	desktop_t *old_desktop	  = curr_monitor->desk;
+	node_t	  *tree_to_hide	  = old_desktop->tree;
 	node_t	  *tree_to_show	  = curr_monitor->desktops[nd]->tree;
 	desktop_t *target_desktop = curr_monitor->desktops[nd];
 
@@ -262,6 +295,7 @@ switch_desktop(const int nd)
 #ifdef _DEBUG__
 	_LOG_(DEBUG, "[SWITCH_DESKTOP] updating focused desktop to %d", nd);
 #endif
+	remember_desktop_focus(old_desktop);
 	update_focused_desktop(nd);
 
 #ifdef _DEBUG__
@@ -318,12 +352,9 @@ switch_desktop(const int nd)
 	}
 
 	if (target_desktop->layout == MONOCLE || target_desktop->layout == DECK) {
-		node_t *n = pick_desktop_focus(target_desktop);
-		if (target_desktop->layout == DECK && n && n->is_master) {
-			node_t *deck_focus = find_deck_stack_focus(tree_to_show);
-			if (deck_focus)
-				n = deck_focus;
-		}
+		node_t *n = target_desktop->layout == DECK
+						? pick_deck_focus(target_desktop)
+						: pick_desktop_focus(target_desktop);
 		if (n) {
 			n->is_focused = true;
 			update_focus(tree_to_show, n);

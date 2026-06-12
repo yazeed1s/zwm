@@ -739,6 +739,19 @@ render_floating(node_t *root)
 	render_floating(root->second_child);
 }
 
+static void
+raise_floating(node_t *root)
+{
+	if (!root)
+		return;
+	if (IS_EXTERNAL(root) && root->client && IS_FLOATING(root->client)) {
+		raise_window(root->client->window);
+		return;
+	}
+	raise_floating(root->first_child);
+	raise_floating(root->second_child);
+}
+
 /*  monocle  */
 
 static void
@@ -786,6 +799,7 @@ render_monocle(node_t *root)
 	}
 	render_monocle(root->first_child);
 	render_monocle(root->second_child);
+	raise_floating(root);
 	return 0;
 }
 
@@ -978,6 +992,7 @@ render_deck(node_t *r)
 	}
 
 	render_floating(r);
+	raise_floating(r);
 	return 0;
 }
 

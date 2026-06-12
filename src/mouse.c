@@ -321,9 +321,11 @@ start_tiled_resize(node_t *n, int16_t x, int16_t y)
 				return false;
 			}
 		} else {
-			const int16_t split_edge =
+			const int16_t master_edge = (int16_t)(root->rectangle.x + mw);
+			const int16_t deck_edge =
 				(int16_t)(root->rectangle.x + mw + gap + bw);
-			if (x < split_edge - edge || x > split_edge + edge)
+			if (!((x >= master_edge - edge && x <= master_edge + edge) ||
+				  (x >= deck_edge - edge && x <= deck_edge + edge)))
 				return false;
 		}
 
