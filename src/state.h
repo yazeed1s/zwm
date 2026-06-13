@@ -26,23 +26,37 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_QUEUE_H
-#define ZWM_QUEUE_H
+#ifndef ZWM_STATE_H
+#define ZWM_STATE_H
 
 #include "type.h"
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <xcb/xcb_cursor.h>
+#include <xcb/xproto.h>
 
 /* clang-format off */
-queue_t *create_queue(void);
-void enqueue(queue_t *q, node_t *n);
-void enqueue_front(queue_t *q, node_t *n);
-node_t *dequeue(queue_t *q);
-node_t *dequeue_rear(queue_t *q);
-node_t *peek_front(queue_t *q);
-node_t *peek_rear(queue_t *q);
-bool remove_node(queue_t *q, node_t *n);
-bool is_queue_empty(queue_t *q);
-size_t get_queue_size(queue_t *q);
-void free_queue(queue_t *q);
+extern wm_t                 *wm;
+extern monitor_t            *prim_monitor;
+extern monitor_t            *curr_monitor;
+extern monitor_t            *head_monitor;
+extern strut_win_node_t     *strut_windows;
+extern xcb_cursor_context_t *cursor_ctx;
+extern xcb_window_t          focused_win;
+extern xcb_window_t          meta_window;
+extern bool                  is_kgrabbed;
+extern bool                  using_xrandr;
+extern bool                  multi_monitors;
+extern bool                  using_xinerama;
+extern bool                  ignore_ewmh_struts;
+extern config_t              conf;
+extern volatile sig_atomic_t should_shutdown;
+extern uint8_t               randr_base;
+extern uint64_t              last_desk_switch_time;
+extern uint64_t              suppress_enter_until_time;
+extern xcb_cursor_t          cursors[CURSOR_MAX];
+extern mouse_state_t         ms;
 /* clang-format on */
 
-#endif /* ZWM_QUEUE_H */
+#endif /* ZWM_STATE_H */

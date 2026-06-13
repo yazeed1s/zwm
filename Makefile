@@ -6,11 +6,20 @@ LDFLAGS = -Wl,--as-needed -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm 
 
 TARGET = zwm
 SRC_DIR = ./src
-SRC_FILES = $(SRC_DIR)/zwm.c $(SRC_DIR)/logger.c $(SRC_DIR)/tree.c \
-            $(SRC_DIR)/config_parser.c $(SRC_DIR)/queue.c $(SRC_DIR)/drag.c
-HEADER_FILES = $(SRC_DIR)/logger.h $(SRC_DIR)/tree.h $(SRC_DIR)/type.h \
-               $(SRC_DIR)/zwm.h $(SRC_DIR)/config_parser.h $(SRC_DIR)/helper.h \
-               $(SRC_DIR)/queue.h $(SRC_DIR)/drag.h
+SRC_FILES = $(SRC_DIR)/actions.c $(SRC_DIR)/bindings.c $(SRC_DIR)/client.c \
+            $(SRC_DIR)/config_parser.c $(SRC_DIR)/cursor.c $(SRC_DIR)/desktop.c \
+            $(SRC_DIR)/drag.c $(SRC_DIR)/events.c $(SRC_DIR)/ewmh.c \
+            $(SRC_DIR)/focus.c $(SRC_DIR)/logger.c $(SRC_DIR)/monitor.c \
+            $(SRC_DIR)/mouse.c $(SRC_DIR)/queue.c $(SRC_DIR)/stacking.c \
+            $(SRC_DIR)/state.c $(SRC_DIR)/tree.c $(SRC_DIR)/layout.c $(SRC_DIR)/xcb_util.c \
+            $(SRC_DIR)/view.c $(SRC_DIR)/zwm.c
+HEADER_FILES = $(SRC_DIR)/actions.h $(SRC_DIR)/bindings.h $(SRC_DIR)/client.h \
+               $(SRC_DIR)/config_parser.h $(SRC_DIR)/cursor.h $(SRC_DIR)/desktop.h \
+               $(SRC_DIR)/drag.h $(SRC_DIR)/events.h $(SRC_DIR)/ewmh.h \
+               $(SRC_DIR)/focus.h $(SRC_DIR)/helper.h $(SRC_DIR)/logger.h \
+               $(SRC_DIR)/monitor.h $(SRC_DIR)/mouse.h $(SRC_DIR)/queue.h \
+               $(SRC_DIR)/stacking.h $(SRC_DIR)/state.h $(SRC_DIR)/tree.h $(SRC_DIR)/layout.h \
+               $(SRC_DIR)/type.h $(SRC_DIR)/xcb_util.h  $(SRC_DIR)/layout.h $(SRC_DIR)/view.h
 OBJ_FILES = $(SRC_FILES:.c=.o)
 
 PREFIX = /usr
@@ -32,6 +41,7 @@ release: LDFLAGS += -flto=auto -Wl,--gc-sections -s
 release: clean $(TARGET)
 
 debug: CFLAGS += $(DEBUG_FLAGS) -O0 -Wno-unused-variable -Wno-unused-function
+debug: LDFLAGS += -lxcb-cursor
 debug: clean $(TARGET)
 
 gdb: CFLAGS += $(GDB_FLAGS)
@@ -63,6 +73,7 @@ install: clean release
 	cp -pf $(MANPAGE) "$(DESTDIR)$(MANDIR)"
 	mkdir -p "$(DESTDIR)$(DATADIR)"
 	cp -pf $(TEMPLATE) "$(DESTDIR)$(DATADIR)"
+	$(MAKE) clean
 
 uninstall:
 	rm -f "$(DESTDIR)$(BINDIR)/$(TARGET)"

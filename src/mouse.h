@@ -26,23 +26,29 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_QUEUE_H
-#define ZWM_QUEUE_H
+#ifndef ZWM_MOUSE_H
+#define ZWM_MOUSE_H
 
 #include "type.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <xcb/xproto.h>
 
 /* clang-format off */
-queue_t *create_queue(void);
-void enqueue(queue_t *q, node_t *n);
-void enqueue_front(queue_t *q, node_t *n);
-node_t *dequeue(queue_t *q);
-node_t *dequeue_rear(queue_t *q);
-node_t *peek_front(queue_t *q);
-node_t *peek_rear(queue_t *q);
-bool remove_node(queue_t *q, node_t *n);
-bool is_queue_empty(queue_t *q);
-size_t get_queue_size(queue_t *q);
-void free_queue(queue_t *q);
+void clear_mouse_state(void);
+bool grab_pointer_for_mouse(cursor_t cursor_id);
+double clamp_ratio(double ratio);
+uint8_t detect_resize_edges(rectangle_t r, int16_t x, int16_t y);
+bool is_resize_band_hit(node_t *parent, split_type_t split_type, int16_t x, int16_t y);
+bool start_floating_move(node_t *n, int16_t x, int16_t y);
+bool start_floating_resize(node_t *n, int16_t x, int16_t y);
+bool start_tiled_resize(node_t *n, int16_t x, int16_t y);
+void handle_mouse_motion(int16_t x, int16_t y);
+void finish_mouse_action(void);
+void cancel_mouse_action(void);
+void window_grab_buttons(xcb_window_t win);
+void window_ungrab_buttons(xcb_window_t win);
+void ungrab_buttons_for_all(node_t *n);
 /* clang-format on */
 
-#endif /* ZWM_QUEUE_H */
+#endif /* ZWM_MOUSE_H */

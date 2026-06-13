@@ -26,23 +26,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_QUEUE_H
-#define ZWM_QUEUE_H
+#ifndef ZWM_EVENTS_H
+#define ZWM_EVENTS_H
 
 #include "type.h"
 
 /* clang-format off */
-queue_t *create_queue(void);
-void enqueue(queue_t *q, node_t *n);
-void enqueue_front(queue_t *q, node_t *n);
-node_t *dequeue(queue_t *q);
-node_t *dequeue_rear(queue_t *q);
-node_t *peek_front(queue_t *q);
-node_t *peek_rear(queue_t *q);
-bool remove_node(queue_t *q, node_t *n);
-bool is_queue_empty(queue_t *q);
-size_t get_queue_size(queue_t *q);
-void free_queue(queue_t *q);
+void event_loop(wm_t *w);
 /* clang-format on */
 
-#endif /* ZWM_QUEUE_H */
+#endif /* ZWM_EVENTS_H */

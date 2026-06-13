@@ -39,6 +39,7 @@ create_queue(void)
 	if (!q)
 		return NULL;
 	q->front = q->rear = NULL;
+	q->size = 0;
 	return q;
 }
 
@@ -50,12 +51,32 @@ enqueue(queue_t *q, node_t *n)
 		return;
 	nnode->tree_node = n;
 	nnode->next		 = NULL;
+	nnode->prev      = q->rear;
 	if (!q->rear) {
 		q->front = q->rear = nnode;
-		return;
+	} else {
+		q->rear->next = nnode;
+		q->rear		  = nnode;
 	}
-	q->rear->next = nnode;
-	q->rear		  = nnode;
+	q->size++;
+}
+
+void
+enqueue_front(queue_t *q, node_t *n)
+{
+	queue_node_t *nnode = (queue_node_t *)malloc(sizeof(queue_node_t));
+	if (!nnode)
+		return;
+	nnode->tree_node = n;
+	nnode->next		 = q->front;
+	nnode->prev      = NULL;
+	if (!q->front) {
+		q->front = q->rear = nnode;
+	} else {
+		q->front->prev = nnode;
+		q->front = nnode;
+	}
+	q->size++;
 }
 
 node_t *
@@ -68,14 +89,79 @@ dequeue(queue_t *q)
 	q->front		   = q->front->next;
 	if (!q->front)
 		q->rear = NULL;
+	else
+		q->front->prev = NULL;
 	free(temp);
+	q->size--;
 	return node;
+}
+
+node_t *
+dequeue_rear(queue_t *q)
+{
+	if (!q->rear)
+		return NULL;
+	queue_node_t *temp = q->rear;
+	node_t		 *node = temp->tree_node;
+	q->rear		       = q->rear->prev;
+	if (!q->rear)
+		q->front = NULL;
+	else
+		q->rear->next = NULL;
+	free(temp);
+	q->size--;
+	return node;
+}
+
+node_t *
+peek_front(queue_t *q)
+{
+	if (!q->front) return NULL;
+	return q->front->tree_node;
+}
+
+node_t *
+peek_rear(queue_t *q)
+{
+	if (!q->rear) return NULL;
+	return q->rear->tree_node;
+}
+
+bool
+remove_node(queue_t *q, node_t *n)
+{
+	queue_node_t *curr = q->front;
+	while (curr) {
+		if (curr->tree_node == n) {
+			if (curr->prev)
+				curr->prev->next = curr->next;
+			else
+				q->front = curr->next;
+			
+			if (curr->next)
+				curr->next->prev = curr->prev;
+			else
+				q->rear = curr->prev;
+
+			free(curr);
+			q->size--;
+			return true;
+		}
+		curr = curr->next;
+	}
+	return false;
 }
 
 bool
 is_queue_empty(queue_t *q)
 {
 	return q->front == NULL;
+}
+
+size_t
+get_queue_size(queue_t *q)
+{
+	return q->size;
 }
 
 void

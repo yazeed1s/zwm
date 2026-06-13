@@ -26,9 +26,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "config_parser.h"
+#include "actions.h"
 #include "helper.h"
+#include "state.h"
 #include "type.h"
-#include "zwm.h"
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -50,10 +51,6 @@
 #define CONF_PATH	  ".config/zwm/zwm.conf"
 #define TEMPLATE_PATH "/usr/share/zwm/zwm.conf"
 #endif
-#define ALT	  XCB_MOD_MASK_1
-#define SUPER XCB_MOD_MASK_4
-#define SHIFT XCB_MOD_MASK_SHIFT
-#define CTRL  XCB_MOD_MASK_CONTROL
 
 typedef enum {
 	WHITE_SPACE,
@@ -567,6 +564,12 @@ set_key_args(conf_key_t *key, char *func, char *arg)
 			key->arg->t = GRID;
 		} else if (strcmp(arg, "stack") == 0) {
 			key->arg->t = STACK;
+		} else if (strcmp(arg, "monocle") == 0) {
+			key->arg->t = MONOCLE;
+		} else if (strcmp(arg, "three_col") == 0) {
+			key->arg->t = THREE_COL;
+		} else if (strcmp(arg, "deck") == 0) {
+			key->arg->t = DECK;
 		}
 	} else if (strcmp(func, "cycle_desktop") == 0) {
 		if (strcmp(arg, "left") == 0) {

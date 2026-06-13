@@ -26,23 +26,22 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef ZWM_QUEUE_H
-#define ZWM_QUEUE_H
+#ifndef ZWM_BINDINGS_H
+#define ZWM_BINDINGS_H
 
 #include "type.h"
+#include <xcb/xcb_keysyms.h>
+#include <xcb/xproto.h>
 
 /* clang-format off */
-queue_t *create_queue(void);
-void enqueue(queue_t *q, node_t *n);
-void enqueue_front(queue_t *q, node_t *n);
-node_t *dequeue(queue_t *q);
-node_t *dequeue_rear(queue_t *q);
-node_t *peek_front(queue_t *q);
-node_t *peek_rear(queue_t *q);
-bool remove_node(queue_t *q, node_t *n);
-bool is_queue_empty(queue_t *q);
-size_t get_queue_size(queue_t *q);
-void free_queue(queue_t *q);
+extern const _key__t _keys_[];
+extern const size_t  _keys_len;
+int grab_keys(xcb_conn_t *conn, xcb_window_t win);
+void ungrab_keys(xcb_conn_t *conn, xcb_window_t win);
+xcb_keycode_t *get_keycode(xcb_keysym_t keysym, xcb_conn_t *conn);
+xcb_keysym_t get_keysym(xcb_keycode_t keycode, xcb_connection_t *conn);
+int16_t modfield_from_keysym(xcb_keysym_t keysym);
+void grab_super_button(xcb_window_t win, uint8_t button);
 /* clang-format on */
 
-#endif /* ZWM_QUEUE_H */
+#endif /* ZWM_BINDINGS_H */

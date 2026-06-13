@@ -1,22 +1,42 @@
-.TH ZWM 1 "August 2024" "1.0" "ZWM Manual"
+.TH ZWM 1 "June 2026" "1.0" "ZWM Manual"
 .SH NAME
-ZWM
-
+zwm \- minimal X11 tiling window manager
 .SH SYNOPSIS
 .B zwm
-[\fIOPTIONS\fR]
-
 .SH DESCRIPTION
 .B zwm
-is a minimalistic and opinionated tiling window manager for X11. It uses XCB for communication with the X server and employs a customized BSP tree for managing windows.
-
+is a minimal and opinionated tiling window manager for X11.
+It uses XCB for communication with the X server and manages tiled windows with
+a customized binary space partitioning tree.
+.PP
+ZWM supports keyboard-driven window management, mouse-assisted movement and
+resizing, EWMH integration for panels, configurable window rules, multiple
+virtual desktops, hot configuration reloads, and the default, master, stack,
+grid, monocle, three-column, and deck layouts.
+.SH OPTIONS
+ZWM currently takes no command-line options.
 .SH CONFIGURATION
-A configuration file is generated on first run and located at:
-.TP
-~/.config/zwm/zwm.conf
-
-.TP
-Configuration variables:
+On first run, ZWM creates a configuration file at:
+.PP
+.RS
+.B ~/.config/zwm/zwm.conf
+.RE
+.PP
+The installed template is normally located at:
+.PP
+.RS
+.B /usr/share/zwm/zwm.conf
+.RE
+.SS Startup commands
+Run a command when ZWM starts:
+.PP
+.nf
+exec = "polybar"
+exec = ["polybar", "-c", ".config/polybar/config.ini"]
+.fi
+.SS Variables
+The default configuration uses these variables:
+.PP
 .nf
 border_width = 2
 active_border_color = 0x4a4a48
@@ -24,27 +44,146 @@ normal_border_color = 0x30302f
 window_gap = 10
 virtual_desktops = 7
 focus_follow_pointer = true
+focus_follow_spawn = false
+restore_last_focus = false
 .fi
-
 .TP
-Commands to run on startup:
-.nf
-exec = "polybar"
-exec = ["polybar", "-c", ".config/polybar/config.ini"]
-.fi
-
+.B border_width
+Width of the focused and unfocused window border in pixels.
 .TP
-Custom window rules:
+.B active_border_color
+Focused window border color, written as a hexadecimal RGB value.
+.TP
+.B normal_border_color
+Unfocused window border color, written as a hexadecimal RGB value.
+.TP
+.B window_gap
+Gap between tiled windows in pixels.
+.TP
+.B virtual_desktops
+Number of virtual desktops.
+.TP
+.B focus_follow_pointer
+When true, focus follows pointer enter events. When false, windows are focused
+by click or key actions.
+.TP
+.B focus_follow_spawn
+When true, newly spawned windows automatically receive focus.
+.TP
+.B restore_last_focus
+When true, ZWM restores the previously focused window when switching desktops
+if the target desktop layout is not stack.
+.SS Window rules
+Window rules match a window class and set the initial window state and desktop.
+Use
+.BR xprop (1)
+to inspect a window's class.
+.PP
 .nf
 rule = wm_class("window class name"), state(tiled|floated), desktop(1..N)
+rule = wm_class("firefox"), state(tiled), desktop(-1)
 .fi
-
+.PP
+Use
+.B desktop(-1)
+to leave the window on its current desktop.
+.SS Key binding syntax
+Key bindings use this form:
+.PP
+.nf
+bind = modifier + key -> action
+.fi
+.PP
+Two modifiers are combined with a pipe:
+.PP
+.nf
+bind = super|shift + c -> func(layout:grid)
+.fi
+.PP
+Supported modifiers are
+.BR super ,
+.BR alt ,
+.BR shift ,
+and
+.BR ctrl .
+Supported key names are
+.BR 0-9 ,
+.BR a-z ,
+.BR space ,
+.BR return ,
+.BR left ,
+.BR up ,
+.BR right ,
+and
+.BR down .
+.SS Actions
 .TP
-Key bindings:
+.B run(...)
+Execute a program. A single string runs one command; a list passes arguments.
+.TP
+.B func(kill)
+Kill or close the focused window.
+.TP
+.B func(switch_desktop:N)
+Switch to desktop
+.IR N .
+.TP
+.B func(resize:grow|shrink)
+Grow or shrink the focused tiled split, or the main split in deck and
+three-column layouts.
+.TP
+.B func(fullscreen)
+Toggle fullscreen for the focused window.
+.TP
+.B func(swap)
+Swap the focused window with its sibling.
+.TP
+.B func(cycle_window:up|right|left|down)
+Move focus in the requested direction.
+.TP
+.B func(cycle_monitors:next|prev)
+Move focus between monitors.
+.TP
+.B func(shift_window:up|right|left|down)
+Move a floating window by 10 pixels.
+.TP
+.B func(grow_floating_window:horizontal|vertical)
+Grow a floating window on the requested axis.
+.TP
+.B func(shrink_floating_window:horizontal|vertical)
+Shrink a floating window on the requested axis.
+.TP
+.B func(change_state:tile|float)
+Set the focused window to tiled or floating state.
+.TP
+.B func(cycle_desktop:left|right)
+Cycle through virtual desktops.
+.TP
+.B func(transfer_node:N)
+Move the focused window to desktop
+.IR N .
+.TP
+.B func(layout:master|stack|default|grid|monocle|three_col|deck)
+Switch the current desktop layout.
+.TP
+.B func(traverse:up|down)
+Traverse windows in stack, monocle, or deck layouts.
+.TP
+.B func(flip)
+Flip the focused window or partition orientation.
+.TP
+.B func(start_keyboard_drag)
+Enter keyboard-driven drag mode for tiled windows.
+.TP
+.B func(reload_config)
+Reload the configuration file without restarting ZWM.
+.SH DEFAULT KEY BINDINGS
+The default bindings in the installed configuration and built-in fallback table are:
+.PP
 .nf
 bind = super + return -> run("alacritty")
 bind = super + space -> run("dmenu_run")
-bind = super + p -> run(["rofi","-show", "drun"])
+bind = super + p -> run(["rofi", "-show", "drun"])
 bind = super + w -> func(kill)
 bind = super + 1 -> func(switch_desktop:1)
 bind = super + 2 -> func(switch_desktop:2)
@@ -63,14 +202,20 @@ bind = super + up -> func(cycle_window:up)
 bind = super + right -> func(cycle_window:right)
 bind = super + left -> func(cycle_window:left)
 bind = super + down -> func(cycle_window:down)
-bind = shift + up -> func(shift_window:up)
-bind = shift + right -> func(shift_window:right)
-bind = shift + left -> func(shift_window:left)
-bind = shift + down -> func(shift_window:down)
-bind = shift + t -> func(change_state:tile)
-bind = shift + f -> func(change_state:float)
-bind = super|shift + left -> func(cycle_desktop:left)
-bind = super|shift + right -> func(cycle_desktop:right)
+bind = super|shift + up -> func(shift_window:up)
+bind = super|shift + right -> func(shift_window:right)
+bind = super|shift + left -> func(shift_window:left)
+bind = super|shift + down -> func(shift_window:down)
+bind = super|alt + f -> func(change_state:float)
+bind = super|alt + t -> func(change_state:tile)
+bind = super|shift + t -> func(shrink_floating_window:horizontal)
+bind = super|shift + g -> func(shrink_floating_window:vertical)
+bind = super|shift + y -> func(grow_floating_window:horizontal)
+bind = super|shift + h -> func(grow_floating_window:vertical)
+bind = super|alt + left -> func(cycle_desktop:left)
+bind = super|alt + right -> func(cycle_desktop:right)
+bind = super|ctrl + right -> func(cycle_monitors:next)
+bind = super|ctrl + left -> func(cycle_monitors:prev)
 bind = super|shift + 1 -> func(transfer_node:1)
 bind = super|shift + 2 -> func(transfer_node:2)
 bind = super|shift + 3 -> func(transfer_node:3)
@@ -81,97 +226,102 @@ bind = super|shift + 7 -> func(transfer_node:7)
 bind = super|shift + m -> func(layout:master)
 bind = super|shift + s -> func(layout:stack)
 bind = super|shift + d -> func(layout:default)
+bind = super|shift + c -> func(layout:grid)
+bind = super|shift + o -> func(layout:monocle)
+bind = super|shift + x -> func(layout:three_col)
+bind = super|shift + v -> func(layout:deck)
 bind = super|shift + k -> func(traverse:up)
 bind = super|shift + j -> func(traverse:down)
 bind = super|shift + f -> func(flip)
+bind = super + m -> func(start_keyboard_drag)
 bind = super|shift + r -> func(reload_config)
 .fi
-
-.SH DEFAULT KEYBINDINGS
-.TP
-.B super + w
- \- Kill/close window
+.SS Default binding summary
 .TP
 .B super + return
- \- Launch terminal (alacritty)
+Launch a terminal with
+.BR alacritty .
 .TP
 .B super + space
- \- Launch dmenu
+Launch
+.BR dmenu_run .
 .TP
 .B super + p
- \- Launch rofi
+Launch rofi's drun mode.
 .TP
-.B super + [1..N]
- \- Switch desktop
+.B super + w
+Kill or close the focused window.
 .TP
-.B super + l
- \- Resize window (grow/expand)
+.B super + 1..7
+Switch desktops.
 .TP
-.B super + h
- \- Resize window (shrink)
+.B super + shift + 1..7
+Move the focused window to a desktop.
+.TP
+.B super + left/right/up/down
+Focus a window in the requested direction.
+.TP
+.B super + shift + left/right/up/down
+Move a floating window by 10 pixels.
+.TP
+.B super + ctrl + right/left
+Cycle monitors next or previous.
+.TP
+.B super + alt + right/left
+Cycle desktops right or left.
+.TP
+.B super + alt + t/f
+Tile or float the focused window.
+.TP
+.B super + l/h
+Grow or shrink the focused split.
+.TP
+.B super + i/d
+Increase or decrease window gaps.
 .TP
 .B super + f
- \- Toggle fullscreen
+Toggle fullscreen.
 .TP
-.B super + shift + [1..N]
- \- Transfer window to a different desktop
+.B super + s
+Swap the focused window with its sibling.
 .TP
-.B super + shift + m
- \- Toggle master layout
-.TP
-.B super + shift + s
- \- Toggle stack layout
-.TP
-.B super + shift + d
- \- Toggle default layout
+.B super + shift + m/s/d/c/o/x/v
+Switch to master, stack, default, grid, monocle, three-column, or deck layout.
 .TP
 .B super + shift + j/k
- \- Traverse the stack
+Traverse stack-like layouts.
+.TP
+.B super + shift + y/h
+Grow a floating window horizontally or vertically.
+.TP
+.B super + shift + t/g
+Shrink a floating window horizontally or vertically.
 .TP
 .B super + shift + f
- \- Flip window/partition
+Flip the focused window or partition.
+.TP
+.B super + m
+Start keyboard-driven drag mode.
 .TP
 .B super + shift + r
- \- Hot-reload configuration
+Reload the configuration file.
+.SH MOUSE AND KEYBOARD CONTROL
 .TP
-.B super + ←
- \- Focus window on the left
+.B super + button1
+Move a floating window, or drag a tiled window to another partition.
 .TP
-.B super + ↑
- \- Focus window above
-.TP
-.B super + →
- \- Focus window on the right
-.TP
-.B super + ↓
- \- Focus window below
-.TP
-.B shift + ←
- \- Shift window to the left by 10px
-.TP
-.B shift + ↑
- \- Shift window up by 10px
-.TP
-.B shift + →
- \- Shift window to the right by 10px
-.TP
-.B shift + ↓
- \- Shift window down by 10px
-.TP
-.B shift + t
- \- Tile window
-.TP
-.B shift + f
- \- Float window
-.TP
-.B super + i
- \- Increase window gaps by 5px
-.TP
-.B super + d
- \- Decrease window gaps by 5px
-
-.SH EWMH SPECIFIC SETTINGS FOR POLYBAR
-To display the window name (CLASS_NAME):
+.B super + button3
+Resize a floating window, resize default-layout tiled split edges, or resize
+the main split in deck and three-column layouts.
+.PP
+In keyboard drag mode, use the arrow keys to move a tiled window and
+.B Escape
+to cancel the active drag.
+.SH EWMH AND POLYBAR
+ZWM exposes EWMH state for panels such as
+.BR polybar (1).
+For example, a window title module can use:
+.PP
 .nf
 [module/xwindow]
 type = internal/xwindow
@@ -180,8 +330,9 @@ label = %title%
 label-maxlen = 50
 label-empty = "[null]"
 .fi
-
-To display workspaces:
+.PP
+An EWMH workspace module can use:
+.PP
 .nf
 [module/ewmh]
 type = internal/xworkspaces
@@ -199,16 +350,19 @@ label-empty-foreground = ${colors.gray}
 label-empty-padding = 1
 label-separator = " "
 .fi
-
-.SH CONTRIBUTING
-To contribute to
+.SH FILES
+.TP
+.B ~/.config/zwm/zwm.conf
+User configuration file.
+.TP
+.B /usr/share/zwm/zwm.conf
+Installed default configuration template.
+.SH EXIT STATUS
 .B zwm
-or fix a bug, please submit a pull request on GitHub.
-
+returns zero on normal termination and non-zero if startup fails.
+.SH BUGS
+Report bugs and send patches through the project's GitHub repository.
 .SH SEE ALSO
-.B polybar
-(1),
-.B bspwm
-(1),
-.B xprop
-(1)
+.BR xprop (1),
+.BR polybar (1),
+.BR bspwm (1)

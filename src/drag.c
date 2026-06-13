@@ -27,15 +27,19 @@
  */
 
 #include "drag.h"
+#include "cursor.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <xcb/xcb.h>
 
 #include "helper.h"
+#include "state.h"
 #include "tree.h"
+#include "layout.h"
 #include "type.h"
-#include "zwm.h"
+#include "view.h"
+#include "xcb_util.h"
 
 drag_state_t ds = {0};
 /* clang-format off */
@@ -58,8 +62,8 @@ apply_preview_layout(node_t *root)
 			const rectangle_t r = IS_FLOATING(root->client)
 									  ? root->floating_rectangle
 									  : root->rectangle;
-			resize_window(root->client->window, r.width, r.height);
-			move_window(root->client->window, r.x, r.y);
+			apply_window_geometry(
+				root->client->window, r, conf.border_width);
 		}
 		return;
 	}
@@ -166,7 +170,10 @@ drag_move(int16_t x, int16_t y)
 	/* center the window on the cursor */
 	int16_t new_x = x - (ds.original_rect.width / 2);
 	int16_t new_y = y - (ds.original_rect.height / 2);
-	move_window(ds.window, new_x, new_y);
+	rectangle_t r = ds.original_rect;
+	r.x			  = new_x;
+	r.y			  = new_y;
+	apply_window_geometry(ds.window, r, conf.border_width);
 
 	return 0;
 }
@@ -198,7 +205,7 @@ drag_end(int16_t x, int16_t y)
 
 	insert_node(target, ds.src_node, curr_monitor->desk->layout);
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
-	render_tree(curr_monitor->desk->tree);
+	view_render_desktop(curr_monitor->desk);
 
 cleanup:
 	ungrab_pointer();
@@ -242,35 +249,6 @@ drag_cancel(void)
 	xcb_flush(wm->connection);
 
 	return 0;
-}
-
-/* wrapper to start dragging via keyboard shortcut */
-int
-start_keyboard_drag_wrapper(arg_t *arg)
-{
-	(void)arg;
-
-	if (!curr_monitor || !curr_monitor->desk)
-		return -1;
-
-	node_t *root = curr_monitor->desk->tree;
-	node_t *n	 = get_focused_node(root);
-
-	if (!n || !n->client) {
-		_LOG_(WARNING, "no focused window to drag");
-		return -1;
-	}
-
-	/* assume we want to drag from the center of the focused window */
-	int16_t cx = n->rectangle.x + n->rectangle.width / 2;
-	int16_t cy = n->rectangle.y + n->rectangle.height / 2;
-
-	/* warp the mouse to the center so the drag feels as smoth as possible */
-	xcb_warp_pointer(
-		wm->connection, XCB_NONE, wm->root_window, 0, 0, 0, 0, cx, cy);
-	xcb_flush(wm->connection);
-
-	return drag_start(n->client->window, cx, cy, true);
 }
 
 static void

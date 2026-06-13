@@ -7,7 +7,7 @@ zwm is a minimalistic and opinionated tiling window manager for X11. It uses XCB
 ## Features
 
 - Compliance with a subset of [ewmh](https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html) and [icccm](https://www.x.org/releases/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html)
-- Multiple Layouts (default, master, stack, grid).
+- Multiple layouts: default, master, stack, grid, monocle, three-column, and deck.
 - Multiple virtual desktops.
 - Multi-monitor support.
 - Independent workspaces for each monitor by default.
@@ -186,6 +186,16 @@ restore_last_focus = false
 - **focus_follow_spawn**: If false, new windows require manual focus (e.g., via click); if true, newly spawned windows will automatically receive focus.
 - **restore_last_focus**: If true, ZWM will restore the previously focused window when switching to a desktop, only if that desktop’s layout is not set to stack.
 
+### Layouts
+
+- **default**: Manual BSP tiling. New windows split the focused partition.
+- **master**: One selected master window with the remaining windows arranged in the stack area.
+- **stack**: All tiled windows occupy the same rectangle; use stack traversal to cycle focus.
+- **grid**: Tiled windows are distributed into an automatic grid.
+- **monocle**: One tiled window is visible at a time. Other tiled windows are unmapped; floating windows remain visible.
+- **three_col**: The window under the cursor becomes the center column when the layout is selected. Other tiled windows are split between the left and right columns. The center column can be resized with `resize:grow`/`resize:shrink` or mouse resize.
+- **deck**: The window under the cursor becomes the left master when the layout is selected. Other tiled windows share the right deck area; stack traversal cycles only through the deck windows. The master/deck split can be resized with `resize:grow`/`resize:shrink` or mouse resize.
+
 ### 2- Commands to run on startup
 
 ##### Use the `exec` directive to specify programs that should be started when ZWM is launched.
@@ -255,8 +265,8 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
     - **fullscreen**: Toggles fullscreen mode for the focused window.
     - **swap**: Swaps the focused window with its sibling.
     - **transfer_node**: Moves the focused window to another virtual desktop.
-    - **layout**: Toggles the specified layout (master, default, stack).
-    - **traverse**: (In stack layout only) Moves focus to the window above or below.
+    - **layout**: Toggles the specified layout (master, default, stack, grid, monocle, three_col, deck).
+    - **traverse**: In stack/monocle/deck layouts, moves focus to the previous or next stacked window. In deck, traversal skips the master and cycles through the deck area.
     - **flip**: Changes the window's orientation; if the window is primarily vertical, it becomes horizontal, and vice versa.
     - **cycle_window**: Moves focus to the window in the specified direction (up, down, left, right).
     - **cycle_desktop**: Cycles through the virtual desktops (left, right).
@@ -275,7 +285,7 @@ rule = wm_class("firefox"), state(tiled), desktop(-1)
 ```ini
 bind = super + return -> run("alacritty")
 bind = super + space -> run("dmenu_run")
-bind = super + p -> run(["rofi","-show", "drun"])
+bind = super + p -> run(["rofi", "-show", "drun"])
 bind = super + w -> func(kill)
 bind = super + 1 -> func(switch_desktop:1)
 bind = super + 2 -> func(switch_desktop:2)
@@ -318,6 +328,10 @@ bind = super|shift + 7 -> func(transfer_node:7)
 bind = super|shift + m -> func(layout:master)
 bind = super|shift + s -> func(layout:stack)
 bind = super|shift + d -> func(layout:default)
+bind = super|shift + c -> func(layout:grid)
+bind = super|shift + o -> func(layout:monocle)
+bind = super|shift + x -> func(layout:three_col)
+bind = super|shift + v -> func(layout:deck)
 bind = super|shift + k -> func(traverse:up)
 bind = super|shift + j -> func(traverse:down)
 bind = super|shift + f -> func(flip)
@@ -343,6 +357,10 @@ More options will be added in the future as development progresses.
 | `super + shift + m`      | toggle master layout                       |
 | `super + shift + s`      | toggle stack layout                        |
 | `super + shift + d`      | toggle default layout                      |
+| `super + shift + c`      | toggle grid layout                         |
+| `super + shift + o`      | toggle monocle layout                      |
+| `super + shift + x`      | toggle three-column layout                 |
+| `super + shift + v`      | toggle deck layout                         |
 | `super + shift + j/k`    | traverse the stack                         |
 | `super + shift + f`      | flip the window/partition                  |
 | `super + shift + r`      | hot-reload                                 |
@@ -390,8 +408,9 @@ Explained below are the operations that can be performed via both mouse and keyb
 
 #### 2. Resize window
 
-- **Mouse**: `super + button3` (Right Click) while dragging near edges/corners.
-    - Works on **Tiled Windows** (Default Layout only): Resizes the shared edge between windows.
+- **Mouse**: `super + button3` (Right Click) while dragging near edges/corners or layout split lines.
+    - Works on **Tiled Windows** in the default layout: Resizes the shared edge between windows.
+    - Works on **Deck** and **Three-column** layouts: Resizes the main split.
     - Works on **Floating Windows**: Resizes the window dimensions.
 - **Keyboard**:
     - **Tiled**: `super + l` (Grow) / `super + h` (Shrink).

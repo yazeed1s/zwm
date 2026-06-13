@@ -39,6 +39,43 @@
 #include <xcb/xcb_icccm.h>
 #include <xcb/xproto.h>
 
+#define WINDOW_X		(XCB_CONFIG_WINDOW_X)
+#define WINDOW_Y		(XCB_CONFIG_WINDOW_Y)
+#define WINDOW_W		(XCB_CONFIG_WINDOW_WIDTH)
+#define WINDOW_H		(XCB_CONFIG_WINDOW_HEIGHT)
+#define S_NOTIFY		(XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY)
+#define S_REDIRECT		(XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT)
+
+#define MOVE_RESIZE		(WINDOW_X | WINDOW_Y | WINDOW_W | WINDOW_H)
+#define MOVE			(WINDOW_X | WINDOW_Y)
+#define RESIZE			(WINDOW_W | WINDOW_H)
+#define SUBSTRUCTURE	(S_NOTIFY | S_REDIRECT)
+
+#define PROPERTY_CHANGE (XCB_EVENT_MASK_PROPERTY_CHANGE)
+#define FOCUS_CHANGE	(XCB_EVENT_MASK_FOCUS_CHANGE)
+#define ENTER_WINDOW	(XCB_EVENT_MASK_ENTER_WINDOW)
+#define LEAVE_WINDOW	(XCB_EVENT_MASK_LEAVE_WINDOW)
+#define BUTTON_PRESS	(XCB_EVENT_MASK_BUTTON_PRESS)
+#define BUTTON_RELEASE	(XCB_EVENT_MASK_BUTTON_RELEASE)
+#define POINTER_MOTION	(XCB_EVENT_MASK_POINTER_MOTION)
+
+#define ALT				(XCB_MOD_MASK_1)
+#define SUPER			(XCB_MOD_MASK_4)
+#define SHIFT			(XCB_MOD_MASK_SHIFT)
+#define CTRL			(XCB_MOD_MASK_CONTROL)
+#define CLICK_TO_FOCUS	(XCB_BUTTON_INDEX_1)
+
+#define CLIENT_EVENT_MASK                                                      \
+	(PROPERTY_CHANGE | FOCUS_CHANGE | ENTER_WINDOW | LEAVE_WINDOW)
+
+#define ROOT_EVENT_MASK                                                        \
+	(SUBSTRUCTURE | BUTTON_PRESS | FOCUS_CHANGE | ENTER_WINDOW)
+
+#define MASTER_RATIO		 0.70
+#define NUMBER_OF_DESKTOPS	 7
+#define WM_NAME				 "zwm"
+#define WM_CLASS_NAME		 "null"
+#define WM_INSTANCE_NAME	 "null"
 #define CAP					 3
 #define MAXLEN				 (2 << 7)
 #define DLEN				 (2 << 4)
@@ -59,6 +96,14 @@ typedef xcb_generic_error_t	  xcb_error_t;
 typedef xcb_void_cookie_t	  xcb_cookie_t;
 typedef xcb_ewmh_connection_t xcb_ewmh_conn_t;
 typedef xcb_generic_event_t	  xcb_event_t;
+
+/* Visibility type returned by view_leaf_visibility() in view.h. */
+typedef enum {
+	LEAF_VISIBLE_TILED,	   /* map + apply geometry */
+	LEAF_HIDDEN_TILED,	   /* unmap */
+	LEAF_VISIBLE_FLOATING, /* map + apply floating geometry */
+	LEAF_IGNORED,		   /* internal node, skip this */
+} leaf_visibility_t;
 
 typedef enum {
 	HORIZONTAL_TYPE,
@@ -169,7 +214,10 @@ typedef enum {
 	DEFAULT = 1, /* standard manual tiling */
 	MASTER,		 /* master-stack layout */
 	STACK,		 /* stacked windows */
-	GRID		 /* grid-based layout */
+	GRID,		 /* grid-based layout */
+	MONOCLE,	 /* one maximised window, others hidden */
+	THREE_COL,	 /* left stack | center master | right stack */
+	DECK		 /* master left, cycling stack right */
 } layout_t;
 
 typedef enum {
@@ -304,7 +352,11 @@ typedef struct {
 	node_t		*tree; /* the tree in this desktop */
 	/* node_t	*node;		 focused node */
 	xcb_window_t last_focused;
-	uint16_t	 id;		 /* the number of this desktop */
+	node_t		*logical_focus; /* the tiled node this layout remembers as
+								 * selected; separate from X input focus so
+								 * focusing a floating window does not erase
+								 * the MONOCLE/DECK tiled selection */
+	uint16_t	 id;			/* the number of this desktop */
 	uint16_t	 n_count;	 /* the number of active windows/external nodes */
 	layout_t	 layout;	 /* the layout (master, default, stack) */
 	bool		 is_focused; /* whether this is focused, only focused desktops
@@ -453,6 +505,7 @@ struct rule_t {
 typedef struct queue_node_t queue_node_t;
 struct queue_node_t {
 	queue_node_t *next;		 /* next queue node */
+	queue_node_t *prev;		 /* previous queue node */
 	node_t		 *tree_node; /* tree node reference */
 };
 
@@ -460,6 +513,7 @@ struct queue_node_t {
 typedef struct {
 	queue_node_t *front; /* front of queue */
 	queue_node_t *rear;	 /* rear of queue */
+	size_t		  size;	 /* number of items in queue */
 } queue_t;
 
 /* event handler registration structure */

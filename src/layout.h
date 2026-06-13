@@ -25,24 +25,31 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#ifndef ZWM_QUEUE_H
-#define ZWM_QUEUE_H
+#ifndef ZWM_LAYOUT_H
+#define ZWM_LAYOUT_H
 
 #include "type.h"
 
 /* clang-format off */
-queue_t *create_queue(void);
-void enqueue(queue_t *q, node_t *n);
-void enqueue_front(queue_t *q, node_t *n);
-node_t *dequeue(queue_t *q);
-node_t *dequeue_rear(queue_t *q);
-node_t *peek_front(queue_t *q);
-node_t *peek_rear(queue_t *q);
-bool remove_node(queue_t *q, node_t *n);
-bool is_queue_empty(queue_t *q);
-size_t get_queue_size(queue_t *q);
-void free_queue(queue_t *q);
+void calculate_base_rect(rectangle_t *r, monitor_t *m);
+void arrange_tree(node_t *tree, layout_t l);
+void apply_layout(desktop_t *d, layout_t t);
+void master_clean_up(node_t *root);
+void default_layout(node_t *root);
+void master_layout(node_t *parent, node_t *n);
+void stack_layout(node_t *parent);
+void apply_default_layout(node_t *root);
+void apply_master_layout(node_t *parent);
+void apply_stack_layout(node_t *root);
+void apply_grid_layout(node_t *root);
+void grid_layout(node_t *root);
+void monocle_layout(node_t *root);
+void three_col_layout(node_t *root);
+void deck_layout(node_t *root);
+void flip_node(node_t *node);
+void dynamic_resize(node_t *n, resize_t t);
+void split_node(node_t *n, node_t *nd);
+void resize_subtree(node_t *parent);
 /* clang-format on */
 
-#endif /* ZWM_QUEUE_H */
+#endif /* ZWM_LAYOUT_H */
