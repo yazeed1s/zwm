@@ -1213,11 +1213,11 @@ apply_monitor_layout_changes(monitor_t *m)
 				apply_grid_layout(tree);
 
 		} else if (l == MASTER) {
-			node_t *ms = find_master_node(tree);
-			if (!ms && !(ms = find_any_leaf(tree)))
+			node_t *mn = find_master_node(tree);
+			if (!mn && !(mn = find_any_leaf(tree)))
 				return;
 
-			ms->is_master			  = true;
+			mn->is_master			  = true;
 			const double r			  = MASTER_RATIO;
 			rectangle_t	 u			  = get_usable_area(m);
 			uint16_t	 master_width = (uint16_t)(u.width * r);
@@ -1234,7 +1234,7 @@ apply_monitor_layout_changes(monitor_t *m)
 				.width	= (uint16_t)(r_width - conf.window_gap),
 				.height = (uint16_t)(u.height - 2 * conf.window_gap),
 			};
-			ms->rectangle	= r1;
+			mn->rectangle	= r1;
 			tree->rectangle = r2;
 			apply_master_layout(tree);
 		}
