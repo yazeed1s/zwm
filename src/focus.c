@@ -132,11 +132,11 @@ set_focus(node_t *n, bool flag)
 #endif
 	n->is_focused = flag;
 
-	/* Skip focus attempt if trying to set focus on unmapped window */
+	/* skip focus attempt if trying to set focus on unmapped window */
 	if (flag) {
 		if (!check_window_map_state(n->client->window,
 									WIN_MAP_STATE_VIEWABLE)) {
-			return 0; /* Not an error - just skip focusing */
+			return 0; /* Not an error just skip focusing */
 		}
 	}
 

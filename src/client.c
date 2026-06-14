@@ -419,26 +419,26 @@ kill_window(xcb_window_t win)
 	} else {
 		/* pick fallback before rendering so MONOCLE/DECK never flicker to a
 		 * hidden window between delete and the next render */
-		node_t *nn = view_pick_fallback_focus(d);
+		node_t *nn = _pick_focus_(d);
 		if (nn) {
-			view_set_logical_focus(d, nn);
+			_focus_node_(d, nn);
 			if (!another_desktop)
 				nn->client->mru_seq = get_next_mru_seq(curr_monitor);
 		}
 	}
 
 	if (!another_desktop) {
-		if (view_render_desktop(d) != 0) {
+		if (_render_view_(d) != 0) {
 			_LOG_(ERROR, "cannot render tree");
 			return -1;
 		}
 		if (!is_tree_empty(d->tree) && d->logical_focus &&
 			d->logical_focus->client) {
-			view_apply_input_focus(d, d->logical_focus);
+			_focus_input_(d, d->logical_focus);
 			focused_win = d->logical_focus->client->window;
 			set_active_window_name(focused_win);
 		}
-		view_commit(d);
+		_flush_view_(d);
 	}
 
 #ifdef _DEBUG__
@@ -647,12 +647,12 @@ handle_subsequent_window(client_t *client, desktop_t *d)
 	client->mru_seq = get_next_mru_seq(curr_monitor);
 
 	/* set logical focus before rendering so MONOCLE/DECK show the new window */
-	view_set_logical_focus(d, new_node);
+	_focus_node_(d, new_node);
 
-	int ret = view_render_desktop(d);
+	int ret = _render_view_(d);
 	if (ret == 0)
-		ret = view_apply_input_focus(d, new_node);
-	view_commit(d);
+		ret = _focus_input_(d, new_node);
+	_flush_view_(d);
 	return ret;
 }
 
@@ -741,11 +741,11 @@ handle_floating_window(client_t *client, desktop_t *d)
 		 * tiled selection survives this mess. Visible layouts treat floating as
 		 * logical focus since there is no hidden window rule to protect */
 		if (d->layout != MONOCLE && d->layout != DECK)
-			view_set_logical_focus(d, new_node);
-		int ret = view_render_desktop(d);
+			_focus_node_(d, new_node);
+		int ret = _render_view_(d);
 		if (ret == 0)
-			ret = view_apply_input_focus(d, new_node);
-		view_commit(d);
+			ret = _focus_input_(d, new_node);
+		_flush_view_(d);
 		return ret;
 	}
 }
@@ -958,7 +958,7 @@ handle_net_wm_desktop(xcb_window_t win, uint32_t index)
 	}
 
 	bool render = curr_monitor->desk == d;
-	return render ? view_render_desktop(d) : 0;
+	return render ? _render_view_(d) : 0;
 }
 
 #if 0

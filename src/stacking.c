@@ -131,13 +131,7 @@ populate_win_array(node_t *root, xcb_window_t *arr, size_t *index)
 	populate_win_array(root->first_child, arr, index);
 	populate_win_array(root->second_child, arr, index);
 }
-/* stack_and_lower - collects floating windows and optionally lowers
- * non-floating ones.
- *
- * goes through the tree and:
- * - adds floating windows to a stack, and resize the stack if it fills up.
- * - lowers non-floating windows unless the layout is stacked.
- * - calls itself on each child node to cover the whole tree. */
+
 static void
 stack_and_lower(
 	node_t *root, node_t **stack, int *top, int max_size, bool is_stacked)
@@ -167,12 +161,6 @@ stack_and_lower(
 	stack_and_lower(root->second_child, stack, top, max_size, is_stacked);
 }
 
-/* sort; sorts floating windows by size (largest first).
- *
- * Sorts floating windows based on their size (width * height).
- * Biggest windows go first, smallest last.
- *
- * Uses a bubble sort */
 static void
 sort(node_t **s, int n)
 {
@@ -257,7 +245,7 @@ restack(void)
 
 	qsort(v, len, sizeof *v, cmp_stack_item);
 
-	/* enforce global bottom-to-top order for visible clients only */
+	/* global bottom-to-top order for visible clients only */
 	client_t *prev = NULL;
 	for (size_t i = 0; i < len; i++) {
 		client_t *c = v[i].c;

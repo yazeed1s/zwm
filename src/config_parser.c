@@ -211,9 +211,8 @@ print_key_array(void)
 static int
 write_default_config(const char *filename, config_t *c)
 {
-	const char *template_path = TEMPLATE_PATH;
+	const char *tp = TEMPLATE_PATH;
 
-	/* Create directory if it doesn't exist */
 	char		dir_path[strlen(filename) + 1];
 	strcpy(dir_path, filename);
 	char *last_slash = strrchr(dir_path, '/');
@@ -228,43 +227,41 @@ write_default_config(const char *filename, config_t *c)
 		}
 	}
 
-	/* Open template file for reading */
-	FILE *template_file = fopen(template_path, "r");
-	if (template_file == NULL) {
-		_LOG_(ERROR, "failed to open template file: %s", template_path);
+	FILE *tf = fopen(tp, "r");
+	if (tf == NULL) {
+		_LOG_(ERROR, "failed to open template file: %s", tp);
 		return -1;
 	}
 
-	/* Open destination file for writing */
-	FILE *dest_file = fopen(filename, "w");
-	if (dest_file == NULL) {
+	FILE *df = fopen(filename, "w");
+	if (df == NULL) {
 		_LOG_(ERROR, "failed to create config file: %s", filename);
-		fclose(template_file);
+		fclose(tf);
 		return -1;
 	}
 
-	/* Copy template to destination */
 	char   buffer[4096];
 	size_t bytes;
-	while ((bytes = fread(buffer, 1, sizeof(buffer), template_file)) > 0) {
-		if (fwrite(buffer, 1, bytes, dest_file) != bytes) {
+	while ((bytes = fread(buffer, 1, sizeof(buffer), tf)) > 0) {
+		if (fwrite(buffer, 1, bytes, df) != bytes) {
 			_LOG_(ERROR, "error writing to file: %s", filename);
-			fclose(template_file);
-			fclose(dest_file);
+			fclose(tf);
+			fclose(df);
 			return -1;
 		}
 	}
 
-	fclose(template_file);
-	fclose(dest_file);
+	fclose(tf);
+	fclose(df);
 
-	/* Set default config values */
+	/* default config values */
 	c->active_border_color	= 0x4a4a48;
 	c->normal_border_color	= 0x30302f;
 	c->border_width			= 2;
 	c->window_gap			= 10;
 	c->virtual_desktops		= 7;
-	c->focus_follow_pointer = true;
+	c->focus_follow_pointer = false;
+	c->focus_follow_spawn	= false;
 
 	return 0;
 }

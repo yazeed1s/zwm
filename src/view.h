@@ -52,11 +52,11 @@
  */
 
 /* clang-format off */
-leaf_visibility_t view_leaf_visibility(desktop_t *d, node_t *leaf);
-void view_set_logical_focus(desktop_t *d, node_t *n);
-int view_apply_input_focus(desktop_t *d, node_t *n);
-node_t *view_pick_fallback_focus(desktop_t *d);
-int view_render_desktop(desktop_t *d);
-void view_commit(desktop_t *d);
+leaf_visibility_t _leaf_visibility_(desktop_t *d, node_t *leaf);
+void _focus_node_(desktop_t *d, node_t *n);
+int _focus_input_(desktop_t *d, node_t *n);
+node_t *_pick_focus_(desktop_t *d);
+int _render_view_(desktop_t *d);
+void _flush_view_(desktop_t *d);
 /* clang-format on */
 #endif /* ZWM_VIEW_H */

@@ -233,7 +233,7 @@ ewmh_handle_struts(xcb_window_t win)
 
 		/* strut.left is the screen absolute right edge of the reserved
 		 * area.  Only apply to the monitor whose X range contains that edge,
-		 * whcih should prevent a secondary-monitor bar from
+		 * whcih should prevent a secondary monitor bar from
 		 * crushing a primary monitor. */
 		if (strut.left > 0 && (int32_t)strut.left > mx1 &&
 			(int32_t)strut.left <= mx2 &&

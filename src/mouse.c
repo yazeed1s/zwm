@@ -489,7 +489,7 @@ handle_mouse_motion(int16_t x, int16_t y)
 			curr_monitor->desk->layout == THREE_COL) {
 			ms.parent->split_ratio = clamp_ratio(ratio);
 			arrange_tree(ms.parent, curr_monitor->desk->layout);
-			view_render_desktop(curr_monitor->desk);
+			_render_view_(curr_monitor->desk);
 			return;
 		}
 		ms.parent->split_type  = ms.split_type;
@@ -523,7 +523,7 @@ cancel_mouse_action(void)
 			if (curr_monitor->desk->layout == DECK ||
 				curr_monitor->desk->layout == THREE_COL) {
 				arrange_tree(ms.parent, curr_monitor->desk->layout);
-				view_render_desktop(curr_monitor->desk);
+				_render_view_(curr_monitor->desk);
 			} else {
 				resize_subtree(ms.parent);
 				render_tree_nomap(ms.parent);

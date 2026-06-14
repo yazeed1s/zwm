@@ -39,26 +39,18 @@
 #include "type.h"
 #include "xcb_util.h"
 
-void
-master_clean_up(node_t *root);
-void
-default_layout(node_t *root);
-void
-master_layout(node_t *parent, node_t *n);
-void
-stack_layout(node_t *parent);
-void
-grid_layout(node_t *root);
-static double
-clamp_layout_ratio(double ratio);
-static node_t *
-find_tree_root_local(node_t *n);
-static node_t *
-find_layout_master(node_t *root);
-static void
-set_master_node(node_t *root, node_t *n);
-static void
-set_master_under_cursor(node_t *root);
+/* clang-format off */
+void master_clean_up(node_t *root);
+void default_layout(node_t *root);
+void master_layout(node_t *parent, node_t *n);
+void stack_layout(node_t *parent);
+void grid_layout(node_t *root);
+static double clamp_layout_ratio(double ratio);
+static node_t *find_tree_root_local(node_t *n);
+static node_t *find_layout_master(node_t *root);
+static void set_master_node(node_t *root, node_t *n);
+static void set_master_under_cursor(node_t *root);
+/* clang-format on */
 
 void
 arrange_tree(node_t *tree, layout_t l)
@@ -100,11 +92,6 @@ arrange_tree(node_t *tree, layout_t l)
 	}
 }
 
-/* apply_layout - applies the specified layout to the given tree.
- *
- * responsible for switching between different layout
- * types (DEFAULT, MASTER, STACK) and applying the chosen layout
- * to the desktop's tree. */
 static void
 show_all_tiled(node_t *root)
 {
@@ -268,8 +255,6 @@ split_rect(node_t *n, split_type_t s)
 	}
 }
 
-/* split_node - splits a node's rectangle in half, the split could be
- * vertical or horizontal depending on (width > height)? */
 void
 split_node(node_t *n, node_t *nd)
 {
@@ -279,15 +264,13 @@ split_node(node_t *n, node_t *nd)
 	}
 	split_type_t s = n->split_type;
 	if (s == DYNAMIC_TYPE) {
-		/* horizontal split */
+		/* horizontal split means children sit side by side. */
 		s = (n->rectangle.width >= n->rectangle.height) ? HORIZONTAL_TYPE
 														: VERTICAL_TYPE;
 	}
 	split_rect(n, s);
 }
 
-/* resize_subtree - recursively resizes the subtree of a given parent node based
- * on the parent's rectangle dimensions. */
 void
 resize_subtree(node_t *parent)
 {
@@ -314,11 +297,6 @@ resize_subtree(node_t *parent)
 	}
 }
 
-/* apply_default_layout - applies the default tiling layout to a given tree
- *
- * recursively applies the default tiling layout to a node and its
- * descendants in the tree. The default layout splits nodes based on
- * their stored split type (if set) or their dimensions. */
 void
 apply_default_layout(node_t *root)
 {
@@ -337,9 +315,9 @@ apply_default_layout(node_t *root)
 		s = (root->rectangle.width >= root->rectangle.height) ? HORIZONTAL_TYPE
 															  : VERTICAL_TYPE;
 	}
-	/* determine split orientation based on node split type */
+	/* decide how this parent is divided before handing space to children. */
 	if (s == HORIZONTAL_TYPE) {
-		/* vertical split (side by side) */
+		/* side by side */
 		r.x		  = root->rectangle.x;
 		r.y		  = root->rectangle.y;
 		r.width	  = (uint16_t)((root->rectangle.width - mgap) * ratio);
@@ -351,7 +329,7 @@ apply_default_layout(node_t *root)
 					conf.border_width;
 		r2.height = root->rectangle.height;
 	} else {
-		/* horizontal split (top and bottom) */
+		/* top and bottom */
 		r.x		  = root->rectangle.x;
 		r.y		  = root->rectangle.y;
 		r.width	  = root->rectangle.width;
@@ -410,12 +388,6 @@ calculate_base_rect(rectangle_t *r, monitor_t *m)
 		(uint16_t)(usable.height - 2 * conf.window_gap - 2 * conf.border_width);
 }
 
-/* default_layout - applies the default layout to the tree.
- *
- * initializes the default layout for the entire screen or
- * monitor. It sets up the initial rectangle for the root node with window
- * gaps and border widths in mind, then calls apply_default_layout to
- * recursively layout child nodes. */
 void
 default_layout(node_t *root)
 {
@@ -427,12 +399,7 @@ default_layout(node_t *root)
 	apply_default_layout(root);
 }
 
-/* apply_master_layout - applies the master layout to a tree.
- *
- * implements a master-stack layout, where one window (the master)
- * takes up a larger portion of the screen (70%), and the rest are stacked.
- * TODO: use next_node() to implement this
- */
+/* TODO: use next_node() to make stack order explicit*/
 void
 apply_master_layout(node_t *parent)
 {
@@ -488,12 +455,6 @@ apply_master_layout(node_t *parent)
 	}
 }
 
-/* master_layout - initializes and applies the master layout to the tree.
- *
- * This func sets up the initial rectangles for the master and stack areas,
- * marks the appropriate node as the master, and then calls
- * apply_master_layout to recursively apply the layout to the entire tree.
- */
 void
 master_layout(node_t *root, node_t *n)
 {
@@ -503,7 +464,7 @@ master_layout(node_t *root, node_t *n)
 	const uint16_t master_width = (uint16_t)(usable.width * ratio);
 	const uint16_t r_width		= (uint16_t)(usable.width * (1 - ratio));
 
-	/* find a node to be master if not provided */
+	/* fall back to any tiled leaf when the caller did not give us one. */
 	if (n == NULL) {
 		n = find_any_leaf(root);
 		if (n == NULL) {
@@ -513,7 +474,7 @@ master_layout(node_t *root, node_t *n)
 
 	n->is_master		 = true;
 
-	/* master rectangle */
+	/* master side */
 	const rectangle_t r1 = {
 		.x		= (int16_t)(usable.x + conf.window_gap),
 		.y		= (int16_t)(usable.y + conf.window_gap),
@@ -521,7 +482,7 @@ master_layout(node_t *root, node_t *n)
 		.height = (uint16_t)(usable.height - 2 * conf.window_gap),
 	};
 
-	/* stack rectangle */
+	/* stack side */
 	const rectangle_t r2 = {
 		.x		= (int16_t)(usable.x + master_width),
 		.y		= (int16_t)(usable.y + conf.window_gap),
@@ -529,9 +490,9 @@ master_layout(node_t *root, node_t *n)
 		.height = (uint16_t)(usable.height - 2 * conf.window_gap),
 	};
 
-	/* if node is a root, give it full screen rectangle and ignore this
-	 * requests. Note, this happens when a user keeps deleting windows in a
-	 * master layout till single window is mapped, which is the root window
+	/* a single root client gets the whole usable area.
+	 * this happens after deleting windows in master layout until only one
+	 * client remains.
 	 */
 	if (n->node_type == ROOT_NODE && n->first_child == NULL &&
 		n->second_child == NULL) {
@@ -548,9 +509,7 @@ master_layout(node_t *root, node_t *n)
 	root->rectangle = r2;
 	apply_master_layout(root);
 }
-/* recursively traverses the tree and sets the is_master flag
- * to false for all nodes. It's typically called before applying a new
- * layout to ensure a clean slate. */
+
 void
 master_clean_up(node_t *root)
 {
@@ -563,11 +522,6 @@ master_clean_up(node_t *root)
 	master_clean_up(root->second_child);
 }
 
-/* apply_stack_layout - applies the stack layout to a given tree .
- *
- * recursively applies the stack layout to a node and its
- * children in the tree. In a stack layout, all windows occupy
- * the same space, effectively stacking on top of each other. */
 void
 apply_stack_layout(node_t *root)
 {
@@ -593,12 +547,6 @@ apply_stack_layout(node_t *root)
 	}
 }
 
-/**
- * stack_layout - initializes and applies the stack layout to the tree.
- *
- * sets up the initial rectangle for the entire stack.
- * It then calls apply_stack_layout to recursively apply the layout
- * to all nodes in the tree. */
 void
 stack_layout(node_t *root)
 {
@@ -629,7 +577,8 @@ _apply_grid_cells(node_t	 *r,
 			int last_n = n - (rows - 1) * cols;
 
 			if (row == rows - 1 && last_n < cols) {
-				/* iff last row has fewer windows, widen them to fill the row */
+				/* last row can be short.
+				 * stretch it so no empty cells remain. */
 				uint16_t last_w = base_rect.width / last_n;
 				int		 lcol	= (*i) - (rows - 1) * cols;
 				r->rectangle.x	= base_rect.x + lcol * last_w + conf.window_gap;
@@ -755,8 +704,6 @@ raise_floating(node_t *root)
 }
 #endif
 
-/*  monocle  */
-
 static void
 apply_monocle_layout(node_t *root, rectangle_t full)
 {
@@ -808,8 +755,6 @@ render_monocle(node_t *root)
 	return 0;
 }
 #endif
-
-/*  three-column  */
 
 void
 three_col_layout(node_t *root)
@@ -904,8 +849,6 @@ three_col_layout(node_t *root)
 		stack_idx++;
 	}
 }
-
-/* deck */
 
 void
 deck_layout(node_t *r)
@@ -1028,8 +971,6 @@ update_split_ratio(node_t *parent, split_type_t s)
 	parent->split_ratio = normalize_split_ratio(r);
 }
 
-/* flip_node - flips the node's orientation within its parent.
- * It only works if the node has a parent and a sibling. */
 void
 flip_node(node_t *node)
 {
@@ -1091,7 +1032,7 @@ dynamic_resize(node_t *n, resize_t t)
 		return;
 	}
 
-	/* get the sibling node */
+	/* resizing always trades space with the sibling inside the same parent. */
 	node_t *s = (n->parent->first_child == n) ? n->parent->second_child
 											  : n->parent->first_child;
 	if (s == NULL) {
@@ -1101,12 +1042,12 @@ dynamic_resize(node_t *n, resize_t t)
 	rectangle_t *nr = &n->rectangle;
 	rectangle_t *sr = &s->rectangle;
 
-	/* find the split orientation dynamically */
+	/* current geometry tells us which axis can be resized. */
 	bool		 vs = (nr->x == sr->x); /* nodes are stacked vertically */
 	bool		 hs = (nr->y == sr->y); /* nodes are side-by-side */
 
 	if (vs) {
-		/* vertical resize */
+		/* top-bottom resize */
 		bool up = (nr->y < sr->y); /* `n` is above `s`? */
 
 		if (t == GROW) {
@@ -1135,7 +1076,7 @@ dynamic_resize(node_t *n, resize_t t)
 			}
 		}
 	} else if (hs) {
-		/* horizontal resize */
+		/* side-by-side resize */
 		bool left = (nr->x < sr->x); /* `n` is left of `s`? */
 		if (t == GROW) {
 			if (left) {

@@ -205,7 +205,7 @@ drag_end(int16_t x, int16_t y)
 
 	insert_node(target, ds.src_node, curr_monitor->desk->layout);
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
-	view_render_desktop(curr_monitor->desk);
+	_render_view_(curr_monitor->desk);
 
 cleanup:
 	ungrab_pointer();

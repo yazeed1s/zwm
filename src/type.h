@@ -97,7 +97,7 @@ typedef xcb_void_cookie_t	  xcb_cookie_t;
 typedef xcb_ewmh_connection_t xcb_ewmh_conn_t;
 typedef xcb_generic_event_t	  xcb_event_t;
 
-/* Visibility type returned by view_leaf_visibility() in view.h. */
+/* Visibility type returned by _leaf_visibility_() in view.h. */
 typedef enum {
 	LEAF_VISIBLE_TILED,	   /* map + apply geometry */
 	LEAF_HIDDEN_TILED,	   /* unmap */

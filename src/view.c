@@ -42,7 +42,7 @@
 
 /* visibility policy */
 leaf_visibility_t
-view_leaf_visibility(desktop_t *d, node_t *leaf)
+_leaf_visibility_(desktop_t *d, node_t *leaf)
 {
 	if (!leaf || IS_INTERNAL(leaf) || !leaf->client)
 		return LEAF_IGNORED;
@@ -84,7 +84,7 @@ view_leaf_visibility(desktop_t *d, node_t *leaf)
 
 /* BFS renderer */
 static int
-view_walk_and_render(desktop_t *d)
+_render_tree_view_(desktop_t *d)
 {
 	if (!d || is_tree_empty(d->tree))
 		return 0;
@@ -120,7 +120,7 @@ view_walk_and_render(desktop_t *d)
 			continue;
 		}
 
-		leaf_visibility_t vis = view_leaf_visibility(d, cur);
+		leaf_visibility_t vis = _leaf_visibility_(d, cur);
 		switch (vis) {
 		case LEAF_VISIBLE_TILED:
 		case LEAF_VISIBLE_FLOATING:
@@ -149,7 +149,7 @@ done:
 }
 
 void
-view_set_logical_focus(desktop_t *d, node_t *n)
+_focus_node_(desktop_t *d, node_t *n)
 {
 	if (!d || !n)
 		return;
@@ -160,7 +160,7 @@ view_set_logical_focus(desktop_t *d, node_t *n)
 }
 
 int
-view_apply_input_focus(desktop_t *d, node_t *n)
+_focus_input_(desktop_t *d, node_t *n)
 {
 	if (!d || !n || !n->client)
 		return 0;
@@ -169,7 +169,7 @@ view_apply_input_focus(desktop_t *d, node_t *n)
 }
 
 node_t *
-view_pick_fallback_focus(desktop_t *d)
+_pick_focus_(desktop_t *d)
 {
 	if (!d)
 		return NULL;
@@ -179,15 +179,15 @@ view_pick_fallback_focus(desktop_t *d)
 }
 
 int
-view_render_desktop(desktop_t *d)
+_render_view_(desktop_t *d)
 {
 	if (!d)
 		return 0;
-	return view_walk_and_render(d);
+	return _render_tree_view_(d);
 }
 
 void
-view_commit(desktop_t *d)
+_flush_view_(desktop_t *d)
 {
 	(void)d;
 	restack();

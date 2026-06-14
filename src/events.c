@@ -152,9 +152,6 @@ xcb_event_to_string(uint8_t type)
 	}
 }
 
-/* handle_event - receives x events and handle them as it should.
- * Since the wm is an x client itself, and is subscribed to substructure
- * redirections, the x server will redirect any event it recevies to the wm */
 static int
 handle_event(xcb_event_t *event)
 {
@@ -195,7 +192,7 @@ handle_event(xcb_event_t *event)
 	return 0;
 }
 
-/* event_loop - the main loop that listens to redirected x events */
+/* the main loop that listens to redirected x events */
 void
 event_loop(wm_t *w)
 {
@@ -414,7 +411,7 @@ handle_enter_notify(const xcb_event_t *event)
 		focused_win = n->client->window;
 		set_active_window_name(win);
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-		view_commit(curr_monitor->desk);
+		_flush_view_(curr_monitor->desk);
 		return 0;
 	}
 
@@ -430,16 +427,14 @@ handle_enter_notify(const xcb_event_t *event)
 		}
 		focused_win		   = n->client->window;
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-		view_commit(curr_monitor->desk);
+		_flush_view_(curr_monitor->desk);
 		return 0;
 	}
 
 	if (IS_FLOATING(n->client)) {
-		/* floating X focus only, logical focus stays on the tiled node so
-		 * MONOCLE/DECK keep showing the correct tiled window */
 		if (focused_win != XCB_NONE)
 			win_focus(focused_win, false);
-		if (view_apply_input_focus(curr_monitor->desk, n) != 0) {
+		if (_focus_input_(curr_monitor->desk, n) != 0) {
 			_LOG_(ERROR, "cannot focus window %d (enter)", n->client->window);
 			return -1;
 		}
@@ -448,15 +443,15 @@ handle_enter_notify(const xcb_event_t *event)
 		/* iff tiled, set logical focus + rerender
 		   so MONOCLE/DECK show this window
 		 */
-		view_set_logical_focus(curr_monitor->desk, n);
-		view_render_desktop(curr_monitor->desk);
-		view_apply_input_focus(curr_monitor->desk, n);
+		_focus_node_(curr_monitor->desk, n);
+		_render_view_(curr_monitor->desk);
+		_focus_input_(curr_monitor->desk, n);
 	}
 
 	focused_win = n->client->window;
 	if (n && n->client)
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-	view_commit(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return 0;
 }
 
@@ -886,7 +881,7 @@ handle_configure_request(const xcb_event_t *event)
 
 		xcb_configure_window(wm->connection, win, mask, values);
 	} else {
-		/* Reflect actual geometry (floating/fullscreen) in ConfigureNotify. */
+		/* reflect actual geometry (floating/fullscreen) in ConfigureNotify. */
 		rectangle_t r = node->rectangle;
 		if (node->client && IS_FLOATING(node->client)) {
 			r = node->floating_rectangle;

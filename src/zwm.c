@@ -110,9 +110,9 @@ init_wm(void)
 	return wm;
 }
 
-/* set_desktop is called when 1- zwm starts and monitors were intially set up
- * and need to have desktops assigned to them. 2- when xrandr forces monitor
- * changes */
+/* setup wm
+ * monitors come first, then desktops, then EWMH.
+ */
 static bool
 setup_wm(void)
 {
@@ -157,7 +157,6 @@ parse_args(int argc, char **argv)
 static void
 signal_handler(int sig)
 {
-	/* Set shutdown flag to exit event loop cleanly */
 	should_shutdown = 1;
 }
 

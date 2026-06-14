@@ -29,33 +29,6 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * actions.c implements all keybind callback functions
- *
- * Every function in this file can be bound to a key in the user's config
- * file or in the built-in fallback table in bindings.c.  They all share
- * the same callback contract:
- *
- *   int func(arg_t *arg);
- *
- * where arg_t (defined in type.h) carries whatever parameters the binding
- * needs:
- *
- *   typedef struct {
- *       char       **cmd;   // command + arguments, used by exec_process
- *       uint8_t      argc;  // argument count for cmd
- *       uint8_t      idx;   // desktop index (switch_desktop / transfer_node)
- *       resize_t     r;     // GROW or SHRINK
- *       resize_dir_t rd;    // HORIZONTAL_DIR or VERTICAL_DIR
- *       layout_t     t;     // DEFAULT, MASTER, STACK, or GRID
- *       traversal_t  tr;    // NEXT or PREV  (cycle_monitors)
- *       direction_t  d;     // LEFT, RIGHT, UP, DOWN, or NONE
- *       state_t      s;     // TILED, FLOATING, or FULLSCREEN
- *   } arg_t;
- *
- * All callbacks return 0 on success and -1 on error.
- */
-
 #include "actions.h"
 #include "bindings.h"
 #include "client.h"
@@ -137,13 +110,13 @@ layout_handler(arg_t *arg)
 	suppress_enter_until_time = get_time_millis() + 250;
 	apply_layout(d, arg->t);
 
-	node_t *f = view_pick_fallback_focus(d);
+	node_t *f = _pick_focus_(d);
 	if (f)
-		view_set_logical_focus(d, f);
-	int ret = view_render_desktop(d);
+		_focus_node_(d, f);
+	int ret = _render_view_(d);
 	if (ret == 0 && f)
-		ret = view_apply_input_focus(d, f);
-	view_commit(d);
+		ret = _focus_input_(d, f);
+	_flush_view_(d);
 	return ret;
 }
 
@@ -236,8 +209,8 @@ change_state(arg_t *arg)
 		}
 	}
 
-	int ret = view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	int ret = _render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return ret;
 }
 
@@ -266,8 +239,8 @@ swap_node_wrapper(arg_t *arg)
 	if (swap_node(n) != 0)
 		return -1;
 
-	int ret = view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	int ret = _render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return ret;
 }
 
@@ -291,8 +264,8 @@ dynamic_resize_wrapper(arg_t *arg)
 						  * enter_notify events (which focuses the window
 						  * being under cursor as the resize happens); */
 	dynamic_resize(n, arg->r);
-	view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	_render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	ungrab_pointer();
 	return 0;
 }
@@ -399,20 +372,20 @@ out:
 	}
 
 	if (should_focus)
-		view_set_logical_focus(d, n);
-	if (view_render_desktop(d) != 0)
+		_focus_node_(d, n);
+	if (_render_view_(d) != 0)
 		return -1;
 
 	if (IS_FULLSCREEN(n->client)) {
 		if (fullscreen_focus(n->client->window) != 0)
 			return -1;
-	} else if (view_apply_input_focus(d, n) != 0) {
+	} else if (_focus_input_(d, n) != 0) {
 		return -1;
 	}
 	focused_win		   = n->client->window;
 	n->client->mru_seq = get_next_mru_seq(m ? m : curr_monitor);
 	set_active_window_name(focused_win);
-	view_commit(d);
+	_flush_view_(d);
 	return 0;
 }
 
@@ -596,8 +569,8 @@ reload_config_wrapper(arg_t *arg)
 	}
 
 out:
-	view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	_render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return 0;
 }
 
@@ -618,8 +591,8 @@ gap_handler(arg_t *arg)
 		current_monitor = current_monitor->next;
 	}
 	arrange_tree(curr_monitor->desk->tree, curr_monitor->desk->layout);
-	view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	_render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return 0;
 }
 
@@ -637,8 +610,8 @@ flip_node_wrapper(arg_t *arg)
 		return -1;
 
 	flip_node(node);
-	int ret = view_render_desktop(curr_monitor->desk);
-	view_commit(curr_monitor->desk);
+	int ret = _render_view_(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return ret;
 }
 
@@ -662,13 +635,13 @@ cycle_win_wrapper(arg_t *arg)
 	_LOG_(DEBUG, "found node %d name %s", next->client->window, s);
 	_FREE_(s);
 #endif
-	view_set_logical_focus(curr_monitor->desk, next);
+	_focus_node_(curr_monitor->desk, next);
 	set_active_window_name(next->client->window);
 	next->client->mru_seq = get_next_mru_seq(curr_monitor);
-	int ret				  = view_render_desktop(curr_monitor->desk);
+	int ret				  = _render_view_(curr_monitor->desk);
 	if (ret == 0)
-		ret = view_apply_input_focus(curr_monitor->desk, next);
-	view_commit(curr_monitor->desk);
+		ret = _focus_input_(curr_monitor->desk, next);
+	_flush_view_(curr_monitor->desk);
 	return ret;
 }
 
@@ -776,14 +749,14 @@ traverse_stack_wrapper(arg_t *arg)
 		return -1;
 	}
 
-	view_set_logical_focus(curr_monitor->desk, n);
+	_focus_node_(curr_monitor->desk, n);
 	if (n->client)
 		n->client->mru_seq = get_next_mru_seq(curr_monitor);
-	if (view_render_desktop(curr_monitor->desk) != 0)
+	if (_render_view_(curr_monitor->desk) != 0)
 		return -1;
-	if (view_apply_input_focus(curr_monitor->desk, n) != 0)
+	if (_focus_input_(curr_monitor->desk, n) != 0)
 		return -1;
-	view_commit(curr_monitor->desk);
+	_flush_view_(curr_monitor->desk);
 	return 0;
 }
 
@@ -884,8 +857,8 @@ transfer_node_wrapper(arg_t *arg)
 	if (!is_tree_empty(od->tree)) {
 		arrange_tree(od->tree, od->layout);
 	}
-	int ret = view_render_desktop(od);
-	view_commit(od);
+	int ret = _render_view_(od);
+	_flush_view_(od);
 	return ret;
 }
 

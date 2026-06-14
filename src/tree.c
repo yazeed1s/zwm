@@ -107,12 +107,6 @@ init_root(void)
 	return node;
 }
 
-/* render tree - apply visual changes to the screen.
- * It's called whenever a window maps/unmaps, or when a layout changes or visual
- * effects need to take place.
- * It is being used extensively in this code base.
- * Note: this function assumes rectangles and positions to be pre-calculated.
- */
 static int
 render_tree_internal(node_t *node, bool do_map)
 {
@@ -175,18 +169,15 @@ _get_window_rectangle(node_t *node)
 int
 _handle_fullscreen_window(xcb_window_t win)
 {
-	monitor_t  *m = get_monitor_by_window(win);
-	rectangle_t r = m ? m->rectangle : curr_monitor->rectangle;
-
-	/* Force a real geometry change so compositing clients (e.g. Electron)
-	 * repaint after being unmapped/remapped during a desktop switch.
-	 * Without this, the X server may no-op a configure to the same
-	 * geometry, and Electron shows stale framebuffer contents. */
+	monitor_t  *m	  = get_monitor_by_window(win);
+	rectangle_t r	  = m ? m->rectangle : curr_monitor->rectangle;
 	rectangle_t nudge = r;
 	nudge.width -= 1;
-	xcb_configure_window(wm->connection, win,
-		XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-		XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+	xcb_configure_window(
+		wm->connection,
+		win,
+		XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+			XCB_CONFIG_WINDOW_HEIGHT,
 		(uint32_t[]){nudge.x, nudge.y, nudge.width, nudge.height});
 
 	if (apply_window_geometry(win, r, 0) != 0) {
@@ -306,7 +297,7 @@ tile(node_t *node)
 	const int16_t  y = IS_FLOATING(node->client) ? node->floating_rectangle.y
 												 : node->rectangle.y;
 
-	rectangle_t r = {.x = x, .y = y, .width = width, .height = height};
+	rectangle_t	   r = {.x = x, .y = y, .width = width, .height = height};
 	if (apply_window_geometry(
 			node->client->window,
 			r,
@@ -382,8 +373,7 @@ insert_floating_node(node_t *node, desktop_t *d)
 	node->node_type = EXTERNAL_NODE;
 }
 
-
-/* insert_node - change the given focused node type to be internal, and then
+/* insert_node changes the given focused node type to be internal, and then
  * inserts a new node as its child, along with the current node's client as
  * another child. Both children share the parent node's rectangle. */
 void
@@ -470,12 +460,7 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 	}
 }
 
-/* clone_tree creates a deep copy of a tree.
- * - It allocates memory for a new node and copies the properties of the root
- * node.
- * - Recursively clones the children of the root node.
- * - Returns a pointer to the new tree.
- */
+/* clone_tree creates a deep copy of a tree */
 node_t *
 clone_tree(node_t *r, node_t *p)
 {
@@ -555,7 +540,6 @@ free_tree(node_t *root)
 	_FREE_(root->client);
 	_FREE_(root);
 }
-
 
 node_t *
 find_master_node(node_t *root)
@@ -1007,19 +991,7 @@ delete_floating_node(node_t *node, desktop_t *d)
 	d->n_count -= 1;
 }
 
-/* delete_node - removes a node (and its client) from the tree.
- *
- * - It unlinks the node from the tree using `unlink_node`.
- * - Frees the memory for the node and its client.
- * - Updates the desktop's node count.
- * - Rearranges the tree if it’s not empty after deletion.
- *
- * checks for invalid or edge cases:
- * - If the node or its client is null.
- * - If the node isn’t an external node.
- * - If the parent of the node is null (but not for the root).
- *
- * TODO: Implement deletion logic for `MASTER` and `STACK` layouts.*/
+/* delete_node removes a node (and its client) from the tree*/
 void
 delete_node(node_t *node, desktop_t *d)
 {
@@ -1289,14 +1261,7 @@ find_any_leaf(node_t *root)
 	return NULL;
 }
 
-/* unlink_node - removes a node from the tree while keeping the structure
- * intact.
- *
- * disconnects a node from the tree without freeing its
- * memory. It tweaks the parent and sibling relationships to keep the tree
- * intact.
- *
- * Note: this function does not free the memory of the unlinked node.
+/* Note: this function does not free the memory of the unlinked node.
  * The caller is responsible for freeing the memory of the unlinked node if
  * it's no longer needed.
  */
@@ -1341,19 +1306,7 @@ unlink_node(node_t *n, desktop_t *d)
 	return true;
 }
 
-/* transfer_node - moves a node to a new desktop's tree.
- *
- * takes a node and places it into the tree of the target desktop.
- * It handles three main scenarios:
- * 1. If the target tree is empty:
- *   - The node becomes the root of the tree.
- * 2. If the tree has just one node:
- *   - Splits the root into two external nodes under a new internal root.
- * 3. Otherwise:
- *   - Finds a spot in the tree (a leaf), converts it into an internal node,
- *		and then insert the node in there.
- * Note:
- * - Doesn't touch visibility or focus; that's handled outside. */
+/* Note: doesn't touch visibility or focus; that's handled outside. */
 bool
 transfer_node(node_t *node, desktop_t *d)
 {
@@ -1429,8 +1382,6 @@ has_floating_window(node_t *root)
 	return false;
 }
 
-/* next_node - get the next external node in the tree, starting from the
- * given node. It is used to traverse nodes in stack layout */
 node_t *
 next_node(node_t *n)
 {
@@ -1462,8 +1413,6 @@ next_node(node_t *n)
 	return r;
 }
 
-/* prev_node - get the previous external node in the tree, starting from the
- * given node. It is used to traverse nodes in stack layout */
 node_t *
 prev_node(node_t *n)
 {
@@ -1527,7 +1476,7 @@ update_focus(desktop_t *d, node_t *n)
 		return;
 	/* store last focused on the desktop that owns this tree */
 	if (n && n->client) {
-		d->last_focused  = n->client->window;
+		d->last_focused	 = n->client->window;
 		d->logical_focus = n;
 	}
 	update_focus_walk(d->tree, n);
@@ -1569,7 +1518,7 @@ get_focused_node(node_t *n)
 	return NULL;
 }
 
-/* swap_node - swap the positions of two nodes */
+/* swap the positions of two nodes */
 int
 swap_node(node_t *n)
 {
@@ -1598,7 +1547,7 @@ swap_node(node_t *n)
 	return 0;
 }
 
-/* is_within_range - checks if one rectangle is within a certain range
+/* checks if one rectangle is within a certain range
  * of another rectangle */
 static bool
 is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
@@ -1624,33 +1573,29 @@ is_within_range(rectangle_t *rect1, rectangle_t *rect2, direction_t d)
 	}
 }
 
-/* find_closest_neighbor - find the closest neighbor node to a given node in
+/* find the closest neighbor node to a given node in
  * a specific direction. It is used to move focus to another node using the
  * keyboard
- *
- * searches through the tree (using a bfs) to
- * find the closest external node (a leaf node with a client) that is within
- * a certain range of the given node in the specified direction. It keeps
- * track of the closest node found and returns it.
- *
- * If no closest node is found, it returns NULL */
+ */
 static node_t *
 find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 {
 	if (root == NULL)
 		return NULL;
 
-	node_t *closest			 = NULL;
-	int		closest_distance = INT16_MAX;
+	node_t	*closest		  = NULL;
+	int		 closest_distance = INT16_MAX;
 
-	queue_t *q = create_queue();
-	if (!q) return NULL;
+	queue_t *q				  = create_queue();
+	if (!q)
+		return NULL;
 
 	enqueue(q, root);
 
 	while (!is_queue_empty(q)) {
 		node_t *current = dequeue(q);
-		if (!current) continue;
+		if (!current)
+			continue;
 
 		if (current == node)
 			goto skip;
@@ -1693,13 +1638,6 @@ find_closest_neighbor(node_t *root, node_t *node, direction_t d)
 	return closest;
 }
 
-/* cycle_win - cycles focus to the nearest window in a specified direction.
- *
- * calls find_closest_neighbor` to get the closest node in the
- * specified direction.
- *
- * If either the root or the neighbor can't be found, it logs an error and
- * returns `NULL`. */
 node_t *
 cycle_win(node_t *node, direction_t d)
 {
@@ -1716,8 +1654,6 @@ cycle_win(node_t *node, direction_t d)
 	return neighbor;
 }
 
-/* is_closer_node - check if a new node is closer to the target node than
- * the current node in the specified direction. */
 static bool
 is_closer_node(node_t *current, node_t *new_node, node_t *node, direction_t d)
 {

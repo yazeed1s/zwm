@@ -122,7 +122,7 @@ render_desktop(desktop_t *d)
 	if (d == NULL || is_tree_empty(d->tree))
 		return 0;
 
-	return view_render_desktop(d);
+	return _render_view_(d);
 }
 
 void
@@ -324,10 +324,10 @@ switch_desktop(const int nd)
 			}
 		}
 		if (!focus)
-			focus = view_pick_fallback_focus(target_desktop);
+			focus = _pick_focus_(target_desktop);
 
 		if (focus) {
-			view_set_logical_focus(target_desktop, focus);
+			_focus_node_(target_desktop, focus);
 			focus->client->mru_seq = get_next_mru_seq(curr_monitor);
 #ifdef _DEBUG__
 			_LOG_(DEBUG,
@@ -338,19 +338,19 @@ switch_desktop(const int nd)
 		}
 
 		/* render, maps/unmaps windows according to layout policy */
-		if (view_render_desktop(target_desktop) != 0)
+		if (_render_view_(target_desktop) != 0)
 			return -1;
 
 		/* apply X input focus after windows are mapped only */
 		if (focus && focus->client) {
-			if (view_apply_input_focus(target_desktop, focus) != 0)
+			if (_focus_input_(target_desktop, focus) != 0)
 				return -1;
 			focused_win = focus->client->window;
 			set_active_window_name(focused_win);
 		}
 
 		/* restack + flush x server */
-		view_commit(target_desktop);
+		_flush_view_(target_desktop);
 	}
 
 #ifdef _DEBUG__
