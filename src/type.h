@@ -415,6 +415,7 @@ typedef struct {
 typedef struct {
 	uint32_t	 mod;		 /* modifier key */
 	xcb_keysym_t keysym;	 /* key symbol */
+	xcb_keycode_t keycode;	 /* physical keycode resolved from keysym */
 	int (*execute)(arg_t *); /* action function */
 	arg_t *arg;				 /* function arguments */
 } _key__t;
@@ -429,6 +430,7 @@ struct conf_key_t {
 	conf_key_t	*next;		 /* next key */
 	uint32_t	 mod;		 /* modifier key */
 	xcb_keysym_t keysym;	 /* key symbol */
+	xcb_keycode_t keycode;	 /* physical keycode resolved from keysym */
 };
 
 /* function mapping structure */

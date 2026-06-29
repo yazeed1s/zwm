@@ -48,7 +48,7 @@
 #define IS_INTERNAL(n)						   (n->node_type == INTERNAL_NODE)
 #define IS_ROOT(n)							   (n->node_type == ROOT_NODE)
 
-#define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, handler, arg}
+#define DEFINE_KEY(mask, keysym, handler, arg) {mask, keysym, 0, handler, arg}
 #define DEFINE_MAPPING(name, value)			   {name, value}
 #define _KEY(k)								   XK_##k
 

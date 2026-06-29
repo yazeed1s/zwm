@@ -956,23 +956,27 @@ static int
 handle_key_press(const xcb_event_t *event)
 {
 	xcb_key_press_event_t *ev			 = (xcb_key_press_event_t *)event;
-	uint16_t			   cleaned_state = (ev->state & ~(XCB_MOD_MASK_LOCK));
-	xcb_keysym_t		   k = get_keysym(ev->detail, wm->connection);
+	uint16_t			   cleaned_state = normalize_mods(ev->state);
 
-	if (ds.active && k == XK_Escape) {
-		drag_cancel();
-		return 0;
-	}
-	if (ms.op != MOUSE_OP_NONE && k == XK_Escape) {
-		cancel_mouse_action();
-		return 0;
+	if (ds.active || ms.op != MOUSE_OP_NONE) {
+		xcb_keysym_t k = get_keysym(ev->detail, wm->connection);
+		if (ds.active && k == XK_Escape) {
+			drag_cancel();
+			return 0;
+		}
+		if (ms.op != MOUSE_OP_NONE && k == XK_Escape) {
+			cancel_mouse_action();
+			return 0;
+		}
 	}
 
 	if (key_head) {
 		conf_key_t *current = key_head;
 		while (current) {
-			if (cleaned_state == (current->mod & ~(XCB_MOD_MASK_LOCK))) {
-				if (current->keysym == k) {
+			if (cleaned_state == normalize_mods((uint16_t)current->mod)) {
+				/* Keybind dispatch uses physical keycodes so shortcuts keep
+				 * working under non-US XKB layouts. */
+				if (current->keycode == ev->detail) {
 					arg_t	 *a	  = current->arg;
 					const int ret = current->execute(a);
 					if (ret != 0) {
@@ -987,8 +991,8 @@ handle_key_press(const xcb_event_t *event)
 	}
 
 	for (size_t i = _keys_len; i--;) {
-		if (cleaned_state == (_keys_[i].mod & ~(XCB_MOD_MASK_LOCK))) {
-			if (_keys_[i].keysym == k) {
+		if (cleaned_state == normalize_mods((uint16_t)_keys_[i].mod)) {
+			if (_keys_[i].keycode == ev->detail) {
 				arg_t	 *a	  = _keys_[i].arg;
 				const int ret = _keys_[i].execute(a);
 				if (ret != 0) {

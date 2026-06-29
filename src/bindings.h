@@ -34,13 +34,14 @@
 #include <xcb/xproto.h>
 
 /* clang-format off */
-extern const _key__t _keys_[];
-extern const size_t  _keys_len;
+extern _key__t	  _keys_[];
+extern const size_t _keys_len;
 int grab_keys(xcb_conn_t *conn, xcb_window_t win);
 void ungrab_keys(xcb_conn_t *conn, xcb_window_t win);
 xcb_keycode_t *get_keycode(xcb_keysym_t keysym, xcb_conn_t *conn);
 xcb_keysym_t get_keysym(xcb_keycode_t keycode, xcb_connection_t *conn);
 int16_t modfield_from_keysym(xcb_keysym_t keysym);
+uint16_t normalize_mods(uint16_t state);
 void grab_super_button(xcb_window_t win, uint8_t button);
 /* clang-format on */
 

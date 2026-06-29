@@ -43,7 +43,7 @@
  * error while loading the keys from the config file */
 
 /* see X11/keysymdef.h */
-const _key__t _keys_[] = {
+_key__t _keys_[] = {
     DEFINE_KEY(SUPER,         _KEY(w),       close_or_kill_wrapper,     NULL),
     DEFINE_KEY(SUPER,         _KEY(Return),  exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"alacritty"}})),
     DEFINE_KEY(SUPER,         _KEY(space),   exec_process,              &((arg_t){.argc = 1, .cmd = (char *[]){"dmenu_run"}})),
@@ -103,6 +103,10 @@ const _key__t _keys_[] = {
 const size_t _keys_len = sizeof(_keys_) / sizeof(_keys_[0]);
 
 /* clang-format on */
+
+/* XKB stores the active keyboard group in the high state bits. Ignore it so WM
+ * shortcuts stay physical while clients keep receiving the active layout. */
+#define XKB_GROUP_STATE_MASK 0x6000
 
 int16_t
 modfield_from_keysym(xcb_keysym_t keysym)
@@ -176,6 +180,77 @@ get_keysym(xcb_keycode_t keycode, xcb_connection_t *conn)
 	return keysym;
 }
 
+uint16_t
+normalize_mods(uint16_t state)
+{
+	const uint16_t nl = (uint16_t)modfield_from_keysym(XK_Num_Lock);
+
+	return (uint16_t)(state & ~(XCB_MOD_MASK_LOCK | nl | XKB_GROUP_STATE_MASK));
+}
+
+static bool
+mod_seen(const uint16_t *ms, size_t n, uint16_t m)
+{
+	for (size_t i = 0; i < n; i++) {
+		if (ms[i] == m) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static int
+grab_key_variants(xcb_window_t win, uint16_t mod, xcb_keycode_t keycode)
+{
+	const uint16_t n_lock	  = (uint16_t)modfield_from_keysym(XK_Num_Lock);
+	const uint16_t caps		  = XCB_MOD_MASK_LOCK;
+	const uint16_t _ignored[] = {0, caps, n_lock, (uint16_t)(caps | n_lock)};
+	uint16_t	   g[LEN(_ignored)] = {0};
+	size_t		   g_len			= 0;
+
+	for (size_t i = 0; i < LEN(_ignored); i++) {
+		uint16_t v = (uint16_t)(mod | _ignored[i]);
+		if (mod_seen(g, g_len, v)) {
+			continue;
+		}
+		g[g_len++]		 = v;
+
+		xcb_cookie_t cc	 = xcb_grab_key_checked(wm->connection,
+												1,
+												win,
+												v,
+												keycode,
+												XCB_GRAB_MODE_ASYNC,
+												XCB_GRAB_MODE_ASYNC);
+		xcb_error_t *err = xcb_request_check(wm->connection, cc);
+		if (err) {
+			_LOG_(ERROR,
+				  "error grabbing keycode %u with modifiers 0x%x: %d",
+				  keycode,
+				  v,
+				  err->error_code);
+			_FREE_(err);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int
+resolve_keycode(xcb_keysym_t keysym, xcb_keycode_t *out)
+{
+	xcb_keycode_t *key = get_keycode(keysym, wm->connection);
+	if (key == NULL || *key == XCB_NO_SYMBOL) {
+		_FREE_(key);
+		return -1;
+	}
+
+	*out = *key;
+	_FREE_(key);
+	return 0;
+}
+
 void
 grab_super_button(xcb_window_t win, uint8_t button)
 {
@@ -240,21 +315,11 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	if (key_head) {
 		conf_key_t *current = key_head;
 		while (current) {
-			xcb_keycode_t *key = get_keycode(current->keysym, conn);
-			if (key == NULL)
+			if (resolve_keycode(current->keysym, &current->keycode) != 0) {
 				return -1;
-			xcb_cookie_t cookie = xcb_grab_key_checked(conn,
-													   1,
-													   win,
-													   (uint16_t)current->mod,
-													   *key,
-													   XCB_GRAB_MODE_ASYNC,
-													   XCB_GRAB_MODE_ASYNC);
-			_FREE_(key);
-			xcb_error_t *err = xcb_request_check(conn, cookie);
-			if (err) {
-				_LOG_(ERROR, "error grabbing key %d", err->error_code);
-				_FREE_(err);
+			}
+			if (grab_key_variants(
+					win, (uint16_t)current->mod, current->keycode) != 0) {
 				return -1;
 			}
 			current = current->next;
@@ -269,21 +334,11 @@ grab_keys(xcb_conn_t *conn, xcb_window_t win)
 	const size_t n = sizeof(_keys_) / sizeof(_keys_[0]);
 
 	for (size_t i = n; i--;) {
-		xcb_keycode_t *key = get_keycode(_keys_[i].keysym, conn);
-		if (key == NULL)
+		if (resolve_keycode(_keys_[i].keysym, &_keys_[i].keycode) != 0) {
 			return -1;
-		xcb_cookie_t cookie = xcb_grab_key_checked(conn,
-												   1,
-												   win,
-												   (uint16_t)_keys_[i].mod,
-												   *key,
-												   XCB_GRAB_MODE_ASYNC,
-												   XCB_GRAB_MODE_ASYNC);
-		_FREE_(key);
-		xcb_error_t *err = xcb_request_check(conn, cookie);
-		if (err) {
-			_LOG_(ERROR, "error grabbing key %d", err->error_code);
-			_FREE_(err);
+		}
+		if (grab_key_variants(
+				win, (uint16_t)_keys_[i].mod, _keys_[i].keycode) != 0) {
 			return -1;
 		}
 	}
