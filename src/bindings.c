@@ -189,10 +189,10 @@ normalize_mods(uint16_t state)
 }
 
 static bool
-mod_seen(const uint16_t *ms, size_t n, uint16_t m)
+mod_seen(const uint16_t *msn, size_t n, uint16_t m)
 {
 	for (size_t i = 0; i < n; i++) {
-		if (ms[i] == m) {
+		if (msn[i] == m) {
 			return true;
 		}
 	}

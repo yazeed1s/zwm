@@ -267,6 +267,18 @@ restack(void)
 		}
 	}
 
+	/* A dialog/modal/transient blocks or belongs to its parent, so it must stay
+	 * above that parent even if the parent is fullscreen or was raised late. */
+	for (size_t i = 0; i < len; i++) {
+		client_t *c = v[i].c;
+		if (c && !client_is_hidden(c) &&
+			(c->transient_for != XCB_NONE ||
+			 ewmh_has(c->ewmh_state, EWMH_STATE_MODAL) ||
+			 c->ewmh_type == WINDOW_TYPE_DIALOG)) {
+			raise_window(c->window);
+		}
+	}
+
 	/* publish _NET_CLIENT_LIST_STACKING */
 	xcb_window_t *stack = calloc(len, sizeof(*stack));
 	if (stack) {

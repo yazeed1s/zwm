@@ -93,7 +93,7 @@ get_wm_name(xcb_window_t win, char **out)
 client_t *
 create_client(xcb_window_t win, xcb_atom_t wtype, xcb_conn_t *conn)
 {
-	client_t *c = (client_t *)malloc(sizeof(client_t));
+	client_t *c = (client_t *)calloc(1, sizeof(client_t));
 	if (c == 0x00)
 		return NULL;
 
@@ -132,7 +132,7 @@ _LOG_(INFO, "created client wm_name %s", c->wm_name);
 			  err->error_code);
 		_FREE_(err);
 		_FREE_(c);
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 	if (change_border_attr(wm->connection,
@@ -494,11 +494,20 @@ should_manage(xcb_window_t win, xcb_conn_t *conn)
 	xcb_get_window_attributes_cookie_t attr_cookie;
 	xcb_get_window_attributes_reply_t *attr_reply;
 
-	attr_cookie = xcb_get_window_attributes(conn, win);
-	attr_reply	= xcb_get_window_attributes_reply(conn, attr_cookie, NULL);
+	attr_cookie		 = xcb_get_window_attributes(conn, win);
+	xcb_error_t *err = NULL;
+	attr_reply		 = xcb_get_window_attributes_reply(conn, attr_cookie, &err);
 
+	if (err) {
+		_LOG_(DEBUG,
+			  "cannot get attributes for window %d: error code %d",
+			  win,
+			  err->error_code);
+		_FREE_(err);
+		return false;
+	}
 	if (attr_reply == NULL) {
-		return true;
+		return false;
 	}
 
 	bool manage = !attr_reply->override_redirect;
@@ -669,6 +678,34 @@ fill_floating_rectangle(xcb_get_geometry_reply_t *geometry, rectangle_t *r)
 	(*r).height = geometry->height;
 }
 
+static bool
+client_is_modal_transient(const client_t *c)
+{
+	if (!c)
+		return false;
+	return c->ewmh_type == WINDOW_TYPE_DIALOG ||
+		   ewmh_has(c->ewmh_state, EWMH_STATE_MODAL) ||
+		   c->transient_for != XCB_NONE;
+}
+
+static int
+focus_modal_transient(desktop_t *d, node_t *n)
+{
+	if (!d || !n || !n->client)
+		return 0;
+
+	if (focused_win != XCB_NONE)
+		win_focus(focused_win, false);
+	if (_focus_input_(d, n) != 0)
+		return -1;
+
+	n->is_focused	   = true;
+	focused_win		   = n->client->window;
+	n->client->mru_seq = get_next_mru_seq(curr_monitor);
+	set_active_window_name(focused_win);
+	return 0;
+}
+
 int
 handle_floating_window(client_t *client, desktop_t *d)
 {
@@ -701,17 +738,27 @@ handle_floating_window(client_t *client, desktop_t *d)
 		set_focus(d->tree, true);
 		client->mru_seq = get_next_mru_seq(curr_monitor);
 		int ret			= tile(d->tree);
+		if (client_is_modal_transient(client)) {
+			focused_win = client->window;
+			set_active_window_name(focused_win);
+		}
 		restack();
 		return ret;
 	} else {
-		xcb_window_t wi =
-			get_window_under_cursor(wm->connection, wm->root_window);
-		if (wi == wm->root_window || wi == 0) {
-			_FREE_(client);
-			return 0;
+		const bool modal_transient = client_is_modal_transient(client);
+		node_t	  *n			   = NULL;
+
+		if (client->transient_for != XCB_NONE)
+			n = find_node_by_window_id(d->tree, client->transient_for);
+
+		if (!n) {
+			xcb_window_t wi =
+				get_window_under_cursor(wm->connection, wm->root_window);
+			if (wi != wm->root_window && wi != 0)
+				n = find_node_by_window_id(d->tree, wi);
 		}
-		node_t *n = find_node_by_window_id(d->tree, wi);
-		n		  = n == NULL ? find_any_leaf(d->tree) : n;
+
+		n = n == NULL ? find_any_leaf(d->tree) : n;
 		if (n == NULL || n->client == NULL) {
 			_FREE_(client);
 			return -1;
@@ -733,10 +780,24 @@ handle_floating_window(client_t *client, desktop_t *d)
 		new_node->rectangle = new_node->floating_rectangle;
 		_FREE_(g);
 		insert_node(n, new_node, d->layout);
+		if (d->logical_focus == n && n->first_child && n->first_child->client) {
+			d->logical_focus = n->first_child;
+			if (IS_TILED(n->first_child->client))
+				d->last_focused = n->first_child->client->window;
+		}
 		d->n_count += 1;
 		update_net_wm_desktop(client->window, d->id);
 		ewmh_update_client_list();
 		client->mru_seq = get_next_mru_seq(curr_monitor);
+		/* Modal/transient windows block their parent, so they get real input
+		 * focus without becoming the hidden layout logical tiled selection. */
+		if (modal_transient) {
+			int ret = _render_view_(d);
+			if (ret == 0)
+				ret = focus_modal_transient(d, new_node);
+			_flush_view_(d);
+			return ret;
+		}
 		/* iff floating spawn do NOT touch logical focus for MONOCLE/DECK so the
 		 * tiled selection survives this mess. Visible layouts treat floating as
 		 * logical focus since there is no hidden window rule to protect */

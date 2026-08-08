@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wextra -Wshadow -Wunreachable-code -Wcast-align -Wuninitialized \
          -Wno-unused-variable -Wno-unused-function
 LDFLAGS = -Wl,--as-needed -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm \
-          -lxcb-randr -lxcb-xinerama
+          -lxcb-randr -lxcb-xinerama -lxcb-cursor
 
 TARGET = zwm
 SRC_DIR = ./src
@@ -41,7 +41,6 @@ release: LDFLAGS += -flto=auto -Wl,--gc-sections -s
 release: clean $(TARGET)
 
 debug: CFLAGS += $(DEBUG_FLAGS) -O0 -Wno-unused-variable -Wno-unused-function
-debug: LDFLAGS += -lxcb-cursor
 debug: clean $(TARGET)
 
 gdb: CFLAGS += $(GDB_FLAGS)

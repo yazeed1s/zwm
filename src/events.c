@@ -217,6 +217,7 @@ handle_map_request(const xcb_event_t *event)
 	xcb_map_request_event_t *ev			= (xcb_map_request_event_t *)event;
 	xcb_window_t			 win		= ev->window;
 	bool					 is_visible = true;
+	int						 ret		= 0;
 
 	if (multi_monitors) {
 		monitor_t *mm = get_focused_monitor();
@@ -247,8 +248,10 @@ handle_map_request(const xcb_event_t *event)
 			int target = rule->desktop_id - 1;
 			if (curr_monitor->desk->id != target) {
 				/* Insert into the target desktop, but do not map/focus now */
-				insert_into_desktop(
+				ret = insert_into_desktop(
 					rule->desktop_id, win, rule->state == TILED);
+				if (ret != 0)
+					goto manage_failed;
 				desktop_t *target_desk = curr_monitor->desktops[target];
 				render_tree_nomap(target_desk->tree);
 				is_visible = false;
@@ -258,10 +261,14 @@ handle_map_request(const xcb_event_t *event)
 		}
 		/* for both cases, if a state is specified, use it */
 		if (rule->state == FLOATING) {
-			handle_floating_window_request(win, curr_monitor->desk);
+			ret = handle_floating_window_request(win, curr_monitor->desk);
+			if (ret != 0)
+				goto manage_failed;
 			goto out;
 		} else if (rule->state == TILED) {
-			handle_tiled_window_request(win, curr_monitor->desk);
+			ret = handle_tiled_window_request(win, curr_monitor->desk);
+			if (ret != 0)
+				goto manage_failed;
 			goto out;
 		}
 	}
@@ -269,7 +276,9 @@ handle_map_request(const xcb_event_t *event)
 	ewmh_window_type_t wint = window_type(win);
 	if (wint != WINDOW_TYPE_DOCK && wint != WINDOW_TYPE_DESKTOP &&
 		wint != WINDOW_TYPE_NOTIFICATION && apply_floating_hints(win) != -1) {
-		handle_floating_window_request(win, curr_monitor->desk);
+		ret = handle_floating_window_request(win, curr_monitor->desk);
+		if (ret != 0)
+			goto manage_failed;
 		goto out;
 	}
 
@@ -288,24 +297,27 @@ handle_map_request(const xcb_event_t *event)
 	case WINDOW_TYPE_NOTIFICATION: return handle_unmanaged_strut_window(win);
 	case WINDOW_TYPE_UNKNOWN:
 	case WINDOW_TYPE_NORMAL:
-		handle_tiled_window_request(win, curr_monitor->desk);
+		ret = handle_tiled_window_request(win, curr_monitor->desk);
 		break;
 	case WINDOW_TYPE_TOOLBAR_MENU:
 	case WINDOW_TYPE_UTILITY:
 	case WINDOW_TYPE_SPLASH:
 	case WINDOW_TYPE_DIALOG:
-		handle_floating_window_request(win, curr_monitor->desk);
+		ret = handle_floating_window_request(win, curr_monitor->desk);
 		break;
 	default: break;
 	}
+	if (ret != 0)
+		goto manage_failed;
 out:
-	if (conf.focus_follow_spawn && curr_monitor->desk->layout != STACK) {
+	if (is_visible && conf.focus_follow_spawn &&
+		curr_monitor->desk->layout != STACK) {
 		node_t *f = NULL;
 		if ((f = find_node_by_window_id(curr_monitor->desk->tree, win)) ==
 			NULL) {
 			_LOG_(DEBUG, "cannot find window %d, in tree", win);
 			xcb_flush(wm->connection);
-			return -1;
+			return 0;
 		}
 		set_focus(f, true);
 		set_active_window_name(f->client->window);
@@ -318,6 +330,10 @@ out:
 	ewmh_update_client_list();
 	xcb_flush(wm->connection);
 
+	return 0;
+
+manage_failed:
+	xcb_flush(wm->connection);
 	return 0;
 }
 

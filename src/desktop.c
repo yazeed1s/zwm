@@ -49,6 +49,7 @@ static void
 update_focused_desktop(int id);
 static node_t *
 find_deck_stack_focus(node_t *root);
+static int activate_window_node(desktop_t *d, node_t *n);
 
 static void
 remember_desktop_focus(desktop_t *d)
@@ -79,6 +80,31 @@ pick_desktop_focus(desktop_t *d)
 	}
 
 	return find_any_leaf(d->tree);
+}
+
+static int
+activate_window_node(desktop_t *d, node_t *n)
+{
+	if (!d || !n || !n->client)
+		return 0;
+
+	if (IS_TILED(n->client))
+		_focus_node_(d, n);
+
+	if (_render_view_(d) != 0)
+		return -1;
+
+	if (focused_win != XCB_NONE && focused_win != n->client->window)
+		win_focus(focused_win, false);
+	if (_focus_input_(d, n) != 0)
+		return -1;
+
+	n->is_focused	   = true;
+	focused_win		   = n->client->window;
+	n->client->mru_seq = get_next_mru_seq(curr_monitor);
+	set_active_window_name(focused_win);
+	_flush_view_(d);
+	return 0;
 }
 
 node_t *
@@ -405,8 +431,11 @@ handle_net_active_window(xcb_window_t win)
 		name ? name : "(null)");
 	_FREE_(name);
 #endif
-	int d = find_desktop_by_window(win);
-	if (d == -1) {
+	desktop_t *d	 = NULL;
+	node_t	  *n	 = NULL;
+	bool	   found = false;
+	find_window_in_desktops(&d, &n, win, &found);
+	if (!found || !d || !n || !n->client) {
 #ifdef _DEBUG__
 		_LOG_(
 			DEBUG,
@@ -416,5 +445,18 @@ handle_net_active_window(xcb_window_t win)
 		return 0;
 	}
 
-	return switch_desktop(d);
+	monitor_t *m = get_monitor_by_window(win);
+	if (m && curr_monitor != m)
+		curr_monitor = m;
+
+	if (curr_monitor->desk != d) {
+		if (switch_desktop(d->id) != 0)
+			return -1;
+		n = find_node_by_window_id(curr_monitor->desk->tree, win);
+		if (!n || !n->client)
+			return 0;
+		d = curr_monitor->desk;
+	}
+
+	return activate_window_node(d, n);
 }
