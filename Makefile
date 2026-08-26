@@ -6,6 +6,7 @@ LDFLAGS = -Wl,--as-needed -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm 
 
 TARGET = zwm
 SRC_DIR = ./src
+TOOLS_DIR = ./tools
 SRC_FILES = $(SRC_DIR)/actions.c $(SRC_DIR)/bindings.c $(SRC_DIR)/client.c \
             $(SRC_DIR)/config_parser.c $(SRC_DIR)/cursor.c $(SRC_DIR)/desktop.c \
             $(SRC_DIR)/drag.c $(SRC_DIR)/events.c $(SRC_DIR)/ewmh.c \
@@ -21,6 +22,10 @@ HEADER_FILES = $(SRC_DIR)/actions.h $(SRC_DIR)/bindings.h $(SRC_DIR)/client.h \
                $(SRC_DIR)/stacking.h $(SRC_DIR)/state.h $(SRC_DIR)/tree.h $(SRC_DIR)/layout.h \
                $(SRC_DIR)/type.h $(SRC_DIR)/xcb_util.h  $(SRC_DIR)/layout.h $(SRC_DIR)/view.h
 OBJ_FILES = $(SRC_FILES:.c=.o)
+SINGLE_FILE = $(SRC_DIR)/zwm_single.c
+SINGLE_TARGET = zwm_single
+AMALGAMATE = $(TOOLS_DIR)/merge.pl
+LICENSE_FILE = LICENSE
 
 PREFIX = /usr
 BINDIR = $(PREFIX)/bin
@@ -62,12 +67,31 @@ $(TARGET): $(OBJ_FILES)
 %.o: %.c $(HEADER_FILES)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+amalgamate: $(SINGLE_FILE)
+
+$(SINGLE_FILE): $(HEADER_FILES) $(SRC_FILES) $(AMALGAMATE) $(LICENSE_FILE)
+	$(AMALGAMATE) -o $@ $(HEADER_FILES) -- $(SRC_FILES)
+
+single: CFLAGS += -O2 -DNDEBUG -flto=auto -ffunction-sections -fdata-sections -fno-ident
+single: LDFLAGS += -flto=auto -Wl,--gc-sections -s
+single: clean $(SINGLE_FILE)
+	$(CC) $(CFLAGS) -o $(SINGLE_TARGET) $(SINGLE_FILE) $(LDFLAGS)
+
 clean:
-	rm -f $(TARGET) $(OBJ_FILES)
+	rm -f $(TARGET) $(SINGLE_TARGET) $(OBJ_FILES)
 
 install: clean release
 	mkdir -p "$(DESTDIR)$(BINDIR)"
 	cp -pf $(TARGET) "$(DESTDIR)$(BINDIR)"
+	mkdir -p "$(DESTDIR)$(MANDIR)"
+	cp -pf $(MANPAGE) "$(DESTDIR)$(MANDIR)"
+	mkdir -p "$(DESTDIR)$(DATADIR)"
+	cp -pf $(TEMPLATE) "$(DESTDIR)$(DATADIR)"
+	$(MAKE) clean
+
+install-single: single
+	mkdir -p "$(DESTDIR)$(BINDIR)"
+	cp -pf $(SINGLE_TARGET) "$(DESTDIR)$(BINDIR)/$(TARGET)"
 	mkdir -p "$(DESTDIR)$(MANDIR)"
 	cp -pf $(MANPAGE) "$(DESTDIR)$(MANDIR)"
 	mkdir -p "$(DESTDIR)$(DATADIR)"
@@ -88,5 +112,6 @@ info:
 	@echo "LDFLAGS:      $(LDFLAGS)"
 	@echo "SRC_FILES:    $(SRC_FILES)"
 	@echo "OBJ_FILES:    $(OBJ_FILES)"
+	@echo "SINGLE_FILE:  $(SINGLE_FILE)"
 
-.PHONY: all release debug gdb asan test clean install uninstall info
+.PHONY: all release debug gdb asan test amalgamate single clean install install-single uninstall info

@@ -40,10 +40,11 @@
 #include "tree.h"
 #include <xcb/xcb.h>
 
-/* visibility policy */
 leaf_visibility_t
 _leaf_visibility_(desktop_t *d, node_t *leaf)
 {
+	/* normal layouts map tiled leaves.
+	 * monocle/deck hide most tiled leaves, but floating is always shown. */
 	if (!leaf || IS_INTERNAL(leaf) || !leaf->client)
 		return LEAF_IGNORED;
 
@@ -55,12 +56,10 @@ _leaf_visibility_(desktop_t *d, node_t *leaf)
 	case MASTER:
 	case STACK:
 	case GRID:
-	case THREE_COL:
-		/* all tiled leaves visible in these layouts */
-		return LEAF_VISIBLE_TILED;
+	case THREE_COL: return LEAF_VISIBLE_TILED;
 
 	case MONOCLE: {
-		/* only the logical focus is visible; fall back to any tiled leaf */
+		/* one tiled node, picked from logical_focus */
 		node_t *focus = d->logical_focus;
 		if (!focus || IS_FLOATING(focus->client))
 			focus = pick_desktop_focus(d);
@@ -68,10 +67,9 @@ _leaf_visibility_(desktop_t *d, node_t *leaf)
 	}
 
 	case DECK: {
-		/* master is always visible */
 		if (leaf->is_master)
 			return LEAF_VISIBLE_TILED;
-		/* the logical deck-stack focus is visible */
+		/* master + one node from the deck side */
 		node_t *focus = d->logical_focus;
 		if (!focus || IS_FLOATING(focus->client) || focus->is_master)
 			focus = pick_deck_focus(d);
@@ -108,7 +106,7 @@ _render_tree_view_(desktop_t *d)
 		}
 
 		if (IS_FULLSCREEN(cur->client)) {
-			/* fullscreen: show first, then tell the client its real size */
+			/* map before resize; some clients ignore the reverse order */
 			if (set_desktop_visibility(cur->client->window, true) != 0) {
 				rc = -1;
 				break;
@@ -164,7 +162,7 @@ _focus_input_(desktop_t *d, node_t *n)
 {
 	if (!d || !n || !n->client)
 		return 0;
-	/* win_focus sets border colour and X input focus; it does not raise. */
+	/* win_focus sets border colour and X input focus; it does not raise */
 	return win_focus(n->client->window, true);
 }
 

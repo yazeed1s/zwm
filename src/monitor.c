@@ -205,6 +205,9 @@ ranges_overlap(int32_t a_start, int32_t a_end, int32_t b_start, int32_t b_end)
 bool
 ewmh_handle_struts(xcb_window_t win)
 {
+	/* struts are root-screen coords, not monitor coords.
+	 * so multi monitor math here is root-based on purpose. */
+	/* in X, montiors are just a range of x,y on a big canvas (root screen)*/
 	if (!wm || !wm->ewmh || !wm->screen || win == XCB_NONE)
 		return false;
 
@@ -231,10 +234,8 @@ ewmh_handle_struts(xcb_window_t win)
 		int32_t mx2 = m->rectangle.x + m->rectangle.width;
 		int32_t my2 = m->rectangle.y + m->rectangle.height;
 
-		/* strut.left is the screen absolute right edge of the reserved
-		 * area.  Only apply to the monitor whose X range contains that edge,
-		 * whcih should prevent a secondary monitor bar from
-		 * crushing a primary monitor. */
+		/* left strut gives the right edge of the reserved area.
+		 * apply it only to monitor that edge actually touches. */
 		if (strut.left > 0 && (int32_t)strut.left > mx1 &&
 			(int32_t)strut.left <= mx2 &&
 			ranges_overlap((int32_t)strut.left_start_y,
@@ -250,8 +251,8 @@ ewmh_handle_struts(xcb_window_t win)
 				changed = true;
 		}
 
-		/* bar left edge = screen_w - strut.right.  Only apply to the
-		 * monitor whose X range contains that edge. */
+		/* right strut gives distance from screen right edge.
+		 * convert it back to the bar left edge first. */
 		if (strut.right > 0) {
 			int32_t bar_left = screen_w - (int32_t)strut.right;
 			if (bar_left >= mx1 && bar_left < mx2 &&
@@ -335,9 +336,8 @@ get_usable_area(monitor_t *m)
 void
 reapply_tracked_struts(void)
 {
-	/* reapply struts only from the known tracked list.  Called on unmap/destroy
-	 * so the 'just removed' window (still in the X child list with its property
-	 * intact) is not re scanned and does not reinject dead padding. */
+	/* do not rescan root children here. dead bar windows can still be there
+	 * with old strut prop, and that brings back padding we just removed. */
 	if (!wm || !wm->connection || !wm->ewmh)
 		return;
 

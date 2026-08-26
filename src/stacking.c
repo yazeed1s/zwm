@@ -40,10 +40,12 @@
 static layer_t
 compute_layer(const client_t *c)
 {
+	/* stacking policy is
+	 * top-down == fullscreen > dock/dialog/above/floating > normal > below */
 	if (ewmh_has(c->ewmh_state, EWMH_STATE_FULLSCREEN) || IS_FULLSCREEN(c))
 		return LAYER_FULLSCREEN;
 
-	/* treat DOCK/panels and “ABOVE-ish” things as ABOVE (below fullscreen) */
+	/* panels and "above-ish" stuff should beat tiled windows */
 	if (c->ewmh_type == WINDOW_TYPE_DOCK ||
 		c->ewmh_type == WINDOW_TYPE_NOTIFICATION ||
 		c->ewmh_type == WINDOW_TYPE_TOOLBAR_MENU ||
@@ -93,7 +95,7 @@ stack_key(const client_t *c)
 	const uint32_t mru = c->mru_seq;
 	const uint8_t  v   = client_is_hidden(c) ? 0 : 1;
 
-	/* transients are at least at their parent's layer */
+	/* child dialog should not end up below the parent it blocks */
 	if (c->transient_for) {
 		node_t *p = find_node_global(c->transient_for);
 		if (p && p->client) {
@@ -245,7 +247,7 @@ restack(void)
 
 	qsort(v, len, sizeof *v, cmp_stack_item);
 
-	/* global bottom-to-top order for visible clients only */
+	/* bottom -> top, visible windows only */
 	client_t *prev = NULL;
 	for (size_t i = 0; i < len; i++) {
 		client_t *c = v[i].c;
@@ -259,7 +261,7 @@ restack(void)
 		prev = c;
 	}
 
-	/* raise visible fullscreen windows above all */
+	/* fullscreen wins over normal tiling order */
 	for (size_t i = 0; i < len; i++) {
 		client_t *c = v[i].c;
 		if (c && !client_is_hidden(c) && IS_FULLSCREEN(c)) {
@@ -267,8 +269,7 @@ restack(void)
 		}
 	}
 
-	/* A dialog/modal/transient blocks or belongs to its parent, so it must stay
-	 * above that parent even if the parent is fullscreen or was raised late. */
+	/* transients/dialogs need one final raise after fullscreen */
 	for (size_t i = 0; i < len; i++) {
 		client_t *c = v[i].c;
 		if (c && !client_is_hidden(c) &&
@@ -279,7 +280,7 @@ restack(void)
 		}
 	}
 
-	/* publish _NET_CLIENT_LIST_STACKING */
+	/* keep pagers */
 	xcb_window_t *stack = calloc(len, sizeof(*stack));
 	if (stack) {
 		for (size_t i = 0; i < len; i++) {

@@ -45,7 +45,7 @@ fullscreen_focus(xcb_window_t win)
 	uint32_t bcolor	   = 0;
 	uint32_t bwidth	   = 0;
 
-	/* if window is viewable before attempting focus */
+	/* do not focus unmapped windows */
 	if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
 		return 0;
 	}
@@ -88,7 +88,7 @@ win_focus(xcb_window_t win, bool set_focus)
 		set_focus ? conf.active_border_color : conf.normal_border_color;
 	uint32_t bwidth = conf.border_width;
 
-	/* check if window is viewable before attempting focus operations */
+	/* border updates are ok for hidden windows, real X focus is not tho */
 	if (set_focus) {
 		if (!check_window_map_state(win, WIN_MAP_STATE_VIEWABLE)) {
 			return 0;

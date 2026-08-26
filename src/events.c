@@ -73,56 +73,43 @@ static int handle_button_press_event(const xcb_event_t *);
 static int handle_motion_notify(const xcb_event_t *);
 static int handle_button_release(const xcb_event_t *);
 
-/* array of xcb events we need to handle -> {event, handler function} */
+/* xcb event -> handler
+ * see https://xorg.freedesktop.org/releases/X11R7.7/doc/xproto/x11protocol.html */
 static const event_handler_entry_t _handlers_[] = {
-	/* map request - is generated when a window wants to be mapped (displayed) on the screen */
-    DEFINE_MAPPING(XCB_MAP_REQUEST, handle_map_request),
-	/* unmap request - is generated when a window wants to be unmapped (removed) from the screen */
-    DEFINE_MAPPING(XCB_UNMAP_NOTIFY, handle_unmap_notify),
-	/* destroy notify - is generated when a window is killed */
-    DEFINE_MAPPING(XCB_DESTROY_NOTIFY, handle_destroy_notify),
-	/* client message (ewmh):
-	 * These events are sent by other applications through ewmh protocol to zwm;
-	 * I am only responding to requests where:
-	 * 1- the state of the window is changed (below, above, or fullscreen only, rest is ignored)
-	 * 		this generates a _NET_WM_STATE message
-	 * 2- application wants to know where a window is located (_NET_ACTIVE_WINDOW),
-	 * 		as result, zwm switches to the desktop containing that window.
-	 * 3- application wants to close a window (issued by pagers)
-	 * 		this generates a NET_CLOSE_WINDOW message
-	 * 4- a desktop change was requested (usually through a status bar)
-	 * 		this generates _NET_CURRENT_DESKTOP message
-	 * 5- some application wants a window moved from one virtual desktop to another
-	 * 		this generates _NET_WM_DESKTOP message
-	 * other messages are ignored intentionally.*/
-    DEFINE_MAPPING(XCB_CLIENT_MESSAGE, handle_client_message),
-	/* configure request - this is used when a client wants to set or update its
-	 * rectangle/positions or stacking mode.
-	 * since zwm is a tiling wm, i am mostly ignoring this event even though it
-	 * reveals important info for splash screens */
-    DEFINE_MAPPING(XCB_CONFIGURE_REQUEST, handle_configure_request),
-	/* enter notify - is generated when a cursor enters a window, as a result,
-	 * i redirect the focus and do some book keeping for floating windows */
-    DEFINE_MAPPING(XCB_ENTER_NOTIFY, handle_enter_notify),
-	/* button press - is generated when a button is pressed, this event is handled
-	 * when focus_follow_pointer is set to false (the focus is redirected as a result) */
-    DEFINE_MAPPING(XCB_BUTTON_PRESS, handle_button_press_event),
-    /* key press - is generated when a key is pressed, this event allows certain
-     * actions to be performed when a key is pressed, and this is how
-	 * keybinds take action */
-    DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
-    /* mapping notify - is generated when keyboard mapping is changed,
-     * it only ungrab the re-grab the keys */
-    DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
-   	/* will be implemented if needed */
-    DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),
-    DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release),
-    /* DEFINE_MAPPING(XCB_LEAVE_NOTIFY, handle_leave_notify), */
-    /* DEFINE_MAPPING(XCB_KEY_RELEASE, handle_key_release), */
-    /* DEFINE_MAPPING(XCB_FOCUS_IN, handle_focus_in), */
-    /* DEFINE_MAPPING(XCB_FOCUS_OUT, handle_focus_out), */
-    /* DEFINE_MAPPING(XCB_CONFIGURE_NOTIFY, handle_configure_notify), */
-    DEFINE_MAPPING(XCB_PROPERTY_NOTIFY, handle_property_notify),
+	/* client asked to map a top-level window; WM decides how to show it */
+	DEFINE_MAPPING(XCB_MAP_REQUEST, handle_map_request),
+	/* window changed from mapped to unmapped */
+	DEFINE_MAPPING(XCB_UNMAP_NOTIFY, handle_unmap_notify),
+	/* window was destroyed */
+	DEFINE_MAPPING(XCB_DESTROY_NOTIFY, handle_destroy_notify),
+	/* message sent by another client; EWMH/ICCCM requests come through here */
+	DEFINE_MAPPING(XCB_CLIENT_MESSAGE, handle_client_message),
+	/* client asked to move, resize, or restack itself */
+	DEFINE_MAPPING(XCB_CONFIGURE_REQUEST, handle_configure_request),
+	/* pointer entered a window */
+	DEFINE_MAPPING(XCB_ENTER_NOTIFY, handle_enter_notify),
+	/* pointer button was pressed */
+	DEFINE_MAPPING(XCB_BUTTON_PRESS, handle_button_press_event),
+	/* key was pressed */
+	DEFINE_MAPPING(XCB_KEY_PRESS, handle_key_press),
+	/* keyboard mapping changed; key grabs may need a refresh here */
+	DEFINE_MAPPING(XCB_MAPPING_NOTIFY, handle_mapping_notify),
+	/* pointer moved */
+	DEFINE_MAPPING(XCB_MOTION_NOTIFY, handle_motion_notify),
+	/* pointer button was released */
+	DEFINE_MAPPING(XCB_BUTTON_RELEASE, handle_button_release),
+	/* pointer left a window */
+	/* DEFINE_MAPPING(XCB_LEAVE_NOTIFY, handle_leave_notify), */
+	/* key was released */
+	/* DEFINE_MAPPING(XCB_KEY_RELEASE, handle_key_release), */
+	/* input focus moved to a window */
+	/* DEFINE_MAPPING(XCB_FOCUS_IN, handle_focus_in), */
+	/* input focus moved away from a window */
+	/* DEFINE_MAPPING(XCB_FOCUS_OUT, handle_focus_out), */
+	/* window position, size, border, or stacking changed */
+	/* DEFINE_MAPPING(XCB_CONFIGURE_NOTIFY, handle_configure_notify), */
+	/* window property changed or was deleted */
+	DEFINE_MAPPING(XCB_PROPERTY_NOTIFY, handle_property_notify),
 };
 /* clang-format on */
 
@@ -247,7 +234,7 @@ handle_map_request(const xcb_event_t *event)
 		if (rule->desktop_id != -1) {
 			int target = rule->desktop_id - 1;
 			if (curr_monitor->desk->id != target) {
-				/* Insert into the target desktop, but do not map/focus now */
+				/* insert into the target desktop, but do not map/focus now */
 				ret = insert_into_desktop(
 					rule->desktop_id, win, rule->state == TILED);
 				if (ret != 0)
@@ -257,7 +244,7 @@ handle_map_request(const xcb_event_t *event)
 				is_visible = false;
 				goto out;
 			}
-			/* else: current desktop, fall through to normal logic below */
+			/* else, in current desktop, fall through to normal logic below */
 		}
 		/* for both cases, if a state is specified, use it */
 		if (rule->state == FLOATING) {
@@ -743,13 +730,13 @@ handle_client_message(const xcb_event_t *event)
 	switch (type) {
 	case CLIENT_MESSAGE_CURRENT_DESKTOP: {
 		_LOG_CLIENT_MESSAGE_(CURRENT_DESKTOP, win, name);
-		/* if a pager wants to switch to another virtual desktop, it MUST send
-		 * a _NET_CURRENT_DESKTOP client message to the root window */
+		/* bars/pagers use this to switch desktops. root window gets the msg. */
 		result = handle_net_desktop_change(ev->data.data32[0]);
 		break;
 	}
 	case CLIENT_MESSAGE_WINDOW_STATE: {
 		_LOG_CLIENT_MESSAGE_(WM_STATE, win, name);
+		/* client asks for fullscreen/above/below/etc. first data is action. */
 		size_t n = sizeof(ev->data.data32) / sizeof(ev->data.data32[0]);
 		for (size_t i = 0; i < n - 1; i++) {
 			uint32_t state = ev->data.data32[i + 1];
@@ -758,20 +745,15 @@ handle_client_message(const xcb_event_t *event)
 		break;
 	}
 	case CLIENT_MESSAGE_ACTIVE_WINDOW: {
-		/*  if a client wants to activate another window, it MUST send a
-		 * _NET_ACTIVE_WINDOW client message to the root window. I should just
-		 * switch to the desktop where the window is located */
+		/* app wants this win active, so jump to the desktop that owns it. */
 		_LOG_CLIENT_MESSAGE_(ACTIVE_WINDOW, win, name);
 		result = handle_net_active_window(win);
 		break;
 	}
 	case CLIENT_MESSAGE_WINDOW_DESKTOP: {
-		/* this is a request to move window from one destkop to another */
+		/* move win to another desktop, unless my rule already pinned it. */
 		_LOG_CLIENT_MESSAGE_(WM_DESKTOP, win, name);
 		uint32_t i = ev->data.data32[0];
-		/* if a rule pins this window to a specific desktop, don't let the
-		 * app override placement via _NET_WM_DESKTOP (like Firefox restoring
-		 * its last-used desktop on launch). */
 		rule_t	*r = get_window_rule(win);
 		if (r && r->desktop_id != -1) {
 			break;
@@ -780,8 +762,7 @@ handle_client_message(const xcb_event_t *event)
 		break;
 	}
 	case CLIENT_MESSAGE_CLOSE_WINDOW: {
-		/* pagers wanting to close a window MUST send a _NET_CLOSE_WINDOW client
-		 * message request to the root window */
+		/* pager/taskbar close button. try polite close, kill if needed */
 		_LOG_CLIENT_MESSAGE_(CLOSE_WINDOW, win, name);
 		close_or_kill(win);
 		break;

@@ -373,9 +373,8 @@ insert_floating_node(node_t *node, desktop_t *d)
 	node->node_type = EXTERNAL_NODE;
 }
 
-/* insert_node changes the given focused node type to be internal, and then
- * inserts a new node as its child, along with the current node's client as
- * another child. Both children share the parent node's rectangle. */
+/* split a leaf into an internal node.
+ * old client becomes first child, new client becomes second child */
 void
 insert_node(node_t *node, node_t *new_node, layout_t layout)
 {
@@ -396,11 +395,11 @@ insert_node(node_t *node, node_t *new_node, layout_t layout)
 		return;
 	}
 
-	/* change the node type to INTERNAL if it isn't ROOT */
+	/* root keeps ROOT_NODE type, other leaves become internal split nodes */
 	if (!IS_ROOT(node))
 		node->node_type = INTERNAL_NODE;
 
-	/* check if the node is floating and should retain its rectangle*/
+	/* floating client must keep its own saved rect after the split */
 	bool move_rect = false;
 	if (IS_FLOATING(node->client)) {
 		move_rect = true;

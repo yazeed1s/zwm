@@ -293,6 +293,8 @@ set_fullscreen_wrapper(arg_t *arg)
 int
 set_fullscreen(node_t *n, bool flag)
 {
+	/* fullscreen touches too many things
+	 * x geometry, border, EWMH state, view visibility and input focus */
 	if (n == NULL || n->client == NULL)
 		return -1;
 
@@ -363,6 +365,8 @@ set_fullscreen(node_t *n, bool flag)
 		return -1;
 	}
 out:
+	/* fullscreen request can target a window on hidden desktop.
+	 * update its state, then hide it again. */
 	if (!_active) {
 		if (set_desktop_visibility(n->client->window, false) != 0)
 			return -1;

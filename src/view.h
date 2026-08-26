@@ -35,21 +35,7 @@
 #include "type.h"
 #include <stdbool.h>
 
-/*
- * layout policy:
- *   DEFAULT, MASTER, STACK, GRID, and THREE_COL are normal visible layouts.
- *   In these layouts every tiled window should stay mapped.  logical_focus is
- *   still remembered, but it is used for the selected window / border / MRU,
- *   not for hiding other tiled windows.
- *
- *   MONOCLE and DECK are hidden layouts.  MONOCLE maps only logical_focus.
- *   DECK maps the master window plus logical_focus from the deck side.  If the
- *   saved focus is gone or not valid for the layout, view.c picks a fallback.
- *
- * Floating windows are shown in all layouts.  This file renders them, but it
- * does not raise them.  The final order belongs to restack() which decides the
- * Z order.
- */
+/* layout visibility lives in view.c; restack() owns Z order */
 
 /* clang-format off */
 leaf_visibility_t _leaf_visibility_(desktop_t *d, node_t *leaf);

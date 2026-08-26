@@ -709,6 +709,9 @@ focus_modal_transient(desktop_t *d, node_t *n)
 int
 handle_floating_window(client_t *client, desktop_t *d)
 {
+	/* floating is not just "tile=false".
+	 * dialogs/transients can take real focus, but hidden layouts still need
+	 * their old tiled logical_focus or monocle/deck jumps around. */
 #ifdef _DEBUG__
 	char *name = win_name(client->window);
 	_LOG_(DEBUG, "handling floating window %s id %d", name, client->window);
@@ -789,8 +792,8 @@ handle_floating_window(client_t *client, desktop_t *d)
 		update_net_wm_desktop(client->window, d->id);
 		ewmh_update_client_list();
 		client->mru_seq = get_next_mru_seq(curr_monitor);
-		/* Modal/transient windows block their parent, so they get real input
-		 * focus without becoming the hidden layout logical tiled selection. */
+		/* modal/transient blocks parent. focus it for real, but do not make
+		 * it the hidden layout tiled selection. */
 		if (modal_transient) {
 			int ret = _render_view_(d);
 			if (ret == 0)
@@ -798,9 +801,8 @@ handle_floating_window(client_t *client, desktop_t *d)
 			_flush_view_(d);
 			return ret;
 		}
-		/* iff floating spawn do NOT touch logical focus for MONOCLE/DECK so the
-		 * tiled selection survives this mess. Visible layouts treat floating as
-		 * logical focus since there is no hidden window rule to protect */
+		/* floating spawn must not steal logical_focus in monocle/deck.
+		 * normal layouts are fine, they dont hide tiled windows. */
 		if (d->layout != MONOCLE && d->layout != DECK)
 			_focus_node_(d, new_node);
 		int ret = _render_view_(d);
