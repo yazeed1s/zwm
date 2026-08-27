@@ -6,7 +6,7 @@ LDFLAGS = -Wl,--as-needed -lxcb -lxcb-util -lxcb-keysyms -lxcb-ewmh -lxcb-icccm 
 
 TARGET = zwm
 SRC_DIR = ./src
-TOOLS_DIR = ./tools
+# TOOLS_DIR = ./tools
 SRC_FILES = $(SRC_DIR)/actions.c $(SRC_DIR)/bindings.c $(SRC_DIR)/client.c \
             $(SRC_DIR)/config_parser.c $(SRC_DIR)/cursor.c $(SRC_DIR)/desktop.c \
             $(SRC_DIR)/drag.c $(SRC_DIR)/events.c $(SRC_DIR)/ewmh.c \
@@ -24,7 +24,8 @@ HEADER_FILES = $(SRC_DIR)/actions.h $(SRC_DIR)/bindings.h $(SRC_DIR)/client.h \
 OBJ_FILES = $(SRC_FILES:.c=.o)
 SINGLE_FILE = $(SRC_DIR)/zwm_single.c
 SINGLE_TARGET = zwm_single
-AMALGAMATE = $(TOOLS_DIR)/merge.pl
+#AMALGAMATE = $(TOOLS_DIR)/merge.pl
+AMALGAMATE = merge.pl
 LICENSE_FILE = LICENSE
 
 PREFIX = /usr
